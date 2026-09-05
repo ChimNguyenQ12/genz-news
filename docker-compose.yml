@@ -15,6 +15,10 @@ services:
     image: genz-news-migrator
     container_name: genz-news-migrate
     restart: "no"
+    # Bắt buộc chạy đúng uid của app, nếu không tệp .db do migrate tạo ra sẽ
+    # thuộc root và app (user node) mở được nhưng không ghi được —
+    # lỗi hiện ra là "attempt to write a readonly database".
+    user: "1000:1000"
     volumes: *data-volume
     environment:
       DATA_DIR: /app/data
