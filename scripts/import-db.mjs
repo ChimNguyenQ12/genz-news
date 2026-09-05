@@ -14,7 +14,7 @@ const { PrismaClient } = pkg;
 const dbPath =
   process.env.DATABASE_PATH ?? path.join(process.cwd(), "data", "app.db");
 const prisma = new PrismaClient({
-  adapter: new PrismaBetterSqlite3({ url: `file:${dbPath}` }),
+  adapter: new PrismaBetterSqlite3({ url: dbPath }),
 });
 
 const file = path.join(process.cwd(), "data", "export.json");

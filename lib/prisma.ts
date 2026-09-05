@@ -18,7 +18,10 @@ const globalForPrisma = globalThis as unknown as {
 function createClient() {
   fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
   return new PrismaClient({
-    adapter: new PrismaBetterSqlite3({ url: `file:${DB_PATH}` }),
+    // better-sqlite3 nhận ĐƯỜNG DẪN THUẦN. Thêm tiền tố "file:" thì nó mở
+    // được để đọc nhưng ghi báo SQLITE_READONLY — lỗi rất khó lần ra.
+    // (Tiền tố "file:" chỉ dùng cho prisma.config.ts, là định dạng của CLI.)
+    adapter: new PrismaBetterSqlite3({ url: DB_PATH }),
     log: process.env.NODE_ENV === "development" ? ["warn", "error"] : ["error"],
   });
 }
