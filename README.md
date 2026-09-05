@@ -1,23 +1,36 @@
 # GenZ News — trang tin quốc tế cho Gen Z Việt Nam
 
-Next.js 16 (App Router) + TypeScript + Tailwind 4 + **PostgreSQL qua Prisma**.
+Next.js 16 (App Router) + TypeScript + Tailwind 4 + **SQLite qua Prisma**.
+
+- Production: <https://genz-news.site>
+- Máy chủ nghe ở `127.0.0.1:5006`, nginx đứng ngoài lo TLS.
 
 ## Chạy dự án
 
 ```bash
-cp .env.example .env          # rồi copy tiếp thành .env.local
-npm install                   # tự chạy prisma generate
-npm run db:up                 # bật PostgreSQL bằng Docker
-npm run db:migrate            # tạo bảng
-npm run dev                   # http://localhost:3000
+npm install            # tự chạy prisma generate
+npm run db:migrate     # tạo tệp data/app.db và các bảng
+npm run dev            # http://localhost:3000
 ```
 
+Không cần `.env`. Mọi biến đều có giá trị mặc định hợp lý; khoá ký phiên tự sinh
+một lần rồi cất trong `data/session-secret`.
+
 - Trang công khai: `/`
-- Toà soạn (CMS): `/admin` — mặc định **admin / admin**
+- Khu quản trị: `/admin` — mặc định **admin / admin**
 
 ## Cơ sở dữ liệu
 
-PostgreSQL 17, truy cập qua Prisma. Schema ở [`prisma/schema.prisma`](prisma/schema.prisma).
+SQLite, một tệp ở `data/app.db`, truy cập qua Prisma.
+Schema ở [`prisma/schema.prisma`](prisma/schema.prisma).
+
+**Vì sao SQLite:** trang tin một máy chủ, chỉ biên tập viên ghi còn độc giả chỉ
+đọc, dữ liệu vài nghìn bản ghi. SQLite bỏ được một container, một tiến trình và
+một chuỗi kết nối; sao lưu là copy một tệp. Đổi sang Postgres khi thật sự cần
+nhiều instance ghi song song hoặc replica đọc.
+
+SQLite không có kiểu mảng và enum, nên các danh sách (`tags`, `coverGradient`,
+`urls`) lưu chuỗi JSON và được quy đổi trong `lib/store.ts` / `lib/queue.ts`.
 
 | Bảng | Nội dung |
 |---|---|
@@ -30,26 +43,11 @@ PostgreSQL 17, truy cập qua Prisma. Schema ở [`prisma/schema.prisma`](prisma
 ### Lệnh thường dùng
 
 ```bash
-npm run db:up          # bật Postgres (docker compose)
-npm run db:down        # tắt
-npm run db:migrate     # tạo migration mới ở môi trường dev
-npm run db:deploy      # áp migration ở production
+npm run db:migrate     # tạo migration mới khi đổi schema
+npm run db:deploy      # áp migration (container tự chạy lúc khởi động)
 npm run db:studio      # giao diện xem/sửa dữ liệu
-npm run db:import-json # nạp dữ liệu từ file JSON cũ (chạy một lần)
+npm run db:import      # nạp lại từ data/export.json
 ```
-
-Local Postgres chạy ở cổng **5433** (tránh đụng Postgres sẵn có trên máy).
-
-### Lên production
-
-Đổi `DATABASE_URL` sang Postgres thật (RDS, Neon, Supabase...) rồi:
-
-```bash
-npm run db:deploy
-```
-
-Đổi sang MySQL/SQLite chỉ cần sửa `provider` trong `schema.prisma` và cài
-adapter tương ứng — code truy vấn giữ nguyên.
 
 ## Soạn thảo & tải file
 
@@ -57,7 +55,8 @@ Nội dung bài dùng trình soạn thảo trực quan (Tiptap): in đậm/nghi�
 tiêu đề H2–H3, danh sách, trích dẫn, căn lề, chèn link, hoàn tác/làm lại.
 
 Ảnh và video **tải trực tiếp từ máy** (nút 🖼 trên thanh công cụ, hoặc nút
-"Tải ảnh lên" ở ô ảnh bìa). File lưu tại `public/uploads/YYYY/MM/`.
+"Tải ảnh lên" ở ô ảnh bìa). File đẩy thẳng lên **S3** (`s3://genz-news`,
+key `uploads/YYYY/MM/<uuid>.<ext>`), không lưu trên đĩa máy chủ.
 
 | Loại | Định dạng | Dung lượng tối đa |
 |---|---|---|
@@ -70,9 +69,9 @@ Nội dung được lưu dưới dạng HTML và **làm sạch bằng `sanitize-
 server** trước khi ghi — chặn XSS từ nội dung do người dùng gửi lên. Chỉ cho
 nhúng iframe từ YouTube và Vimeo.
 
-**Lưu ý khi deploy:** `public/uploads/` nằm trên đĩa máy chủ. Trên VPS thì ổn;
-nếu chạy nhiều instance hoặc serverless, hãy chuyển sang S3/R2 — chỉ cần sửa
-`app/api/upload/route.ts`.
+Tên tệp do server sinh (UUID) và **kiểm magic bytes** chứ không tin phần mở rộng
+hay `Content-Type` client khai. Trên EC2 dùng profile AWS mount chỉ đọc từ
+`/root/.aws`; có IAM role thì bỏ mount đi, an toàn hơn.
 
 ## Dịch Anh ↔ Việt trên từng bài
 
@@ -125,22 +124,49 @@ Vòng đời bài: `nháp → chờ duyệt → đã đăng`, hoặc `chờ duy�
 - `/admin` — khu làm việc (tiêu đề đổi theo vai trò)
 - `/admin/tai-khoan` — đổi mật khẩu
 
-### Thiết lập trước khi deploy
+### Biến môi trường (đều tuỳ chọn)
 
-Tài khoản admin được tạo tự động ở lần chạy đầu từ biến môi trường
-(mặc định **admin / admin**). Tạo `.env.local`:
+| biến | mặc định | dùng khi |
+|---|---|---|
+| `ADMIN_USER` / `ADMIN_PASSWORD` | `admin` / `admin` | chỉ áp dụng khi bảng `users` chưa có admin nào |
+| `ADMIN_SESSION_SECRET` | tự sinh vào `data/session-secret` | muốn xoay khoá, hoặc chạy nhiều instance |
+| `ALLOW_REGISTRATION` | `1` | đặt `0` để đóng đăng ký công khai |
+| `S3_BUCKET` / `AWS_REGION` / `AWS_PROFILE` | `genz-news` / `us-east-1` / `s3-full-sandbox` | đổi kho lưu ảnh |
+| `YOUTUBE_API_KEY` | trống | bật nguồn YouTube Trending |
+| `DATABASE_PATH` | `data/app.db` | đổi vị trí tệp SQLite |
+
+Tài khoản admin đã tồn tại thì đổi mật khẩu trong `/admin/tai-khoan`, sửa biến
+môi trường không còn tác dụng.
+
+## Deploy
+
+Kiến trúc theo [setup.md](setup.md):
 
 ```
-ADMIN_USER=ten_dang_nhap
-ADMIN_PASSWORD=mat_khau_manh
-ADMIN_SESSION_SECRET=chuoi_ngau_nhien_dai
-ALLOW_REGISTRATION=0     # đóng đăng ký công khai nếu cần
+Internet ──443──> nginx (host) ──proxy──> 127.0.0.1:5006 ──> container
+                                                               │
+                              /srv/genz-news/data ─bind mount───┘
 ```
 
-Sinh secret: `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`
+Lần đầu, deploy tay để thấy lỗi trên terminal của mình:
 
-**Lưu ý:** biến môi trường chỉ có tác dụng khi bảng `users` chưa có admin nào.
-Nếu tài khoản admin đã tồn tại, hãy đổi mật khẩu trong `/admin/tai-khoan`.
+```bash
+# trên máy chủ
+mkdir -p /srv/genz-news/data && chown -R 1000:1000 /srv/genz-news/data
+git clone <repo> /srv/genz-news/repo && cd /srv/genz-news/repo
+docker-compose up -d --build
+curl -fsS http://127.0.0.1:5006/api/health
+
+sudo ./deploy/setup-nginx.sh genz-news.site
+```
+
+Sau đó CI lo phần còn lại: [`.gitlab-ci.yml`](.gitlab-ci.yml) chạy lint rồi
+deploy, có chờ healthcheck nên pipeline không báo xanh trong lúc site 502.
+Runner cần thẻ **`genz-news-deploy`**, executor `shell`, và nằm trong nhóm
+`docker`.
+
+Sao lưu: [`deploy/backup-to-s3.sh`](deploy/backup-to-s3.sh) chụp SQLite bằng
+`.backup`, nén, mã hoá GPG rồi đẩy lên S3. Đặt vào cron 3h sáng.
 
 ## Thu thập xu hướng tự động
 
