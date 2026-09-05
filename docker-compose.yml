@@ -38,8 +38,11 @@ services:
       # Ở máy nhà đặt APP_DATA_DIR=./data để không đụng dữ liệu thật.
       - ${APP_DATA_DIR:-/srv/genz-news/data}:/app/data
       # Khoá AWS để đẩy ảnh/video lên S3. Chỉ đọc.
-      # Có IAM role gắn vào EC2 thì bỏ dòng này đi — an toàn hơn.
-      - ${AWS_DIR:-/root/.aws}:/home/node/.aws:ro
+      # Thư mục này phải thuộc uid 1000 (user node trong container), vì
+      # ~/.aws của root có quyền 600 nên container không đọc được:
+      #   cp -r /root/.aws /srv/<app>/aws && chown -R 1000:1000 /srv/<app>/aws
+      # Có IAM role gắn vào EC2 thì bỏ hẳn mount này — an toàn hơn.
+      - ${AWS_DIR:-/srv/genz-news/aws}:/home/node/.aws:ro
     environment:
       NODE_ENV: production
       DATA_DIR: /app/data
