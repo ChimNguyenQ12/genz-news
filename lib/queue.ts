@@ -22,24 +22,35 @@ export interface ResearchRequest {
 type RequestRow = {
   id: string;
   topic: string;
-  urls: string[];
+  urls: string;
   notes: string;
   status: string;
   reporterNote: string | null;
-  articleIds: string[];
+  articleIds: string;
   createdAt: Date;
   updatedAt: Date;
 };
+
+/** SQLite không có kiểu mảng — danh sách lưu dưới dạng chuỗi JSON. */
+function parseList(value: string | null | undefined): string[] {
+  if (!value) return [];
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed.map(String) : [];
+  } catch {
+    return [];
+  }
+}
 
 function toRequest(row: RequestRow): ResearchRequest {
   return {
     id: row.id,
     topic: row.topic,
-    urls: row.urls,
+    urls: parseList(row.urls),
     notes: row.notes,
     status: row.status as RequestStatus,
     reporterNote: row.reporterNote ?? undefined,
-    articleIds: row.articleIds,
+    articleIds: parseList(row.articleIds),
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };
@@ -60,7 +71,7 @@ export async function createRequest(input: {
   const row = await prisma.researchRequest.create({
     data: {
       topic: input.topic,
-      urls: input.urls ?? [],
+      urls: JSON.stringify(input.urls ?? []),
       notes: input.notes ?? "",
       status: "pending",
     },
@@ -77,13 +88,15 @@ export async function updateRequest(
       where: { id },
       data: {
         ...(patch.topic !== undefined ? { topic: patch.topic } : {}),
-        ...(patch.urls !== undefined ? { urls: patch.urls } : {}),
+        ...(patch.urls !== undefined ? { urls: JSON.stringify(patch.urls) } : {}),
         ...(patch.notes !== undefined ? { notes: patch.notes } : {}),
         ...(patch.status !== undefined ? { status: patch.status } : {}),
         ...(patch.reporterNote !== undefined
           ? { reporterNote: patch.reporterNote || null }
           : {}),
-        ...(patch.articleIds !== undefined ? { articleIds: patch.articleIds } : {}),
+        ...(patch.articleIds !== undefined
+          ? { articleIds: JSON.stringify(patch.articleIds) }
+          : {}),
       },
     });
     return toRequest(row);

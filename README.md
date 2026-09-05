@@ -1,4 +1,4 @@
-# GenZ Now — trang tin quốc tế cho Gen Z Việt Nam
+# GenZ News — trang tin quốc tế cho Gen Z Việt Nam
 
 Next.js 16 (App Router) + TypeScript + Tailwind 4 + **PostgreSQL qua Prisma**.
 
@@ -73,6 +73,22 @@ nhúng iframe từ YouTube và Vimeo.
 **Lưu ý khi deploy:** `public/uploads/` nằm trên đĩa máy chủ. Trên VPS thì ổn;
 nếu chạy nhiều instance hoặc serverless, hãy chuyển sang S3/R2 — chỉ cần sửa
 `app/api/upload/route.ts`.
+
+## Dịch Anh ↔ Việt trên từng bài
+
+Trang mặc định tiếng Việt. Mỗi bài có trường **Ngôn ngữ bài** (`vi` hoặc `en`)
+trong editor, quyết định chiều dịch hiện cho người đọc.
+
+Dưới phần meta của bài có nút dịch. Bấm là dịch tại chỗ, bấm lần nữa về bản gốc.
+
+- Dùng **Translator API có sẵn của trình duyệt** — Chrome 138+ hoặc Edge 148+.
+  Mô hình chạy trên máy người đọc: không tốn phí API, không gửi nội dung đi đâu.
+- **Không lưu bản dịch.** Chỉ đổi chữ trên DOM, tải lại trang là về bản gốc.
+- **Giữ nguyên format**: chỉ thay text node, không đụng thẻ HTML, nên ảnh, video,
+  danh sách, trích dẫn giữ nguyên bố cục.
+- Firefox/Safari chưa hỗ trợ — hiện dòng nhắc dùng Chrome/Edge thay vì nút.
+- Có timeout: nếu mô hình chưa tải xong hoặc trình duyệt không phản hồi, báo lỗi
+  rõ ràng và giữ nguyên bản gốc chứ không treo.
 
 ## Bình luận
 

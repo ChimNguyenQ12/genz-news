@@ -31,7 +31,7 @@ export default function AdminNav({ user }: { user: PublicUser }) {
               GZ
             </span>
             <span className="font-display hidden text-sm font-black tracking-tight sm:block">
-              GenZ<span className="text-accent"> Now</span>
+              GenZ<span className="text-accent"> News</span>
             </span>
           </Link>
           <nav className="no-scrollbar flex items-center gap-1 overflow-x-auto">

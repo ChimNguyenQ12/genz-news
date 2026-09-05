@@ -1,21 +1,32 @@
-services:
-  db:
-    image: postgres:17-alpine
-    container_name: genznow-db
-    restart: unless-stopped
-    environment:
-      POSTGRES_USER: genznow
-      POSTGRES_PASSWORD: genznow_dev
-      POSTGRES_DB: genznow
-    ports:
-      - "5433:5432"
-    volumes:
-      - genznow-pgdata:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U genznow -d genznow"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
+# Ghim tên project để deploy tay và deploy qua runner không sinh ra
+# hai project khác nhau (compose mặc định suy tên từ tên thư mục).
+name: genz-news
 
-volumes:
-  genznow-pgdata:
+services:
+  app:
+    build: .
+    container_name: genz-news
+    restart: unless-stopped
+    # Chỉ nghe trên loopback; nginx ở host lo TLS và mở ra Internet.
+    ports:
+      - "127.0.0.1:5006:3000"
+    volumes:
+      # Trên máy chủ để trống → dùng đường tuyệt đối ngoài checkout.
+      # Ở máy nhà đặt APP_DATA_DIR=./data để không đụng dữ liệu thật.
+      - ${APP_DATA_DIR:-/srv/genz-news/data}:/app/data
+      # Khoá AWS để đẩy ảnh/video lên S3. Chỉ đọc.
+      # Có IAM role gắn vào EC2 thì bỏ dòng này đi — an toàn hơn.
+      - ${AWS_DIR:-/root/.aws}:/home/node/.aws:ro
+    environment:
+      NODE_ENV: production
+      DATA_DIR: /app/data
+      DATABASE_PATH: /app/data/app.db
+      # S3 cho ảnh/video.
+      S3_BUCKET: ${S3_BUCKET:-genz-news}
+      AWS_REGION: ${AWS_REGION:-us-east-1}
+      AWS_PROFILE: ${AWS_PROFILE:-s3-full-sandbox}
+      AWS_SDK_LOAD_CONFIG: "1"
+      # Khoá phiên: để trống thì app tự sinh và cất trong /app/data.
+      ADMIN_SESSION_SECRET: ${ADMIN_SESSION_SECRET:-}
+      ALLOW_REGISTRATION: ${ALLOW_REGISTRATION:-1}
+      YOUTUBE_API_KEY: ${YOUTUBE_API_KEY:-}

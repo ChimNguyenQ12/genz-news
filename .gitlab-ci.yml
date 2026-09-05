@@ -1,0 +1,61 @@
+# CI/CD cho GenZ News.
+#
+# Runner: shell executor, thẻ genz-news-deploy, có quyền gọi docker.
+# Cả hai job dùng chung một thẻ — job mang thẻ không runner nào nhận sẽ nằm
+# chờ mãi, và vì các stage chạy tuần tự, lint treo thì deploy không tới lượt.
+
+variables:
+  # KHÔNG dùng -ffdx: nó xoá cả tệp bị gitignore.
+  GIT_CLEAN_FLAGS: "-ffd"
+  APP_PORT: "5006"
+
+stages:
+  - lint
+  - deploy
+
+lint:
+  stage: lint
+  tags: [genz-news-deploy]
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH == "main"'
+  script:
+    # Chạy trong container Node để không phụ thuộc Node cài trên host.
+    - |
+      docker run --rm -v "$CI_PROJECT_DIR":/app -w /app node:22-bookworm-slim sh -c '
+        npm ci --legacy-peer-deps --ignore-scripts &&
+        npx prisma generate &&
+        npm run lint &&
+        npx tsc --noEmit
+      '
+
+deploy:
+  stage: deploy
+  tags: [genz-news-deploy]
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+  script:
+    # Bí mật tuỳ chọn. Để trống cũng chạy được: app tự sinh khoá phiên và
+    # cất vào thư mục data.
+    - |
+      {
+        printf 'ADMIN_SESSION_SECRET=%s\n' "${ADMIN_SESSION_SECRET:-}"
+        printf 'YOUTUBE_API_KEY=%s\n'      "${YOUTUBE_API_KEY:-}"
+        printf 'S3_BUCKET=%s\n'            "${S3_BUCKET:-genz-news}"
+        printf 'AWS_REGION=%s\n'           "${AWS_REGION:-us-east-1}"
+        printf 'AWS_PROFILE=%s\n'          "${AWS_PROFILE:-s3-full-sandbox}"
+      } > .env
+    - docker-compose up -d --build --remove-orphans
+    - docker image prune -f
+    # Chờ tới khi app thật sự trả lời, nếu không pipeline xanh trong lúc site 502.
+    - |
+      for i in $(seq 1 60); do
+        if curl -fsS "http://127.0.0.1:${APP_PORT}/api/health" > /dev/null; then
+          echo "healthcheck OK sau ${i}s"
+          exit 0
+        fi
+        sleep 1
+      done
+      echo "App không phản hồi sau 60s — log 80 dòng cuối:"
+      docker-compose logs --tail=80
+      exit 1

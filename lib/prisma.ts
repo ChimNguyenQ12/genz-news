@@ -1,21 +1,24 @@
+import path from "path";
+import fs from "fs";
 import { PrismaClient } from "@prisma/client";
-import { PrismaPg } from "@prisma/adapter-pg";
+import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
 
-// Next.js hot-reload nạp lại module liên tục ở chế độ dev, nên phải giữ một
-// instance duy nhất để không mở tràn connection tới Postgres.
+/**
+ * SQLite một tệp. Đường dẫn mặc định nằm trong thư mục data của dự án;
+ * trên máy chủ, docker-compose bind mount /srv/<app>/data vào /app/data.
+ * Đặt DATABASE_PATH nếu muốn để chỗ khác — không bắt buộc có .env.
+ */
+const DB_PATH =
+  process.env.DATABASE_PATH ?? path.join(process.cwd(), "data", "app.db");
+
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
 };
 
 function createClient() {
-  const connectionString = process.env.DATABASE_URL;
-  if (!connectionString) {
-    throw new Error(
-      "Thiếu DATABASE_URL. Sao chép .env.example thành .env rồi điền chuỗi kết nối.",
-    );
-  }
+  fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
   return new PrismaClient({
-    adapter: new PrismaPg({ connectionString }),
+    adapter: new PrismaBetterSqlite3({ url: `file:${DB_PATH}` }),
     log: process.env.NODE_ENV === "development" ? ["warn", "error"] : ["error"],
   });
 }
@@ -23,3 +26,5 @@ function createClient() {
 export const prisma = globalForPrisma.prisma ?? createClient();
 
 if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
+
+export { DB_PATH };

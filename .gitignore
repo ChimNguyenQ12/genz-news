@@ -40,10 +40,9 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# dữ liệu chạy thật — nội dung nay nằm trong PostgreSQL
-/data/trends-digest.json
-# file JSON cũ trước khi chuyển sang DB (chứa hash mật khẩu) — không commit
-/data/legacy-json/
+# Dữ liệu chạy thật: SQLite, khoá phiên, dữ liệu thô. Trên máy chủ thư mục này
+# là bind mount tới /srv/<app>/data, nằm NGOÀI thư mục checkout.
+/data/
 
 # file người dùng tải lên
-/public/uploads/
+# ảnh/video giờ nằm trên S3, không còn lưu trên đĩa

@@ -1,31 +1,19 @@
-// Schema cơ sở dữ liệu cho GenZ Now.
-// Đổi provider sang "mysql" / "sqlite" nếu cần — phần code truy vấn giữ nguyên.
+// Cơ sở dữ liệu GenZ News — SQLite, một tệp nằm trong thư mục data.
+//
+// Vì sao SQLite: trang tin một máy chủ, lượng ghi thấp (chỉ biên tập viên ghi,
+// độc giả chỉ đọc), dữ liệu vài nghìn bản ghi. SQLite bỏ hẳn một container,
+// một tiến trình và một chuỗi kết nối; sao lưu là copy một tệp.
+//
+// Lưu ý SQLite không có kiểu mảng và enum, nên:
+//   - các trường danh sách lưu chuỗi JSON, quy đổi ở lib/store.ts
+//   - enum lưu chuỗi, chặn giá trị sai ở tầng API
 
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "postgresql"
-}
-
-enum Role {
-  admin
-  contributor
-}
-
-enum ArticleStatus {
-  draft
-  pending
-  published
-  rejected
-}
-
-enum RequestStatus {
-  pending
-  in_progress
-  done
-  rejected
+  provider = "sqlite"
 }
 
 model User {
@@ -34,7 +22,8 @@ model User {
   displayName  String
   passwordHash String
   salt         String
-  role         Role     @default(contributor)
+  /// "admin" | "contributor"
+  role         String   @default("contributor")
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -45,27 +34,29 @@ model User {
 }
 
 model Article {
+  id    String @id @default(uuid())
   slug  String @unique
   title String
   dek   String @default("")
 
-  id       String        @id @default(uuid())
   category String
-  status   ArticleStatus @default(draft)
-
-  /// Ngôn ngữ gốc của bài: "vi" hoặc "en". Dùng để biết dịch theo chiều nào.
+  /// "draft" | "pending" | "published" | "rejected"
+  status String @default("draft")
+  /// "vi" | "en" — ngôn ngữ gốc, quyết định chiều dịch
   language String @default("vi")
 
-  /// Nội dung HTML đã được làm sạch trước khi lưu.
+  /// Nội dung HTML đã làm sạch trước khi lưu.
   body String @default("")
 
-  tags   String[] @default([])
+  /// Mảng JSON: ["AI","Việc làm"]
+  tags   String @default("[]")
   author String
 
   authorId String?
   user     User?   @relation(fields: [authorId], references: [id], onDelete: SetNull)
 
-  coverGradient     String[] @default(["#7C3AED", "#22D3EE"])
+  /// Mảng JSON 2 phần tử: ["#7C3AED","#22D3EE"]
+  coverGradient     String  @default("[\"#7C3AED\",\"#22D3EE\"]")
   coverImage        String?
   coverImageCaption String?
 
@@ -104,8 +95,7 @@ model Source {
   @@map("sources")
 }
 
-/// Bình luận. Chỉ cho trả lời 1 tầng: reply luôn trỏ về comment gốc,
-/// không có reply-của-reply (ràng buộc này được kiểm ở tầng API).
+/// Bình luận. Trả lời chỉ 1 tầng: reply luôn trỏ về comment gốc.
 model Comment {
   id   String @id @default(uuid())
   body String
@@ -130,13 +120,16 @@ model Comment {
 }
 
 model ResearchRequest {
-  id           String        @id @default(uuid())
-  topic        String
-  urls         String[]      @default([])
-  notes        String        @default("")
-  status       RequestStatus @default(pending)
+  id    String @id @default(uuid())
+  topic String
+  /// Mảng JSON các link gợi ý.
+  urls  String @default("[]")
+  notes String @default("")
+  /// "pending" | "in_progress" | "done" | "rejected"
+  status       String  @default("pending")
   reporterNote String?
-  articleIds   String[]      @default([])
+  /// Mảng JSON id các bài đã tạo từ đề tài này.
+  articleIds String @default("[]")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

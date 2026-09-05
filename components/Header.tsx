@@ -17,7 +17,7 @@ export default function Header({ user }: { user: PublicUser | null }) {
             GZ
           </span>
           <span className="font-display text-xl font-black tracking-tight">
-            GenZ<span className="text-accent"> Now</span>
+            GenZ<span className="text-accent"> News</span>
           </span>
         </Link>
 

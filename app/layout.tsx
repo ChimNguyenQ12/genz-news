@@ -8,7 +8,7 @@ const beVietnamPro = Be_Vietnam_Pro({
   weight: ["400", "500", "600", "700", "800", "900"],
 });
 
-const SITE_NAME = "GenZ Now";
+const SITE_NAME = "GenZ News";
 const SITE_DESC =
   "Tin tức quốc tế được chắt lọc, biên tập lại và trích dẫn nguồn rõ ràng — đọc nhanh, hiểu sâu.";
 

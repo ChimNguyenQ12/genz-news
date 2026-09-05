@@ -21,6 +21,24 @@ export function slugify(input: string) {
     .slice(0, 80);
 }
 
+/** SQLite không có kiểu mảng nên các danh sách lưu dưới dạng chuỗi JSON. */
+function parseList(value: string | null | undefined, fallback: string[] = []): string[] {
+  if (!value) return fallback;
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed.map(String) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+const DEFAULT_GRADIENT: [string, string] = ["#7C3AED", "#22D3EE"];
+
+function parseGradient(value: string | null | undefined): [string, string] {
+  const list = parseList(value);
+  return list.length === 2 ? [list[0], list[1]] : DEFAULT_GRADIENT;
+}
+
 /** Kiểu bản ghi Prisma trả về kèm quan hệ sources. */
 type ArticleRow = Awaited<
   ReturnType<typeof prisma.article.findFirstOrThrow<{ include: { sources: true } }>>
@@ -33,8 +51,8 @@ function toArticle(row: ArticleRow): Article {
     title: row.title,
     dek: row.dek,
     category: row.category as CategorySlug,
-    tags: row.tags,
-    coverGradient: [row.coverGradient[0], row.coverGradient[1]] as [string, string],
+    tags: parseList(row.tags),
+    coverGradient: parseGradient(row.coverGradient),
     coverImage: row.coverImage ?? undefined,
     coverImageCaption: row.coverImageCaption ?? undefined,
     author: row.author,
@@ -114,8 +132,8 @@ export async function createArticle(
       title: input.title,
       dek: input.dek,
       category: input.category,
-      tags: input.tags,
-      coverGradient: input.coverGradient,
+      tags: JSON.stringify(input.tags),
+      coverGradient: JSON.stringify(input.coverGradient),
       coverImage: input.coverImage ?? null,
       coverImageCaption: input.coverImageCaption ?? null,
       author: input.author,
@@ -168,9 +186,9 @@ export async function updateArticle(
         ...(patch.title !== undefined ? { title: patch.title } : {}),
         ...(patch.dek !== undefined ? { dek: patch.dek } : {}),
         ...(patch.category !== undefined ? { category: patch.category } : {}),
-        ...(patch.tags !== undefined ? { tags: patch.tags } : {}),
+        ...(patch.tags !== undefined ? { tags: JSON.stringify(patch.tags) } : {}),
         ...(patch.coverGradient !== undefined
-          ? { coverGradient: patch.coverGradient }
+          ? { coverGradient: JSON.stringify(patch.coverGradient) }
           : {}),
         ...(patch.coverImage !== undefined
           ? { coverImage: patch.coverImage || null }

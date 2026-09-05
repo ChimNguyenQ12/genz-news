@@ -1,4 +1,4 @@
-# GenZ Now — Hiến chương toà soạn (đọc trước khi viết bất kỳ bài nào)
+# GenZ News — Hiến chương toà soạn (đọc trước khi viết bất kỳ bài nào)
 
 Đây là trang tin quốc tế dành cho Gen Z Việt Nam. Claude Code đóng vai
 **phóng viên/biên tập viên**; chủ trang là **tổng biên tập** — người duy nhất

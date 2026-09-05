@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server";
-import fs from "fs/promises";
-import path from "path";
-import crypto from "crypto";
 import { getSessionUser } from "@/lib/auth";
+import { uploadToS3 } from "@/lib/storage";
 
 /** Loại file cho phép → phần mở rộng do server tự đặt (không tin tên file client gửi). */
 const ALLOWED: Record<string, { ext: string; kind: "image" | "video"; maxMB: number }> = {
@@ -82,19 +80,14 @@ export async function POST(request: Request) {
     );
   }
 
-  const now = new Date();
-  const dir = path.join(
-    process.cwd(),
-    "public",
-    "uploads",
-    String(now.getFullYear()),
-    String(now.getMonth() + 1).padStart(2, "0"),
-  );
-  await fs.mkdir(dir, { recursive: true });
-
-  const name = `${crypto.randomUUID()}.${rule.ext}`;
-  await fs.writeFile(path.join(dir, name), buffer);
-
-  const url = `/uploads/${now.getFullYear()}/${String(now.getMonth() + 1).padStart(2, "0")}/${name}`;
-  return NextResponse.json({ url, kind: rule.kind }, { status: 201 });
+  try {
+    const { url } = await uploadToS3(buffer, declared, rule.ext);
+    return NextResponse.json({ url, kind: rule.kind }, { status: 201 });
+  } catch (err) {
+    console.error("[upload] S3 thất bại:", err);
+    return NextResponse.json(
+      { error: "Không tải được file lên kho lưu trữ. Kiểm tra quyền S3." },
+      { status: 502 },
+    );
+  }
 }

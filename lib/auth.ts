@@ -1,12 +1,10 @@
 import crypto from "crypto";
 import { cookies } from "next/headers";
 import { findById, type PublicUser, type Role, toPublicUser } from "./users";
+import { SESSION_SECRET } from "./secret";
 
 export const SESSION_COOKIE = "genz_session";
 const SESSION_TTL_MS = 1000 * 60 * 60 * 12; // 12 giờ
-
-const SESSION_SECRET =
-  process.env.ADMIN_SESSION_SECRET ?? "genz-news-dev-secret-doi-truoc-khi-deploy";
 
 function sign(payload: string) {
   return crypto.createHmac("sha256", SESSION_SECRET).update(payload).digest("hex");
