@@ -3,37 +3,34 @@
 import Link from "next/link";
 import { useState } from "react";
 import { categories } from "@/lib/data";
-import { categoryStyles } from "@/lib/categoryStyles";
+import type { PublicUser } from "@/lib/users";
 import ThemeToggle from "./ThemeToggle";
 
-export default function Header() {
+export default function Header({ user }: { user: PublicUser | null }) {
   const [open, setOpen] = useState(false);
 
   return (
     <header className="sticky top-0 z-50 border-b border-border bg-background/80 backdrop-blur-md">
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4">
         <Link href="/" className="flex items-center gap-2 shrink-0">
-          <span className="flex size-8 items-center justify-center rounded-lg bg-accent text-sm font-black text-white">
-            L
+          <span className="flex size-8 items-center justify-center rounded-lg bg-accent text-xs font-black text-white">
+            GZ
           </span>
           <span className="font-display text-xl font-black tracking-tight">
-            LƯỢC<span className="text-accent">.</span>
+            GenZ<span className="text-accent"> Now</span>
           </span>
         </Link>
 
         <nav className="hidden items-center gap-1 lg:flex">
-          {categories.map((c) => {
-            const style = categoryStyles[c.slug];
-            return (
-              <Link
-                key={c.slug}
-                href={`/chuyen-muc/${c.slug}`}
-                className={`rounded-full px-3 py-1.5 text-sm font-semibold text-foreground/80 transition hover:${style.pill.split(" ")[0]} hover:${style.text}`}
-              >
-                {c.name}
-              </Link>
-            );
-          })}
+          {categories.map((c) => (
+            <Link
+              key={c.slug}
+              href={`/chuyen-muc/${c.slug}`}
+              className="rounded-full px-3 py-1.5 text-sm font-semibold text-foreground/80 transition hover:bg-surface-2 hover:text-accent"
+            >
+              {c.name}
+            </Link>
+          ))}
         </nav>
 
         <div className="flex items-center gap-2">
@@ -47,6 +44,12 @@ export default function Header() {
             </svg>
           </button>
           <ThemeToggle />
+          <Link
+            href={user ? "/admin" : "/dang-nhap"}
+            className="hidden rounded-full border border-border bg-surface px-3.5 py-2 text-sm font-semibold transition hover:border-accent hover:text-accent sm:block"
+          >
+            {user ? "Bài của tôi" : "Viết bài"}
+          </Link>
           <button
             onClick={() => setOpen((v) => !v)}
             aria-label="Mở menu"
@@ -71,6 +74,13 @@ export default function Header() {
               {c.name}
             </Link>
           ))}
+          <Link
+            href={user ? "/admin" : "/dang-nhap"}
+            onClick={() => setOpen(false)}
+            className="mt-1 rounded-lg bg-accent px-3 py-2 text-sm font-bold text-white"
+          >
+            {user ? "Bài của tôi" : "Viết bài"}
+          </Link>
         </nav>
       )}
     </header>

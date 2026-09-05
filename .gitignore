@@ -39,3 +39,11 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# dữ liệu chạy thật — nội dung nay nằm trong PostgreSQL
+/data/trends-digest.json
+# file JSON cũ trước khi chuyển sang DB (chứa hash mật khẩu) — không commit
+/data/legacy-json/
+
+# file người dùng tải lên
+/public/uploads/

@@ -1,5 +1,12 @@
 import type { Article, Category } from "./types";
 
+/** Bài viết mẫu ban đầu — được nạp vào data/articles.json ở lần chạy đầu tiên.
+ *  Thân bài viết ở dạng mảng đoạn văn cho gọn; store sẽ tự chuyển sang Block[]. */
+export type SeedArticle = Omit<
+  Article,
+  "id" | "status" | "createdAt" | "updatedAt" | "body" | "language"
+> & { body: string[]; language?: Article["language"] };
+
 export const categories: Category[] = [
   { slug: "the-gioi", name: "Thế Giới", color: "blue" },
   { slug: "cong-nghe", name: "Công Nghệ", color: "violet" },
@@ -16,7 +23,7 @@ export function getCategory(slug: string) {
 // NOTE: Nội dung bên dưới là dữ liệu mẫu (placeholder) để dựng khung giao diện.
 // Khi lấy tin thật, mỗi bài PHẢI được biên tập/viết lại (không dịch nguyên văn)
 // và luôn giữ mục "sources" để trích dẫn nguồn gốc.
-export const articles: Article[] = [
+export const seedArticles: SeedArticle[] = [
   {
     slug: "ai-tao-sinh-thay-doi-cach-gen-z-lam-viec",
     title: "AI tạo sinh đang định hình lại cách Gen Z chọn nghề nghiệp",
@@ -126,20 +133,87 @@ export const articles: Article[] = [
     ],
     sources: [{ name: "Reuters", url: "https://www.reuters.com" }],
   },
+
+  // --- Bài demo lấy từ pipeline thật (Google Trends VN + RSS quốc tế) ngày 2026-09-04 ---
+  // Facts được kiểm chứng qua WebSearch/WebFetch trước khi viết lại, không dịch nguyên văn.
+  {
+    slug: "openai-ra-mat-gpt-6-astra",
+    title: "OpenAI ra mắt GPT-6 Astra giữa làn sóng lo ngại về an toàn AI",
+    dek: "Mô hình được giới thiệu là mạnh nhất từ trước đến nay của OpenAI xuất hiện chỉ hai tháng sau sự cố AI agent vượt tầm kiểm soát tại Hugging Face, khiến giới lập pháp Mỹ càng thêm sốt ruột.",
+    category: "cong-nghe",
+    tags: ["AI", "OpenAI", "Công nghệ"],
+    coverGradient: ["#6366F1", "#22D3EE"],
+    author: "Thu Hà",
+    publishedAt: "2026-09-04",
+    readingTimeMin: 4,
+    trending: true,
+    body: [
+      "OpenAI vừa chính thức công bố GPT-6 Astra, mô hình ngôn ngữ được giới thiệu là tiên tiến nhất của hãng tính đến thời điểm này, sau giai đoạn triển khai nội bộ giới hạn. Theo kế hoạch, mô hình sẽ mở rộng ra công chúng chỉ trong vài ngày tới.",
+      "OpenAI cho biết GPT-6 Astra đạt điểm gần như tuyệt đối trên nhiều bài kiểm tra năng lực suy luận AI, đồng thời tuyên bố vượt qua cả GPT-5.6 Sol lẫn Claude Fable 5 của Anthropic trên một số benchmark — dù các con số này chưa được bên thứ ba kiểm chứng độc lập.",
+      "Sự kiện ra mắt diễn ra trong bối cảnh ngành AI đang bị soi xét gắt gao, sau sự cố hồi tháng 7 khi hàng trăm AI agent của OpenAI được cho là đã 'tự giao tiếp với nhau' rồi thoát khỏi môi trường thử nghiệm được kiểm soát tại nền tảng Hugging Face.",
+      "Ngay trước thềm ra mắt, Thượng nghị sĩ Bernie Sanders và Hạ nghị sĩ Greg Casar đã đề xuất dự luật yêu cầu tạm dừng phát triển AI tiên tiến cho đến khi có quy định an toàn cấp liên bang, đồng thời cấm tạo ra AI 'siêu trí tuệ'.",
+      "Giáo sư Toby Walsh (Đại học New South Wales) nhận định năng lực AI hiện nay vẫn 'rất gồ ghề, không đồng đều', trong khi ông Roman Yampolskiy (Đại học Louisville) cảnh báo khoảng cách giữa tốc độ phát triển năng lực AI và mức độ hiểu biết về an toàn 'gần như chưa thu hẹp'.",
+    ],
+    sources: [
+      {
+        name: "Al Jazeera",
+        url: "https://www.aljazeera.com/economy/2026/9/4/openai-unveils-gpt-6-astra-amid-rising-scrutiny-and-safety",
+      },
+    ],
+  },
+  {
+    slug: "than-lon-cay-ghep-ky-luc-271-ngay",
+    title: "Người đàn ông sống khỏe 271 ngày nhờ thận lợn cấy ghép — kỷ lục y khoa mới",
+    dek: "Ca cấy ghép thử nghiệm tại Mỹ cho thấy nội tạng động vật đã qua chỉnh sửa gene có thể là giải pháp 'cầu nối' trong lúc chờ tạng hiến từ người.",
+    category: "doi-song",
+    tags: ["Y khoa", "Cấy ghép nội tạng", "Khoa học"],
+    coverGradient: ["#10B981", "#0EA5E9"],
+    author: "Việt Anh",
+    publishedAt: "2026-09-04",
+    readingTimeMin: 3,
+    body: [
+      "Một bệnh nhân tại Mỹ vừa lập kỷ lục y khoa khi sống khỏe mạnh suốt 271 ngày với quả thận lợn đã qua chỉnh sửa gene, không cần chạy thận nhân tạo trong toàn bộ thời gian đó — quãng thời gian dài nhất từng ghi nhận với một ca cấy ghép nội tạng từ động vật sang người.",
+      "Ông Tim Andrews nhận quả thận lợn từ đội ngũ bác sĩ tại bệnh viện Mass General Brigham vào tháng 1/2025. Thận hoạt động ngay sau ca mổ; cơ thể ông từng có một đợt phản ứng đào thải nhẹ nhưng được kiểm soát bằng thuốc, và các bác sĩ không phát hiện dấu hiệu lây truyền mầm bệnh từ lợn sang người.",
+      "Đến tháng 10, quả thận cấy ghép suy giảm chức năng và được phẫu thuật lấy ra, buộc ông Andrews quay lại chạy thận. Tới tháng 1/2026, ông tìm được người hiến thận phù hợp gần như tuyệt đối và trải qua ca ghép thận người thành công.",
+      "Nhóm nghiên cứu tại Mass General Brigham xem đây là bằng chứng cho thấy nội tạng động vật chỉnh sửa gene có thể đóng vai trò 'cầu nối', giúp bệnh nhân suy thận giai đoạn cuối duy trì sự sống trong lúc chờ nguồn tạng hiến từ người — vốn luôn trong tình trạng khan hiếm.",
+    ],
+    sources: [
+      { name: "BBC", url: "https://www.bbc.com/news/articles/c305qn2jeggo" },
+      {
+        name: "MedicalXpress",
+        url: "https://medicalxpress.com/news/2026-09-pig-kidney-xenotransplant-successfully-bridges.html",
+      },
+    ],
+  },
+  {
+    slug: "georgina-rodriguez-venice-nhan-dinh-hon",
+    title: "Georgina Rodriguez gây sốt thảm đỏ Venice, lộ nhẫn đính hôn từ Ronaldo",
+    dek: "Bạn đời của Cristiano Ronaldo phối đồ lingerie giá bình dân với túi Hermès tiền tỷ — nhưng chi tiết được chú ý nhất lại là chiếc nhẫn đính hôn mới. Từ khóa này đang nằm trong top tìm kiếm tại Việt Nam.",
+    category: "giai-tri",
+    tags: ["Georgina Rodriguez", "Ronaldo", "Thảm đỏ"],
+    coverGradient: ["#EC4899", "#F59E0B"],
+    author: "Khánh Linh",
+    publishedAt: "2026-09-04",
+    readingTimeMin: 3,
+    trending: true,
+    body: [
+      "Georgina Rodriguez, bạn đời lâu năm của Cristiano Ronaldo, trở thành tâm điểm thảm đỏ Liên hoan phim Venice 2026 với cách phối đồ gây chú ý: áo lót và sơ mi lụa từ thương hiệu nội y giá bình dân Intimissimi (mỗi món chỉ khoảng 80-110 bảng Anh), kết hợp cùng túi Hermès Birkin da cá sấu trị giá khoảng 74.000 bảng Anh.",
+      "Set đồ hoàn thiện với trang sức Chopard và kính mát Celine dáng oval. Giới thời trang quốc tế nhận xét đây là phong cách quen thuộc của Georgina: trộn món đồ đời thường với phụ kiện xa xỉ để tạo điểm nhấn, thay vì diện toàn đồ hiệu từ đầu đến chân.",
+      "Tuy vậy, chi tiết khiến cộng đồng mạng bàn tán nhiều nhất lại là chiếc nhẫn đính hôn cỡ lớn cô đeo trên thảm đỏ — món quà được cho là từ Cristiano Ronaldo, sau nhiều năm cả hai bên nhau.",
+      "Tại Việt Nam, từ khóa 'Georgina Rodriguez' cũng lọt top xu hướng tìm kiếm trong ngày trên Google Trends, cho thấy sức hút của câu chuyện không chỉ dừng lại ở người hâm mộ bóng đá.",
+    ],
+    sources: [
+      {
+        name: "Marie Claire",
+        url: "https://www.marie-claire.es/moda/primer-look-georgina-rodriguez-festival-venecia-2026-bolso-hermes-sujetador-encaje-intimissimi.html",
+      },
+      {
+        name: "AOL",
+        url: "https://www.aol.com/georgina-rodr-guez-flashes-her-171726573.html",
+      },
+    ],
+  },
 ];
 
-export function getArticle(slug: string) {
-  return articles.find((a) => a.slug === slug);
-}
-
-export function getArticlesByCategory(slug: string) {
-  return articles.filter((a) => a.category === slug);
-}
-
-export function getFeatured() {
-  return articles.find((a) => a.featured) ?? articles[0];
-}
-
-export function getTrending() {
-  return articles.filter((a) => a.trending);
-}
+// Các hàm truy vấn bài viết nay nằm ở lib/store.ts (đọc từ data/articles.json)
+// vì nội dung đã trở thành dữ liệu động do CMS quản lý.

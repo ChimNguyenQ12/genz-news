@@ -1,0 +1,520 @@
+"use client";
+
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
+import type { Article, ArticleLanguage, CategorySlug, SourceRef } from "@/lib/types";
+import type { Role } from "@/lib/users";
+import { categories } from "@/lib/data";
+import RichTextEditor from "./RichTextEditor";
+
+const STATUS_LABEL: Record<Article["status"], string> = {
+  draft: "Bản nháp",
+  pending: "Đợi duyệt",
+  published: "Đang hiển thị",
+  rejected: "Bị trả lại",
+};
+
+const STATUS_STYLE: Record<Article["status"], string> = {
+  draft: "bg-neutral-500/10 text-neutral-500",
+  pending: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
+  published: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+  rejected: "bg-red-500/10 text-red-600 dark:text-red-400",
+};
+
+export default function ArticleEditor({
+  article,
+  role,
+}: {
+  article: Article;
+  role: Role;
+}) {
+  const router = useRouter();
+  const isAdmin = role === "admin";
+
+  const [title, setTitle] = useState(article.title);
+  const [slug, setSlug] = useState(article.slug);
+  const [dek, setDek] = useState(article.dek);
+  const [category, setCategory] = useState<CategorySlug>(article.category);
+  const [language, setLanguage] = useState<ArticleLanguage>(article.language);
+  const [author, setAuthor] = useState(article.author);
+  const [publishedAt, setPublishedAt] = useState(article.publishedAt);
+  const [readingTimeMin, setReadingTimeMin] = useState(article.readingTimeMin);
+  const [tags, setTags] = useState(article.tags.join(", "));
+  const [bodyHtml, setBodyHtml] = useState(article.body);
+  const [sources, setSources] = useState<SourceRef[]>(article.sources);
+  const [coverFrom, setCoverFrom] = useState(article.coverGradient[0]);
+  const [coverTo, setCoverTo] = useState(article.coverGradient[1]);
+  const [coverImage, setCoverImage] = useState(article.coverImage ?? "");
+  const [coverCaption, setCoverCaption] = useState(article.coverImageCaption ?? "");
+  const [coverUploading, setCoverUploading] = useState(false);
+  const [coverError, setCoverError] = useState("");
+  const coverInput = useRef<HTMLInputElement>(null);
+  const [featured, setFeatured] = useState(Boolean(article.featured));
+  const [trending, setTrending] = useState(Boolean(article.trending));
+
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState("");
+
+  const plainText = bodyHtml.replace(/<[^>]*>/g, " ");
+  const wordCount = plainText.split(/\s+/).filter(Boolean).length;
+  const suggestedTime = Math.max(1, Math.round(wordCount / 200));
+  const mediaCount = (bodyHtml.match(/<(img|iframe|video)\b/g) ?? []).length;
+
+  async function uploadCover(file: File) {
+    setCoverUploading(true);
+    setCoverError("");
+    const form = new FormData();
+    form.append("file", file);
+    const res = await fetch("/api/upload", { method: "POST", body: form });
+    setCoverUploading(false);
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setCoverError(data.error ?? "Tải lên thất bại");
+      return;
+    }
+    const { url } = await res.json();
+    setCoverImage(url);
+  }
+
+  function payload(status?: Article["status"]) {
+    return {
+      title,
+      slug,
+      dek,
+      category,
+      language,
+      author,
+      publishedAt,
+      readingTimeMin,
+      tags: tags.split(",").map((t) => t.trim()).filter(Boolean),
+      body: bodyHtml,
+      sources: sources.filter((s) => s.url.trim()),
+      coverGradient: [coverFrom, coverTo],
+      coverImage: coverImage.trim(),
+      coverImageCaption: coverCaption.trim(),
+      featured,
+      trending,
+      ...(status ? { status } : {}),
+    };
+  }
+
+  // Ảnh chụp trạng thái đã lưu — dùng để biết còn thay đổi nào chưa lưu không.
+  const [savedSnapshot, setSavedSnapshot] = useState(() =>
+    JSON.stringify(payload()),
+  );
+  const currentSnapshot = JSON.stringify(payload());
+  const isDirty = currentSnapshot !== savedSnapshot;
+
+  // Cảnh báo khi rời trang mà chưa lưu.
+  useEffect(() => {
+    if (!isDirty) return;
+    const handler = (e: BeforeUnloadEvent) => e.preventDefault();
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [isDirty]);
+
+  async function save(status?: Article["status"]) {
+    setSaving(true);
+    setMessage("");
+    const sent = payload(status);
+    const res = await fetch(`/api/articles/${article.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(sent),
+    });
+    setSaving(false);
+    if (res.ok) {
+      setSavedSnapshot(JSON.stringify(payload()));
+      setMessage(
+        status === "published"
+          ? "Đã đăng bài."
+          : status === "pending"
+            ? "Đã gửi, đợi duyệt."
+            : status === "draft"
+              ? "Đã đưa về nháp."
+              : "Đã lưu thay đổi.",
+      );
+      if (status === "pending") router.push("/admin");
+      else router.refresh();
+    } else {
+      const data = await res.json().catch(() => ({}));
+      setMessage(data.error ?? "Lưu thất bại");
+    }
+  }
+
+  return (
+    <div>
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+        <Link href="/admin" className="text-sm font-semibold text-muted hover:text-accent">
+          ← Danh sách bài
+        </Link>
+        <div className="flex flex-wrap items-center gap-2">
+          {message && !isDirty && (
+            <span className="text-sm text-emerald-600 dark:text-emerald-400">
+              {message}
+            </span>
+          )}
+          <span
+            className={`rounded-full px-3 py-1 text-xs font-bold ${STATUS_STYLE[article.status]}`}
+          >
+            {STATUS_LABEL[article.status]}
+          </span>
+
+          {isDirty && (
+            <span className="rounded-full bg-amber-500/10 px-3 py-1 text-xs font-bold text-amber-600 dark:text-amber-400">
+              ● Chưa lưu
+            </span>
+          )}
+
+          <button
+            onClick={() => save()}
+            disabled={saving || !isDirty}
+            title={
+              isDirty
+                ? "Lưu thay đổi, giữ nguyên trạng thái đăng/nháp"
+                : "Không có thay đổi nào để lưu"
+            }
+            className="rounded-xl border border-border px-4 py-2 text-sm font-bold transition hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {saving ? "Đang lưu..." : isDirty ? "Lưu thay đổi" : "Đã lưu"}
+          </button>
+
+          {isAdmin ? (
+            article.status === "published" ? (
+              <button
+                onClick={() => save("draft")}
+                disabled={saving}
+                className="rounded-xl border border-border px-4 py-2 text-sm font-bold transition hover:border-amber-500 hover:text-amber-500 disabled:opacity-50"
+              >
+                Gỡ xuống
+              </button>
+            ) : (
+              <button
+                onClick={() => save("published")}
+                disabled={saving}
+                className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-bold text-white transition hover:opacity-90 disabled:opacity-50"
+              >
+                Đăng bài
+              </button>
+            )
+          ) : (
+            <button
+              onClick={() => save("pending")}
+              disabled={saving}
+              title="Gửi bài đi duyệt"
+              className="rounded-xl bg-amber-600 px-4 py-2 text-sm font-bold text-white transition hover:opacity-90 disabled:opacity-50"
+            >
+              Gửi duyệt
+            </button>
+          )}
+        </div>
+      </div>
+
+      {article.status === "rejected" && article.reviewNote && (
+        <div className="mb-5 rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-600 dark:text-red-400">
+          <strong>Bị trả lại:</strong> {article.reviewNote}
+          <p className="mt-1 text-red-600/80 dark:text-red-400/80">
+            Sửa xong bấm “Gửi duyệt” lại.
+          </p>
+        </div>
+      )}
+
+      {article.status === "pending" && !isAdmin && (
+        <div className="mb-5 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-700 dark:text-amber-400">
+          Bài đang đợi duyệt nên không sửa được. Muốn sửa thì quay lại danh sách và
+          bấm <strong>Rút về nháp</strong>.
+        </div>
+      )}
+
+      <div className="grid gap-6 lg:grid-cols-3">
+        <div className="space-y-4 lg:col-span-2">
+          <Field label="Tiêu đề">
+            <textarea
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              rows={2}
+              className="w-full resize-none rounded-xl border border-border bg-surface px-4 py-2.5 font-display text-xl font-black outline-none focus:border-accent"
+            />
+          </Field>
+
+          <Field label="Tóm tắt (dek)" hint="Một câu nêu điểm mới nhất, không lặp lại tít">
+            <textarea
+              value={dek}
+              onChange={(e) => setDek(e.target.value)}
+              rows={2}
+              className="w-full resize-none rounded-xl border border-border bg-surface px-4 py-2.5 text-sm outline-none focus:border-accent"
+            />
+          </Field>
+
+          <Field
+            label="Nội dung"
+            hint={`${mediaCount} ảnh/video · ~${wordCount} từ · đọc ~${suggestedTime} phút`}
+          >
+            <RichTextEditor value={bodyHtml} onChange={setBodyHtml} />
+            {suggestedTime !== readingTimeMin && (
+              <button
+                type="button"
+                onClick={() => setReadingTimeMin(suggestedTime)}
+                className="mt-2 text-xs font-semibold text-accent hover:underline"
+              >
+                Cập nhật thời gian đọc thành {suggestedTime} phút
+              </button>
+            )}
+          </Field>
+
+          <Field label="Nguồn tham khảo" hint="Bắt buộc với bài tổng hợp — tối thiểu 2 nguồn">
+            <div className="space-y-2">
+              {sources.map((s, i) => (
+                <div key={i} className="flex gap-2">
+                  <input
+                    value={s.name}
+                    onChange={(e) => {
+                      const next = [...sources];
+                      next[i] = { ...next[i], name: e.target.value };
+                      setSources(next);
+                    }}
+                    placeholder="Tên nguồn"
+                    className="w-40 shrink-0 rounded-xl border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-accent"
+                  />
+                  <input
+                    value={s.url}
+                    onChange={(e) => {
+                      const next = [...sources];
+                      next[i] = { ...next[i], url: e.target.value };
+                      setSources(next);
+                    }}
+                    placeholder="https://..."
+                    className="flex-1 rounded-xl border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-accent"
+                  />
+                  <button
+                    onClick={() => setSources(sources.filter((_, j) => j !== i))}
+                    className="rounded-xl border border-border px-3 text-sm text-red-500 hover:border-red-500"
+                  >
+                    ✕
+                  </button>
+                </div>
+              ))}
+              <button
+                onClick={() => setSources([...sources, { name: "", url: "" }])}
+                className="rounded-xl border border-dashed border-border px-3 py-2 text-sm font-semibold text-muted hover:border-accent hover:text-accent"
+              >
+                + Thêm nguồn
+              </button>
+            </div>
+          </Field>
+        </div>
+
+        <div className="space-y-4">
+          <Field label="Chuyên mục">
+            <select
+              value={category}
+              onChange={(e) => setCategory(e.target.value as CategorySlug)}
+              className="w-full rounded-xl border border-border bg-surface px-4 py-2.5 text-sm outline-none focus:border-accent"
+            >
+              {categories.map((c) => (
+                <option key={c.slug} value={c.slug}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </Field>
+
+          <Field
+            label="Ngôn ngữ bài"
+            hint="Quyết định chiều dịch cho người đọc"
+          >
+            <select
+              value={language}
+              onChange={(e) => setLanguage(e.target.value as ArticleLanguage)}
+              className="w-full rounded-xl border border-border bg-surface px-4 py-2.5 text-sm outline-none focus:border-accent"
+            >
+              <option value="vi">Tiếng Việt</option>
+              <option value="en">English</option>
+            </select>
+          </Field>
+
+          {isAdmin && (
+            <>
+              <Field label="Đường dẫn (slug)">
+                <input
+                  value={slug}
+                  onChange={(e) => setSlug(e.target.value)}
+                  className="w-full rounded-xl border border-border bg-surface px-4 py-2.5 text-sm outline-none focus:border-accent"
+                />
+              </Field>
+
+              <Field label="Tác giả">
+                <input
+                  value={author}
+                  onChange={(e) => setAuthor(e.target.value)}
+                  className="w-full rounded-xl border border-border bg-surface px-4 py-2.5 text-sm outline-none focus:border-accent"
+                />
+              </Field>
+            </>
+          )}
+
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Ngày đăng">
+              <input
+                type="date"
+                value={publishedAt}
+                onChange={(e) => setPublishedAt(e.target.value)}
+                className="w-full rounded-xl border border-border bg-surface px-3 py-2.5 text-sm outline-none focus:border-accent"
+              />
+            </Field>
+            <Field label="Phút đọc">
+              <input
+                type="number"
+                min={1}
+                value={readingTimeMin}
+                onChange={(e) => setReadingTimeMin(Number(e.target.value))}
+                className="w-full rounded-xl border border-border bg-surface px-3 py-2.5 text-sm outline-none focus:border-accent"
+              />
+            </Field>
+          </div>
+
+          <Field label="Tags" hint="Ngăn cách bằng dấu phẩy">
+            <input
+              value={tags}
+              onChange={(e) => setTags(e.target.value)}
+              className="w-full rounded-xl border border-border bg-surface px-4 py-2.5 text-sm outline-none focus:border-accent"
+            />
+          </Field>
+
+          <Field label="Ảnh bìa" hint="Để trống sẽ dùng gradient">
+            {coverImage ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={coverImage}
+                alt=""
+                className="mb-2 h-28 w-full rounded-xl bg-surface-2 object-cover"
+              />
+            ) : (
+              <div
+                className="mb-2 h-28 w-full rounded-xl"
+                style={{
+                  background: `linear-gradient(135deg, ${coverFrom}, ${coverTo})`,
+                }}
+              />
+            )}
+
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => coverInput.current?.click()}
+                disabled={coverUploading}
+                className="flex-1 rounded-xl bg-accent px-3 py-2 text-xs font-bold text-white transition hover:opacity-90 disabled:opacity-50"
+              >
+                {coverUploading ? "Đang tải..." : "Tải ảnh lên"}
+              </button>
+              {coverImage && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCoverImage("");
+                    setCoverCaption("");
+                  }}
+                  className="rounded-xl border border-border px-3 py-2 text-xs font-semibold text-red-500 hover:border-red-500"
+                >
+                  Bỏ ảnh
+                </button>
+              )}
+            </div>
+            <input
+              ref={coverInput}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) uploadCover(file);
+                e.target.value = "";
+              }}
+            />
+
+            {coverError && (
+              <p className="mt-2 text-xs text-red-500">{coverError}</p>
+            )}
+
+            <input
+              value={coverImage}
+              onChange={(e) => setCoverImage(e.target.value)}
+              placeholder="hoặc dán link ảnh"
+              className="mt-2 w-full rounded-xl border border-border bg-surface px-3 py-2 text-xs outline-none focus:border-accent"
+            />
+
+            {coverImage && (
+              <input
+                value={coverCaption}
+                onChange={(e) => setCoverCaption(e.target.value)}
+                placeholder="Chú thích ảnh"
+                className="mt-2 w-full rounded-xl border border-border bg-surface px-3 py-2 text-xs outline-none focus:border-accent"
+              />
+            )}
+
+            <div className="mt-2 flex gap-2">
+              <input
+                type="color"
+                value={coverFrom}
+                onChange={(e) => setCoverFrom(e.target.value)}
+                className="h-9 w-full cursor-pointer rounded-lg border border-border bg-surface"
+              />
+              <input
+                type="color"
+                value={coverTo}
+                onChange={(e) => setCoverTo(e.target.value)}
+                className="h-9 w-full cursor-pointer rounded-lg border border-border bg-surface"
+              />
+            </div>
+          </Field>
+
+          {isAdmin && (
+            <Field label="Hiển thị">
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={featured}
+                  onChange={(e) => setFeatured(e.target.checked)}
+                  className="size-4 accent-violet-600"
+                />
+                Bài nổi bật (hero trang chủ)
+              </label>
+              <label className="mt-2 flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={trending}
+                  onChange={(e) => setTrending(e.target.checked)}
+                  className="size-4 accent-violet-600"
+                />
+                Đưa vào mục &quot;Đang nóng&quot;
+              </label>
+            </Field>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Field({
+  label,
+  hint,
+  children,
+}: {
+  label: string;
+  hint?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div>
+      <div className="mb-1.5 flex items-baseline justify-between gap-2">
+        <label className="text-xs font-bold uppercase tracking-wide text-muted">
+          {label}
+        </label>
+        {hint && <span className="text-xs text-muted">{hint}</span>}
+      </div>
+      {children}
+    </div>
+  );
+}

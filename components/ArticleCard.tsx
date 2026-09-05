@@ -16,12 +16,21 @@ export default function ArticleCard({
 
   return (
     <Link href={`/bai-viet/${article.slug}`} className="group flex flex-col">
-      <div
-        className="mb-3 aspect-16/10 w-full rounded-2xl"
-        style={{
-          background: `linear-gradient(135deg, ${article.coverGradient[0]}, ${article.coverGradient[1]})`,
-        }}
-      />
+      {article.coverImage ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={article.coverImage}
+          alt=""
+          className="mb-3 aspect-16/10 w-full rounded-2xl bg-surface-2 object-cover"
+        />
+      ) : (
+        <div
+          className="mb-3 aspect-16/10 w-full rounded-2xl"
+          style={{
+            background: `linear-gradient(135deg, ${article.coverGradient[0]}, ${article.coverGradient[1]})`,
+          }}
+        />
+      )}
       <span
         className={`mb-2 inline-flex w-fit items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-bold ${style.pill}`}
       >

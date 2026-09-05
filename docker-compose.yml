@@ -1,0 +1,21 @@
+services:
+  db:
+    image: postgres:17-alpine
+    container_name: genznow-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: genznow
+      POSTGRES_PASSWORD: genznow_dev
+      POSTGRES_DB: genznow
+    ports:
+      - "5433:5432"
+    volumes:
+      - genznow-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U genznow -d genznow"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  genznow-pgdata:

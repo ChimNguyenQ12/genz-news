@@ -8,11 +8,11 @@ export default function Footer() {
         <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-4">
           <div>
             <Link href="/" className="flex items-center gap-2">
-              <span className="flex size-8 items-center justify-center rounded-lg bg-accent text-sm font-black text-white">
-                L
+              <span className="flex size-8 items-center justify-center rounded-lg bg-accent text-xs font-black text-white">
+                GZ
               </span>
               <span className="font-display text-xl font-black tracking-tight">
-                LƯỢC<span className="text-accent">.</span>
+                GenZ<span className="text-accent"> Now</span>
               </span>
             </Link>
             <p className="mt-3 max-w-xs text-sm text-muted">
@@ -34,7 +34,7 @@ export default function Footer() {
           </div>
 
           <div>
-            <h3 className="text-sm font-bold uppercase tracking-wide text-muted">Về LƯỢC</h3>
+            <h3 className="text-sm font-bold uppercase tracking-wide text-muted">Về GenZ Now</h3>
             <ul className="mt-3 space-y-2 text-sm text-foreground/80">
               <li><Link href="#" className="hover:text-accent">Giới thiệu</Link></li>
               <li><Link href="#" className="hover:text-accent">Nguyên tắc biên tập &amp; trích nguồn</Link></li>
@@ -62,7 +62,7 @@ export default function Footer() {
         </div>
 
         <div className="mt-10 flex flex-col items-center justify-between gap-3 border-t border-border pt-6 text-xs text-muted sm:flex-row">
-          <p>© 2026 LƯỢC. Mọi bài viết tổng hợp đều được biên tập lại và trích dẫn nguồn gốc.</p>
+          <p>© 2026 GenZ Now. Mọi bài viết tổng hợp đều được biên tập lại và trích dẫn nguồn gốc.</p>
           <div className="flex gap-4">
             <Link href="#" className="hover:text-accent">Điều khoản</Link>
             <Link href="#" className="hover:text-accent">Quyền riêng tư</Link>

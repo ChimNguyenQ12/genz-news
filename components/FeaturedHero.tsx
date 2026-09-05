@@ -16,7 +16,15 @@ export default function FeaturedHero({ article }: { article: Article }) {
         background: `linear-gradient(135deg, ${article.coverGradient[0]}, ${article.coverGradient[1]})`,
       }}
     >
-      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+      {article.coverImage && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={article.coverImage}
+          alt=""
+          className="absolute inset-0 size-full object-cover"
+        />
+      )}
+      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/25 to-transparent" />
       <div className="relative">
         <span
           className={`mb-3 inline-flex w-fit items-center gap-1.5 rounded-full bg-white/15 px-2.5 py-1 text-xs font-bold text-white backdrop-blur-sm`}
