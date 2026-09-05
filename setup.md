@@ -324,6 +324,8 @@ vào thư mục tạm ngay sau khi dựng xong, rồi mới yên tâm.
 | `docker-entrypoint.sh: no such file or directory` dù tệp có thật | Script commit bằng CRLF; thiếu `.gitattributes` ép `eol=lf` |
 | `docker compose: unknown command` trên máy chủ | Máy chỉ có binary `docker-compose` (v2 standalone), không có plugin |
 | Upload file lớn báo 413 | `client_max_body_size` của nginx nhỏ hơn giới hạn của app |
+| Đọc dữ liệu được nhưng ghi báo `SQLITE_READONLY` | Chuỗi kết nối đưa `file:` vào driver; hoặc tệp `.db` do container migrate chạy bằng root tạo ra |
+| SDK cloud báo `Could not load credentials` dù đã mount `~/.aws` | Thư mục khoá thuộc root quyền 600, container chạy uid khác nên không đọc được |
 
 ---
 
@@ -416,6 +418,27 @@ new PrismaClient({ adapter: new PrismaBetterSqlite3({ url: `file:${dbPath}` }) }
 
 Hai chỗ này phải trỏ **cùng một tệp**, nếu không `migrate` tạo bảng ở một nơi
 còn app đọc ở nơi khác, và lỗi hiện ra là "không tìm thấy bảng".
+
+**Định dạng chuỗi kết nối của CLI và của driver có thể khác nhau.** Với SQLite,
+Prisma CLI cần `file:/duong/dan.db`, còn `better-sqlite3` cần **đường dẫn
+thuần** `/duong/dan.db`. Đưa nhầm `file:` vào driver thì nó vẫn **mở được để
+đọc** — app chạy, danh sách hiện đủ — nhưng mọi lệnh ghi báo
+`SQLITE_READONLY: attempt to write a readonly database`. Rất dễ đổ oan cho
+quyền tệp và mất hàng giờ `chown`.
+
+Cách khoanh vùng nhanh, chạy ngay trong container:
+
+```bash
+docker exec <container> node -e '
+const DB = require("better-sqlite3");
+for (const p of ["/app/data/app.db", "file:/app/data/app.db"]) {
+  try { const db=new DB(p); db.exec("CREATE TABLE IF NOT EXISTS _p(x)");
+        db.exec("DROP TABLE _p"); console.log("GHI OK  :", p); db.close(); }
+  catch (e) { console.log("GHI HỎNG:", p, e.message); }
+}'
+```
+
+Đọc được mà ghi không được thì nghi chuỗi kết nối **trước**, đừng nghi quyền.
 
 Vài cái bẫy liên quan:
 
