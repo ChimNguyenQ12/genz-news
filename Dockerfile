@@ -23,6 +23,16 @@ COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN npx prisma generate && npm run build
 
+# ---------- migrator ----------
+# Prisma CLI kéo theo cả một cây phụ thuộc riêng (effect, ...) mà bản standalone
+# không gói. Nên migration chạy bằng chính tầng build — nơi node_modules còn đủ.
+FROM build AS migrator
+WORKDIR /app
+ENV NODE_ENV=production \
+    DATA_DIR=/app/data \
+    DATABASE_PATH=/app/data/app.db
+CMD ["npx", "prisma", "migrate", "deploy"]
+
 # ---------- runtime ----------
 FROM node:22-bookworm-slim AS runner
 WORKDIR /app
@@ -41,16 +51,8 @@ ENV NODE_ENV=production \
 COPY --from=build /app/.next/standalone ./
 COPY --from=build /app/.next/static ./.next/static
 COPY --from=build /app/public ./public
-# Prisma CLI + schema để chạy migrate deploy lúc khởi động.
-COPY --from=build /app/node_modules/prisma ./node_modules/prisma
-COPY --from=build /app/node_modules/@prisma ./node_modules/@prisma
-COPY --from=build /app/node_modules/.bin ./node_modules/.bin
-COPY prisma ./prisma
-COPY prisma.config.ts ./
-COPY docker-entrypoint.sh /usr/local/bin/
 
-RUN chmod +x /usr/local/bin/docker-entrypoint.sh \
-    && mkdir -p /app/data && chown -R node:node /app/data
+RUN mkdir -p /app/data && chown -R node:node /app/data
 
 USER node
 EXPOSE 3000
@@ -58,5 +60,4 @@ EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
   CMD curl -fsS http://127.0.0.1:3000/api/health || exit 1
 
-ENTRYPOINT ["docker-entrypoint.sh"]
 CMD ["node", "server.js"]

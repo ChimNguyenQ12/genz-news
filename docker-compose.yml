@@ -2,11 +2,34 @@
 # hai project khác nhau (compose mặc định suy tên từ tên thư mục).
 name: genz-news
 
+x-data-volume: &data-volume
+  - ${APP_DATA_DIR:-/srv/genz-news/data}:/app/data
+
 services:
+  # Áp migration rồi thoát. App chỉ khởi động sau khi việc này thành công,
+  # nên không bao giờ có chuyện app chạy trên schema cũ.
+  migrate:
+    build:
+      context: .
+      target: migrator
+    image: genz-news-migrator
+    container_name: genz-news-migrate
+    restart: "no"
+    volumes: *data-volume
+    environment:
+      DATA_DIR: /app/data
+      DATABASE_PATH: /app/data/app.db
+
   app:
-    build: .
+    build:
+      context: .
+      target: runner
+    image: genz-news-app
     container_name: genz-news
     restart: unless-stopped
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
     # Chỉ nghe trên loopback; nginx ở host lo TLS và mở ra Internet.
     ports:
       - "127.0.0.1:5006:3000"
