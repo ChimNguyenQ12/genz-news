@@ -323,6 +323,7 @@ vào thư mục tạm ngay sau khi dựng xong, rồi mới yên tâm.
 | Deploy xanh nhưng một tính năng cứ như chưa cấu hình | Biến CI đánh dấu *Protected* mà nhánh deploy chưa protected → biến rỗng, im lặng |
 | `docker-entrypoint.sh: no such file or directory` dù tệp có thật | Script commit bằng CRLF; thiếu `.gitattributes` ép `eol=lf` |
 | `docker compose: unknown command` trên máy chủ | Máy chỉ có binary `docker-compose` (v2 standalone), không có plugin |
+| Job lint ở CI đỏ mà máy nhà xanh | Kiểu do framework sinh lúc build nằm trong .gitignore nên CI không có; xem mục M |
 | Upload file lớn báo 413 | `client_max_body_size` của nginx nhỏ hơn giới hạn của app |
 | Đọc dữ liệu được nhưng ghi báo `SQLITE_READONLY` | Chuỗi kết nối đưa `file:` vào driver; hoặc tệp `.db` do container migrate chạy bằng root tạo ra |
 | SDK cloud báo `Could not load credentials` dù đã mount `~/.aws` | Thư mục khoá thuộc root quyền 600, container chạy uid khác nên không đọc được |
@@ -714,3 +715,32 @@ Không cứu được từ xa: SSH chính là thứ đã chết. Phải vào con
 cấp (EC2 → Instances → Reboot). Vì vậy giữ sẵn **quyền vào console** trước khi
 deploy, đừng chỉ có mỗi khoá SSH. Reboot xong nhớ kiểm lại: job CI nào đang
 chạy dở sẽ bị giết và pipeline báo failed — deploy lại từ đầu.
+
+## M. Job lint ở CI đỏ dù máy nhà xanh: kiểu do framework tự sinh
+
+Các framework đời mới sinh tệp khai báo kiểu lúc build rồi để trong thư mục
+tạm (`.next/`, `.nuxt/`, `.svelte-kit/`) — và thư mục đó nằm trong
+`.gitignore`. Nghĩa là **máy nhà có, CI không có**. Job chỉ chạy `tsc --noEmit`
+mà không build trước sẽ đỏ ngay ở chỗ dùng kiểu toàn cục ấy:
+
+```
+app/layout.tsx(47,50): error TS2304: Cannot find name 'LayoutProps'.
+```
+
+Máy nhà xanh chỉ vì còn thư mục build cũ từ lần chạy trước. Muốn tái hiện thì
+dọn đúng những thứ CI không có rồi hãy chạy — làm việc này trước khi đổ lỗi cho
+runner:
+
+```bash
+mv .next /tmp/ && mv next-env.d.ts /tmp/
+npx tsc --noEmit
+```
+
+Ba cách chữa, nên chọn cách đầu:
+
+1. **Khai báo kiểu tường minh** tại chỗ dùng, đừng dựa vào kiểu toàn cục do
+   build sinh ra. Ví dụ thay `LayoutProps<"/">` bằng
+   `Readonly<{ children: ReactNode }>`. CI không phải làm gì thêm.
+2. Chạy lệnh sinh kiểu trước khi kiểm (`next typegen`) — nhanh hơn build đủ.
+3. Build đủ rồi mới `tsc` — chậm nhất, và trên máy chủ yếu thì đụng đúng vấn đề
+   ở mục L.

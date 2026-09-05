@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import type { ReactNode } from "react";
 import { Be_Vietnam_Pro } from "next/font/google";
 import "./globals.css";
 
@@ -44,7 +45,12 @@ const themeInitScript = `
 })();
 `;
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+// Khai báo kiểu tường minh thay vì dùng LayoutProps của Next. LayoutProps là
+// kiểu toàn cục Next sinh ra trong .next/, nên `tsc --noEmit` ở CI (chạy khi
+// chưa build) sẽ báo TS2304: Cannot find name 'LayoutProps'.
+export default function RootLayout({
+  children,
+}: Readonly<{ children: ReactNode }>) {
   return (
     <html
       lang="vi"
