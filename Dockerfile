@@ -20,9 +20,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends openssl ca-cert
     && rm -rf /var/lib/apt/lists/*
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-# Chặn trần heap của Node. Máy chủ dùng chung nhiều dự án: nếu bước build
-# ngốn hết RAM thì OOM killer hạ sshd/nginx và MỌI dự án trên máy cùng ngã.
-# Vỡ ở đây thì chỉ bản dựng này hỏng, đọc log là biết ngay.
+# Chốt chặn phụ cho RAM. Nút thắt thật khi dựng ngay trên máy chủ dùng chung
+# là CPU chứ không phải bộ nhớ (xem setup.md mục L), nhưng trần heap giúp bản
+# dựng vỡ gọn trong chính nó thay vì lôi cả máy xuống theo.
 ENV NEXT_TELEMETRY_DISABLED=1 NODE_OPTIONS=--max-old-space-size=1536
 RUN npx prisma generate && npm run build
 

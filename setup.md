@@ -326,7 +326,7 @@ vào thư mục tạm ngay sau khi dựng xong, rồi mới yên tâm.
 | Upload file lớn báo 413 | `client_max_body_size` của nginx nhỏ hơn giới hạn của app |
 | Đọc dữ liệu được nhưng ghi báo `SQLITE_READONLY` | Chuỗi kết nối đưa `file:` vào driver; hoặc tệp `.db` do container migrate chạy bằng root tạo ra |
 | SDK cloud báo `Could not load credentials` dù đã mount `~/.aws` | Thư mục khoá thuộc root quyền 600, container chạy uid khác nên không đọc được |
-| Cả máy chủ mất SSH lẫn HTTP ngay sau khi build | Bước biên dịch ăn hết RAM, OOM killer hạ `sshd`/`nginx`; xem mục L |
+| Cả máy chủ mất SSH lẫn HTTP ngay sau khi build | Bước biên dịch giành hết CPU (không phải hết RAM — kiểm `journalctl -k` trước); xem mục L |
 
 ---
 
@@ -615,42 +615,65 @@ Trên máy nhiều dự án, cổng tiếp theo còn trống không chắc là c
 theo số. Và luôn bind `127.0.0.1:<port>` — thấy `0.0.0.0:<port>` ở dự án nào là
 dự án đó đang phơi thẳng ra Internet, bỏ qua nginx.
 
-## L. Dựng ảnh ngay trên máy chủ dùng chung: coi chừng hết RAM
+## L. Dựng ảnh ngay trên máy chủ dùng chung: nghẽn CPU, không phải hết RAM
 
 Trên VPS nhỏ đang chạy sẵn nhiều dự án, `docker compose up -d --build` là lệnh
-nguy hiểm nhất trong cả quy trình. Bước biên dịch của các framework web đời mới
-(Next.js, Nuxt, Vite build lớn) ăn 1,5–3 GB RAM trong vài phút. Máy 1–2 GB
-không đủ, kernel bắt đầu tráo swap, và thứ chết trước không phải là trình biên
-dịch — mà là `sshd` và `nginx`, tức là **mọi dự án khác trên máy cùng ngã**.
+nguy hiểm nhất trong cả quy trình — nhưng thủ phạm thường bị đoán nhầm. Phản xạ
+đầu tiên của ai cũng là "hết RAM". Phải đo rồi hãy kết luận.
 
-Dấu hiệu nhận ra đúng bệnh này: cổng 22 và 80 vẫn **bắt tay TCP được** (kernel
-còn sống, còn nghe) nhưng không tiến trình nào trả lời nổi. Từ máy nhà:
+Một lần thật, trên `t3.medium` (2 vCPU, 4 GB) đang chạy 5 dự án khác:
 
-```bash
-# vẫn "MO" — nhưng curl và ssh đều treo
-for p in 22 80 443; do (echo > /dev/tcp/$SERVER_IP/$p) 2>/dev/null \
-  && echo "$p MO" || echo "$p DONG"; done
+```
+Mem:  total 3836 | used 3219 | free 118 | available 345 | Swap: 0
+load average: 27.29, 64.89, 61.54          ← trên 2 nhân
+journalctl -k: KHÔNG có dòng oom-killer nào
 ```
 
-Ping không nói lên gì: security group của EC2 chặn ICMP mặc định, mất gói là
-chuyện bình thường kể cả khi máy khoẻ.
+RAM căng thật, nhưng kernel **chưa hề** phải giết ai. Thứ chết là CPU: load 65
+trên 2 nhân là gấp hơn 30 lần sức máy. Bước biên dịch (`tsc`, bundler, và
+`npm ci` biên dịch native module bằng `g++`) sinh ra worker theo số nhân và ăn
+sạch thời gian CPU. `sshd` với `nginx` không được cấp CPU để trả lời — nên
+**cổng 22/80 vẫn bắt tay TCP được mà không tiến trình nào đáp**.
 
-### Kiểm trước khi dựng
+Trên máy burstable (`t2.*`, `t3.*`) còn nặng hơn: cạn CPU credit là bị bóp về
+~20% baseline, một bản dựng 3 phút kéo thành 40 phút, và cả máy bò trong suốt
+thời gian đó.
+
+### Phân biệt hai bệnh trước khi chữa
 
 ```bash
-free -m                      # còn bao nhiêu RAM trống, có swap chưa
-nproc
-docker ps --format '{{.Names}}'   # bao nhiêu dự án khác đang sống trên máy này
+uptime                                   # load / số nhân — nghẽn CPU?
+free -m                                  # available còn bao nhiêu, có swap chưa
+journalctl -k | grep -i oom-killer       # có dòng nào không? Không có = KHÔNG phải OOM
+ps -eo pcpu,pmem,etimes,args --sort=-pcpu | head
 ```
+
+Không có dòng OOM mà load cao ngất thì đừng thêm RAM, đừng reboot vội — reboot
+giết luôn mọi dự án khác trên máy mà không chữa được nguyên nhân.
+
+Ping không nói lên gì: security group của EC2 chặn ICMP mặc định.
+
+### Cái bẫy lớn nhất: mỗi lần `git push` là một lần máy chủ tự biên dịch
+
+Nếu `.gitlab-ci.yml` cho job deploy chạy `docker compose up -d --build` **trên
+chính máy chủ**, thì đẩy 3 commit liên tiếp = 3 pipeline = 3 lần biên dịch lại
+toàn bộ ứng dụng, xếp hàng chồng lên nhau. Sửa vài dòng tài liệu cũng đủ hạ cả
+máy. Đây là cách tự bắn vào chân phổ biến nhất.
+
+Trong lúc chưa đổi được kiến trúc CI: **gom thay đổi lại rồi push một lần**,
+đừng push lắt nhắt.
 
 ### Ba cách xử lý, theo thứ tự nên chọn
 
-**1. Dựng ảnh ở nơi khác, máy chủ chỉ kéo về.** Đây là cách đúng. Runner CI
-dựng và đẩy lên registry (GitLab có sẵn registry cho mỗi repo), máy chủ chỉ
-`docker compose pull && up -d`. Kéo ảnh gần như không tốn RAM.
+**1. Dựng ảnh ở nơi khác, máy chủ chỉ kéo về.** Đây là cách đúng. Runner dựng
+và đẩy lên registry (GitLab có registry sẵn cho mỗi repo), máy chủ chỉ
+`pull` rồi `up -d`. Kéo ảnh gần như không tốn CPU.
+
+Lưu ý: runner `shell` cài **ngay trên máy chủ** thì "dựng ở runner" vẫn là
+dựng trên chính máy đó — không giải quyết gì. Muốn ăn thua thì runner phải nằm
+ở máy khác (một VPS nhỏ riêng, hoặc runner dùng chung của GitLab).
 
 ```yaml
-# .gitlab-ci.yml — dựng ở runner, máy chủ không biên dịch gì cả
 build:
   script:
     - docker build -t $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA .
@@ -660,17 +683,24 @@ deploy:
     - docker compose pull && docker compose up -d
 ```
 
-**2. Thêm swap** — vá tạm, nhưng đủ để một máy 1 GB dựng xong mà không kéo
-theo cả nhà. Chậm, không chết:
+**2. Giới hạn CPU cho bản dựng.** Đừng bọc `nice` quanh `docker-compose` —
+việc biên dịch chạy trong `dockerd`, không phải trong tiến trình client, nên
+`nice` ở đó gần như vô tác dụng. Phải chặn ở chỗ thật sự làm việc:
+
+```bash
+# builder cổ điển: ghim bản dựng vào 1 nhân, chừa nhân kia cho dịch vụ
+DOCKER_BUILDKIT=0 docker build --cpuset-cpus=0 -t myapp:new .
+docker-compose up -d --no-build
+```
+
+**3. Thêm swap và chặn trần heap** — chốt chặn phụ, phòng khi RAM mới là vấn đề
+thật ở dự án khác:
 
 ```bash
 fallocate -l 4G /swapfile && chmod 600 /swapfile
 mkswap /swapfile && swapon /swapfile
-echo '/swapfile none swap sw 0 0' >> /etc/fstab   # giữ sau khi reboot
+echo '/swapfile none swap sw 0 0' >> /etc/fstab
 ```
-
-**3. Chặn trần bộ nhớ cho bước build**, để nếu có vỡ thì vỡ *bên trong* bản
-dựng chứ không phải cả máy chủ:
 
 ```dockerfile
 FROM node:22-bookworm-slim AS build
@@ -678,18 +708,9 @@ ENV NODE_OPTIONS=--max-old-space-size=1536
 RUN npm run build
 ```
 
-Bản dựng thất bại vì hết heap thì đọc log là biết ngay và sửa được. Máy chủ
-treo thì phải vào console nhà cung cấp bấm reboot — và lúc đó mọi dự án khác
-đã ngừng phục vụ được vài phút rồi.
-
 ### Nếu đã lỡ treo
 
-Không có cách nào cứu từ xa: SSH chính là thứ đã chết. Vào console của nhà cung
-cấp (EC2 → Instances → Reboot) rồi kiểm lại. Vì vậy phải giữ sẵn **quyền truy
-cập console** trước khi deploy, đừng chỉ có mỗi khoá SSH.
-
-Sau khi lên lại, xem đúng thủ phạm chứ đừng đoán:
-
-```bash
-journalctl -k | grep -i -E 'out of memory|oom-killer|killed process'
-```
+Không cứu được từ xa: SSH chính là thứ đã chết. Phải vào console của nhà cung
+cấp (EC2 → Instances → Reboot). Vì vậy giữ sẵn **quyền vào console** trước khi
+deploy, đừng chỉ có mỗi khoá SSH. Reboot xong nhớ kiểm lại: job CI nào đang
+chạy dở sẽ bị giết và pipeline báo failed — deploy lại từ đầu.
