@@ -1,0 +1,7 @@
+# Script shell và Dockerfile phải giữ LF, nếu không Linux báo
+# "bad interpreter: no such file or directory" khi chạy.
+*.sh            text eol=lf
+Dockerfile      text eol=lf
+docker-entrypoint.sh text eol=lf
+*.yml           text eol=lf
+*.yaml          text eol=lf
