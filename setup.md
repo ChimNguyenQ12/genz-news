@@ -321,8 +321,221 @@ vào thư mục tạm ngay sau khi dựng xong, rồi mới yên tâm.
 | `gitlab-runner` báo permission denied khi gọi docker | Quên `usermod -aG docker gitlab-runner` + restart |
 | Clipboard / phát âm / thông báo không chạy | Đang vào bằng HTTP, không phải HTTPS |
 | Deploy xanh nhưng một tính năng cứ như chưa cấu hình | Biến CI đánh dấu *Protected* mà nhánh deploy chưa protected → biến rỗng, im lặng |
+| `docker-entrypoint.sh: no such file or directory` dù tệp có thật | Script commit bằng CRLF; thiếu `.gitattributes` ép `eol=lf` |
+| `docker compose: unknown command` trên máy chủ | Máy chỉ có binary `docker-compose` (v2 standalone), không có plugin |
+| Upload file lớn báo 413 | `client_max_body_size` của nginx nhỏ hơn giới hạn của app |
 
 ---
 
-Chi tiết riêng của Unveil (khôi phục, đưa dữ liệu bản cũ vào workspace, dọn bảng
-đời đầu): [deploy/README.md](deploy/README.md).
+# Phần bổ sung — những chỗ bản gốc chưa chạm tới
+
+Ghi lại từ lần dựng một dự án Next.js + Prisma. Vẫn viết theo kiểu chung để
+dùng lại; ví dụ đặt trong ngoặc.
+
+## A. Kết thúc dòng: ép LF cho mọi tệp Linux phải chạy
+
+Máy phát triển chạy Windows thì Git mặc định `core.autocrlf=true`: tệp được
+commit với CRLF. Trên Linux, `#!/bin/sh\r` là một trình thông dịch **không tồn
+tại**, và thông báo lỗi lại chỉ vào tên tệp — dễ tưởng thiếu tệp.
+
+Thêm `.gitattributes` **trước** lần commit đầu:
+
+```gitattributes
+*.sh        text eol=lf
+Dockerfile  text eol=lf
+*.yml       text eol=lf
+*.yaml      text eol=lf
+```
+
+Đã lỡ commit rồi thì chuẩn hoá lại rồi kiểm tra:
+
+```bash
+git add --renormalize .
+git ls-files --eol <tệp.sh>      # phải thấy i/lf
+```
+
+## B. Kiểm phiên bản compose trên máy chủ trước khi viết CI
+
+Hai thứ khác nhau và không thay thế nhau về mặt lệnh gọi:
+
+| | lệnh | nguồn |
+|---|---|---|
+| plugin v2 | `docker compose` | gói `docker-compose-plugin` |
+| binary v2 | `docker-compose` | tải rời về `/usr/local/bin` |
+
+Máy chủ có thể chỉ có một trong hai. Kiểm trước, rồi viết đúng lệnh đó vào CI:
+
+```bash
+docker compose version || docker-compose --version
+```
+
+Viết nhầm thì job deploy chết ngay dòng đầu, trong khi build đã tốn vài phút.
+
+## C. Chọn cơ sở dữ liệu: mặc định là SQLite
+
+Trang nội dung một máy chủ, ghi ít (chỉ biên tập viên ghi, độc giả chỉ đọc) thì
+SQLite là lựa chọn đúng, không phải lựa chọn tạm. Nó bỏ được một container, một
+tiến trình, một chuỗi kết nối và một lớp cần sao lưu riêng — sao lưu trở thành
+copy một tệp trong `$DATA`.
+
+Chỉ đổi sang Postgres/MySQL khi có **lý do cụ thể**: nhiều instance ghi song
+song, cần replica đọc, cần kiểu dữ liệu riêng (JSONB, PostGIS), hoặc dùng dịch
+vụ quản lý sẵn.
+
+Nếu dùng ORM, biết trước hai chỗ SQLite không có:
+
+* **Không có kiểu mảng** — lưu chuỗi JSON, quy đổi ở tầng truy cập dữ liệu.
+* **Không có enum** — lưu chuỗi, chặn giá trị sai ở tầng API.
+
+Chuyển engine giữa chừng thì làm theo thứ tự này, đừng sửa schema trước:
+
+```bash
+node scripts/export-db.mjs     # xuất ra JSON khi DB cũ CÒN chạy
+# sửa provider trong schema, xoá thư mục migrations cũ
+npx prisma migrate dev --name init
+node scripts/import-db.mjs     # nạp lại
+```
+
+Hash mật khẩu là chuỗi nên đi qua được; người dùng không phải đặt lại mật khẩu.
+
+## D. ORM đời mới tách cấu hình ra khỏi schema
+
+Prisma từ v7 **không nhận `url` trong `datasource`** nữa. Chuỗi kết nối chuyển
+sang `prisma.config.ts`, và client phải được truyền một *driver adapter*:
+
+```ts
+// prisma.config.ts — cho CLI (migrate, studio)
+export default defineConfig({
+  schema: "prisma/schema.prisma",
+  datasource: { url: `file:${dbPath}` },
+});
+
+// lib/prisma.ts — cho app
+new PrismaClient({ adapter: new PrismaBetterSqlite3({ url: `file:${dbPath}` }) });
+```
+
+Hai chỗ này phải trỏ **cùng một tệp**, nếu không `migrate` tạo bảng ở một nơi
+còn app đọc ở nơi khác, và lỗi hiện ra là "không tìm thấy bảng".
+
+Vài cái bẫy liên quan:
+
+* Tên class adapter không theo quy ước hoa/thường dễ đoán. Đọc `index.d.ts`
+  trong gói thay vì đoán.
+* Đổi schema xong phải chạy `prisma generate` **và khởi động lại dev server** —
+  server đang chạy vẫn giữ client cũ trong bộ nhớ, báo lỗi kiểu "unknown
+  argument" cho trường vốn vẫn đúng.
+* `npm install <orm>` có thể kéo về bản RC nếu tag `latest` đang trỏ vào đó.
+  Ghim major rõ ràng (`npm i prisma@7`) và kiểm lại bằng `npx prisma --version`.
+* CLI của ORM thường kéo theo driver của **mọi** engine (kể cả engine không
+  dùng) — đó là nơi `npm audit` báo lỗ hổng. Để CLI trong `devDependencies` rồi
+  soát bằng `npm audit --omit=dev`; con số đó mới là thứ chạy trên production.
+
+## E. Docker cho Next.js: standalone + migrate lúc khởi động
+
+Bật `output: "standalone"` trong `next.config.ts`, rồi image runtime chỉ cần:
+
+```dockerfile
+COPY --from=build /app/.next/standalone ./
+COPY --from=build /app/.next/static ./.next/static
+COPY --from=build /app/public ./public
+```
+
+Ba điểm hay quên:
+
+1. **Module native** (`better-sqlite3`, `sharp`) cần `python3 make g++` ở tầng
+   cài phụ thuộc. Image `-slim` không có sẵn.
+2. **Chạy migration trong entrypoint**, trước khi mở cổng — như vậy deploy nào
+   cũng tự đồng bộ schema, không cần nhớ chạy tay:
+   ```sh
+   npx prisma migrate deploy
+   exec "$@"
+   ```
+   Muốn vậy thì phải COPY cả `prisma/`, `prisma.config.ts` và CLI vào image
+   runtime, không chỉ mã đã build.
+3. **`HEALTHCHECK` trong Dockerfile** cần `curl` — image `-slim` cũng không có.
+
+## F. Endpoint sức khoẻ phải chạm vào cơ sở dữ liệu
+
+Trả về `{ok:true}` cứng thì nó chỉ chứng minh tiến trình Node còn sống. Cho nó
+đếm một bảng:
+
+```ts
+const n = await prisma.article.count();
+return Response.json({ ok: true, articles: n });
+```
+
+Khác biệt thật: DB hỏng quyền ghi, hoặc bind mount trỏ sai chỗ, thì bản cứng
+vẫn xanh còn bản này đỏ ngay — đúng lúc CI còn đang chờ.
+
+## G. Bí mật: tự sinh rồi cất vào thư mục dữ liệu
+
+Bản gốc nói "nên có đường lui tự sinh". Cụ thể hoá:
+
+```ts
+const file = path.join(DATA_DIR, "session-secret");
+try { return fs.readFileSync(file, "utf8").trim(); } catch {}
+const generated = crypto.randomBytes(48).toString("hex");
+fs.writeFileSync(file, generated, { mode: 0o600 });
+```
+
+Vì `$DATA` là bind mount nằm ngoài checkout, khoá sống qua mọi lần deploy mà
+không cần biến CI nào. Muốn xoay khoá thì xoá tệp và khởi động lại.
+
+**Đừng để khoá mặc định ghi cứng trong mã.** Mã nguồn công khai thì khoá đó công
+khai theo, và mọi phiên đăng nhập giả mạo được.
+
+## H. Lưu tệp người dùng tải lên: S3 chứ không phải đĩa container
+
+Ghi vào `public/uploads` thì mất khi container dựng lại, trừ phi mount thêm.
+Đẩy thẳng lên object storage:
+
+```ts
+await s3.send(new PutObjectCommand({
+  Bucket, Key: `uploads/${year}/${month}/${randomUUID()}.${ext}`,
+  Body: buffer, ContentType: mime,
+  CacheControl: "public, max-age=31536000, immutable",
+}));
+```
+
+* Tên tệp do **server sinh** (UUID). Tên client gửi lên không bao giờ được dùng
+  làm đường dẫn.
+* Kiểm **magic bytes**, không tin phần mở rộng hay `Content-Type` client khai.
+* Đặt `client_max_body_size` của nginx **lớn hơn** giới hạn của app, nếu không
+  người dùng nhận 413 từ nginx trước khi app kịp báo lỗi tử tế.
+* Cách xác thực tốt nhất là **IAM role gắn vào EC2**. Nếu buộc phải dùng access
+  key trong `~/.aws`, mount chỉ đọc và đúng chỗ user trong container tìm:
+  ```yaml
+  volumes:
+    - /root/.aws:/home/node/.aws:ro
+  environment:
+    AWS_PROFILE: <profile>
+    AWS_SDK_LOAD_CONFIG: "1"
+  ```
+
+## I. Đăng ký runner trước, đừng để tới lúc push
+
+Runner tồn tại trong GitLab UI **không** có nghĩa là nó đã đăng ký trên máy
+chủ. Kiểm bằng:
+
+```bash
+gitlab-runner list        # phải thấy đúng thẻ dự án
+```
+
+Không có thì pipeline nằm im ở *pending*, không báo lỗi gì. Đăng ký:
+
+```bash
+sudo gitlab-runner register --executor shell --tag-list $TAG \
+  --non-interactive --url https://gitlab.com/ --token <token>
+sudo usermod -aG docker gitlab-runner && sudo systemctl restart gitlab-runner
+```
+
+## J. Chọn cổng: kiểm trước khi đặt
+
+```bash
+ss -tlnp | grep -E '50[0-9][0-9]'
+docker ps --format '{{.Names}}\t{{.Ports}}'
+```
+
+Trên máy nhiều dự án, cổng tiếp theo còn trống không chắc là cổng tiếp theo
+theo số. Và luôn bind `127.0.0.1:<port>` — thấy `0.0.0.0:<port>` ở dự án nào là
+dự án đó đang phơi thẳng ra Internet, bỏ qua nginx.
