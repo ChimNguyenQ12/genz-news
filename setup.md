@@ -444,14 +444,34 @@ Ba điểm hay quên:
 
 1. **Module native** (`better-sqlite3`, `sharp`) cần `python3 make g++` ở tầng
    cài phụ thuộc. Image `-slim` không có sẵn.
-2. **Chạy migration trong entrypoint**, trước khi mở cổng — như vậy deploy nào
-   cũng tự đồng bộ schema, không cần nhớ chạy tay:
-   ```sh
-   npx prisma migrate deploy
-   exec "$@"
+2. **Migration chạy ở service riêng, không nhét vào entrypoint.** CLI của ORM
+   kéo theo cây phụ thuộc riêng mà bản standalone không gói; copy mỗi thư mục
+   CLI vào image runtime sẽ chết ở `MODULE_NOT_FOUND` cho một gói bạn chưa từng
+   nghe tên, và container vào vòng lặp khởi động lại.
+
+   Cách gọn: thêm một tầng dựng từ chính tầng build (nơi `node_modules` còn
+   đủ), rồi cho app đợi nó chạy xong.
+
+   ```dockerfile
+   FROM build AS migrator
+   CMD ["npx", "prisma", "migrate", "deploy"]
    ```
-   Muốn vậy thì phải COPY cả `prisma/`, `prisma.config.ts` và CLI vào image
-   runtime, không chỉ mã đã build.
+   ```yaml
+   services:
+     migrate:
+       build: { context: ., target: migrator }
+       restart: "no"
+       volumes: [ "$DATA:/app/data" ]
+     app:
+       build: { context: ., target: runner }
+       depends_on:
+         migrate:
+           condition: service_completed_successfully
+   ```
+
+   Được hai thứ: image runtime vẫn nhỏ, và app **không bao giờ** khởi động trên
+   schema cũ — migrate hỏng thì app không lên, thấy ngay thay vì lỗi mơ hồ lúc
+   chạy.
 3. **`HEALTHCHECK` trong Dockerfile** cần `curl` — image `-slim` cũng không có.
 
 ## F. Endpoint sức khoẻ phải chạm vào cơ sở dữ liệu
@@ -529,7 +549,38 @@ sudo gitlab-runner register --executor shell --tag-list $TAG \
 sudo usermod -aG docker gitlab-runner && sudo systemctl restart gitlab-runner
 ```
 
-## J. Chọn cổng: kiểm trước khi đặt
+## J. DNS phải trỏ đúng TRƯỚC khi gọi certbot
+
+Certbot xác thực bằng HTTP-01: nó đặt tệp vào `/var/www/html/.well-known/` rồi
+Let's Encrypt gọi vào `http://$DOMAIN/.well-known/...`. Muốn qua được thì tên
+miền phải phân giải **về đúng IP máy chủ này**.
+
+Kiểm trước, đừng chạy certbot rồi mới đọc lỗi:
+
+```bash
+dig +short A $DOMAIN          # phải ra IP máy chủ
+dig +short A www.$DOMAIN
+curl -s ifconfig.me           # so sánh
+```
+
+Hai kiểu hỏng hay gặp:
+
+* **Apex không có A record.** Nhiều người chỉ thêm `www` rồi tưởng xong. Cần cả
+  hai bản ghi, hoặc apex A + `www` CNAME về apex.
+* **Đang qua CDN/proxy** (Cloudflare đám mây cam). `dig` sẽ ra IP của CDN chứ
+  không phải máy chủ, và HTTP-01 đi vào CDN. Cách gọn nhất: **tắt proxy (đám
+  mây xám) cho tới khi xin xong chứng chỉ**, rồi bật lại. Hoặc dùng DNS-01 với
+  plugin của nhà cung cấp.
+
+Chưa trỏ DNS thì vẫn dựng được server block cổng 80 và kiểm app qua IP:
+
+```bash
+curl -H 'Host: $DOMAIN' http://127.0.0.1/api/health
+```
+
+Xong DNS thì chỉ còn một lệnh certbot là site lên HTTPS.
+
+## K. Chọn cổng: kiểm trước khi đặt
 
 ```bash
 ss -tlnp | grep -E '50[0-9][0-9]'
