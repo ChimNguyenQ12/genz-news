@@ -326,6 +326,7 @@ vào thư mục tạm ngay sau khi dựng xong, rồi mới yên tâm.
 | Upload file lớn báo 413 | `client_max_body_size` của nginx nhỏ hơn giới hạn của app |
 | Đọc dữ liệu được nhưng ghi báo `SQLITE_READONLY` | Chuỗi kết nối đưa `file:` vào driver; hoặc tệp `.db` do container migrate chạy bằng root tạo ra |
 | SDK cloud báo `Could not load credentials` dù đã mount `~/.aws` | Thư mục khoá thuộc root quyền 600, container chạy uid khác nên không đọc được |
+| Cả máy chủ mất SSH lẫn HTTP ngay sau khi build | Bước biên dịch ăn hết RAM, OOM killer hạ `sshd`/`nginx`; xem mục L |
 
 ---
 
@@ -613,3 +614,82 @@ docker ps --format '{{.Names}}\t{{.Ports}}'
 Trên máy nhiều dự án, cổng tiếp theo còn trống không chắc là cổng tiếp theo
 theo số. Và luôn bind `127.0.0.1:<port>` — thấy `0.0.0.0:<port>` ở dự án nào là
 dự án đó đang phơi thẳng ra Internet, bỏ qua nginx.
+
+## L. Dựng ảnh ngay trên máy chủ dùng chung: coi chừng hết RAM
+
+Trên VPS nhỏ đang chạy sẵn nhiều dự án, `docker compose up -d --build` là lệnh
+nguy hiểm nhất trong cả quy trình. Bước biên dịch của các framework web đời mới
+(Next.js, Nuxt, Vite build lớn) ăn 1,5–3 GB RAM trong vài phút. Máy 1–2 GB
+không đủ, kernel bắt đầu tráo swap, và thứ chết trước không phải là trình biên
+dịch — mà là `sshd` và `nginx`, tức là **mọi dự án khác trên máy cùng ngã**.
+
+Dấu hiệu nhận ra đúng bệnh này: cổng 22 và 80 vẫn **bắt tay TCP được** (kernel
+còn sống, còn nghe) nhưng không tiến trình nào trả lời nổi. Từ máy nhà:
+
+```bash
+# vẫn "MO" — nhưng curl và ssh đều treo
+for p in 22 80 443; do (echo > /dev/tcp/$SERVER_IP/$p) 2>/dev/null \
+  && echo "$p MO" || echo "$p DONG"; done
+```
+
+Ping không nói lên gì: security group của EC2 chặn ICMP mặc định, mất gói là
+chuyện bình thường kể cả khi máy khoẻ.
+
+### Kiểm trước khi dựng
+
+```bash
+free -m                      # còn bao nhiêu RAM trống, có swap chưa
+nproc
+docker ps --format '{{.Names}}'   # bao nhiêu dự án khác đang sống trên máy này
+```
+
+### Ba cách xử lý, theo thứ tự nên chọn
+
+**1. Dựng ảnh ở nơi khác, máy chủ chỉ kéo về.** Đây là cách đúng. Runner CI
+dựng và đẩy lên registry (GitLab có sẵn registry cho mỗi repo), máy chủ chỉ
+`docker compose pull && up -d`. Kéo ảnh gần như không tốn RAM.
+
+```yaml
+# .gitlab-ci.yml — dựng ở runner, máy chủ không biên dịch gì cả
+build:
+  script:
+    - docker build -t $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA .
+    - docker push $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA
+deploy:
+  script:
+    - docker compose pull && docker compose up -d
+```
+
+**2. Thêm swap** — vá tạm, nhưng đủ để một máy 1 GB dựng xong mà không kéo
+theo cả nhà. Chậm, không chết:
+
+```bash
+fallocate -l 4G /swapfile && chmod 600 /swapfile
+mkswap /swapfile && swapon /swapfile
+echo '/swapfile none swap sw 0 0' >> /etc/fstab   # giữ sau khi reboot
+```
+
+**3. Chặn trần bộ nhớ cho bước build**, để nếu có vỡ thì vỡ *bên trong* bản
+dựng chứ không phải cả máy chủ:
+
+```dockerfile
+FROM node:22-bookworm-slim AS build
+ENV NODE_OPTIONS=--max-old-space-size=1536
+RUN npm run build
+```
+
+Bản dựng thất bại vì hết heap thì đọc log là biết ngay và sửa được. Máy chủ
+treo thì phải vào console nhà cung cấp bấm reboot — và lúc đó mọi dự án khác
+đã ngừng phục vụ được vài phút rồi.
+
+### Nếu đã lỡ treo
+
+Không có cách nào cứu từ xa: SSH chính là thứ đã chết. Vào console của nhà cung
+cấp (EC2 → Instances → Reboot) rồi kiểm lại. Vì vậy phải giữ sẵn **quyền truy
+cập console** trước khi deploy, đừng chỉ có mỗi khoá SSH.
+
+Sau khi lên lại, xem đúng thủ phạm chứ đừng đoán:
+
+```bash
+journalctl -k | grep -i -E 'out of memory|oom-killer|killed process'
+```
