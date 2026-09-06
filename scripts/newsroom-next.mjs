@@ -78,9 +78,12 @@ function parseUrls(raw) {
 
 function main() {
   // busy_timeout: app cũng đang mở tệp này, đợi chứ đừng bỏ cuộc ngay.
+  // MỚI NHẤT TRƯỚC. Đây là trang tin: đề tài hai hôm trước đã nguội, viết ra
+  // không ai đọc. Đề tài do tổng biên tập tự đặt ở /admin/research cũng nhờ vậy
+  // mà được làm ngay, không phải xếp sau hàng trăm mục cũ.
   const rows = sql(
     "SELECT id, topic, urls, notes, reporterNote FROM research_requests " +
-      "WHERE status = 'pending' ORDER BY createdAt ASC LIMIT 50;",
+      "WHERE status = 'pending' ORDER BY createdAt DESC LIMIT 50;",
   );
 
   for (const row of rows) {
