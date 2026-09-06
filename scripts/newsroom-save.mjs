@@ -64,9 +64,14 @@ function validate(a) {
 
   const title = String(a.title ?? "").trim();
   if (!title) die("thiếu tiêu đề");
-  if (title.length > 90) die(`tít dài ${title.length} ký tự, hiến chương yêu cầu dưới ~75`);
+  // Hiến chương: tít dưới ~75 ký tự. Cho dôi 5 ký tự, quá nữa thì trả lại.
+  if (title.length > 80) die(`tít dài ${title.length} ký tự, hiến chương yêu cầu dưới ~75`);
 
-  if (!String(a.dek ?? "").trim()) die("thiếu dek (câu tóm tắt)");
+  const dek = String(a.dek ?? "").trim();
+  if (!dek) die("thiếu dek (câu tóm tắt)");
+  if (dek.length > 220) {
+    console.error(`[newsroom-save] LƯU Ý: dek dài ${dek.length} ký tự, nên gọn lại một câu.`);
+  }
 
   const category = String(a.category ?? "");
   if (!CATEGORIES.includes(category)) {
@@ -103,7 +108,7 @@ function validate(a) {
 
   return {
     title,
-    dek: String(a.dek).trim(),
+    dek,
     category,
     body,
     tags: Array.isArray(a.tags) ? a.tags.map(String).slice(0, 6) : [],
