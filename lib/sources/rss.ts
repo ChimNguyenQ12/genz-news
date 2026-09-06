@@ -5,6 +5,8 @@ const parser = new XMLParser({
   ignoreAttributes: false,
   attributeNamePrefix: "@_",
   textNodeName: "#text",
+  // Vài báo Việt nhét thực thể HTML vào tít RSS ("qu&ecirc;" thay vì "quê").
+  htmlEntities: true,
 });
 
 export interface RssSource {
@@ -20,10 +22,23 @@ export const INTERNATIONAL_FEEDS: RssSource[] = [
   { name: "The Guardian World", url: "https://www.theguardian.com/world/rss" },
   { name: "Al Jazeera", url: "https://www.aljazeera.com/xml/rss/all.xml" },
   { name: "NYT World", url: "https://rss.nytimes.com/services/xml/rss/nyt/World.xml" },
+  // Công nghệ và văn hoá mạng — mảng bạn đọc Gen Z theo dõi nhiều nhất.
+  { name: "BBC Technology", url: "https://feeds.bbci.co.uk/news/technology/rss.xml" },
+  { name: "TechCrunch", url: "https://techcrunch.com/feed/" },
+  { name: "Ars Technica", url: "https://feeds.arstechnica.com/arstechnica/index" },
+  { name: "WIRED", url: "https://www.wired.com/feed/rss" },
 ];
 
 export const VIETNAMESE_INTL_FEEDS: RssSource[] = [
   { name: "BBC Tiếng Việt", url: "https://feeds.bbci.co.uk/vietnamese/rss.xml" },
+  { name: "VnExpress Thế giới", url: "https://vnexpress.net/rss/the-gioi.rss" },
+  { name: "VnExpress Số hoá", url: "https://vnexpress.net/rss/so-hoa.rss" },
+  { name: "VnExpress Giải trí", url: "https://vnexpress.net/rss/giai-tri.rss" },
+  { name: "Thanh Niên Giới trẻ", url: "https://thanhnien.vn/rss/gioi-tre.rss" },
+  { name: "Thanh Niên Công nghệ", url: "https://thanhnien.vn/rss/cong-nghe.rss" },
+  { name: "Tuổi Trẻ Nhịp sống trẻ", url: "https://tuoitre.vn/rss/nhip-song-tre.rss" },
+  { name: "Kênh14 Star", url: "https://kenh14.vn/star.rss" },
+  { name: "Znews Công nghệ", url: "https://znews.vn/rss/cong-nghe.rss" },
 ];
 
 async function fetchText(url: string): Promise<string> {

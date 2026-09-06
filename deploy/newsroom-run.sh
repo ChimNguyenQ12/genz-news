@@ -62,11 +62,25 @@ PROMPT="Đề tài trong hàng đợi toà soạn:
 $TASK_JSON
 
 Làm theo đúng quy trình trong CLAUDE.md của repo này:
-1. Tìm nguồn thật bằng WebSearch/WebFetch. Tối thiểu 2 nguồn ĐỘC LẬP, khác tên miền.
+1. Tìm nguồn thật bằng WebSearch/WebFetch. Tối thiểu 2 nguồn ĐỘC LẬP, khác tên
+   miền. Tìm ở CẢ HAI phía: báo quốc tế (tiếng Anh) và báo Việt. Đề tài quốc tế
+   thì xem báo Việt đã viết gì chưa; đề tài trong nước thì xem quốc tế có nhắc
+   tới không. Hai phía thường có góc nhìn và số liệu khác nhau — chỗ khác nhau
+   đó chính là phần đáng viết.
 2. Kiểm chứng: mọi con số, tên riêng, ngày tháng phải khớp giữa các nguồn.
    Không khớp thì bỏ chi tiết đó, đừng đoán.
 3. Viết lại hoàn toàn bằng lời của mình. Không dịch nguyên văn, không paraphrase
    sát bản gốc.
+3b. GÓC NHÌN GEN Z — đây là phần quan trọng nhất, đừng bỏ:
+   - Bạn đọc là người 18–27 tuổi ở Việt Nam. Trả lời cho được: chuyện này dính
+     gì tới họ? Ảnh hưởng tới việc học, việc làm, tiền bạc, hay thứ họ dùng
+     hằng ngày như thế nào?
+   - Đặt câu trả lời đó vào ngay đoạn đầu hoặc đoạn hai, đừng để cuối bài.
+   - Thuật ngữ lạ thì giải thích ngay khi dùng lần đầu, bằng một mệnh đề ngắn.
+   - Nếu đề tài đang có tranh luận thật, nêu rõ hai bên nói gì và ai nói. Tranh
+     luận có thật thì viết, đừng bịa ra mâu thuẫn cho kịch tính.
+   - KHÔNG giật tít câu view, không chêm tiếng lóng gượng ép. Hấp dẫn nằm ở
+     thông tin cụ thể, không nằm ở dấu chấm than.
 4. Ghi JSON bài viết ra tệp /tmp/bai-$REQ_ID.json rồi lưu bằng lệnh:
 
    genz-news-save-article /tmp/bai-$REQ_ID.json

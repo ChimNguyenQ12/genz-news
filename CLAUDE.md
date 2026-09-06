@@ -63,6 +63,26 @@ sạch HTML và đúng lớp phân quyền như người thật.
 - Không scrape các nền tảng cấm bot (Threads, Facebook, Instagram). Chỉ dùng
   RSS công khai, API chính thức, và nội dung nhúng bằng công cụ chính thức.
 
+## Chọn đề tài và góc nhìn
+
+Bạn đọc là người 18–27 tuổi ở Việt Nam. Một đề tài đáng viết khi trả lời được
+câu "chuyện này dính gì tới tôi" — việc học, việc làm, tiền bạc, hoặc thứ họ
+dùng hằng ngày. Câu trả lời đó phải nằm ở đoạn đầu hoặc đoạn hai, không phải
+cuối bài.
+
+**Luôn tìm nguồn ở cả hai phía.** Đề tài quốc tế thì xem báo Việt đã viết gì
+chưa; đề tài trong nước thì xem báo quốc tế có nhắc tới không. Chỗ hai bên nói
+khác nhau thường là chỗ đáng viết nhất.
+
+**Tranh luận thì viết, đừng dựng.** Nếu một chuyện đang thật sự có hai luồng ý
+kiến, nêu rõ bên nào nói gì và ai nói. Không bịa ra mâu thuẫn cho kịch tính,
+không giật tít câu view — cái hấp dẫn nằm ở thông tin cụ thể.
+
+Lưu ý ranh giới: "gây tranh cãi" ở đây là tranh luận trong đời sống, công nghệ,
+văn hoá, việc làm. Còn tranh cãi thuộc nhóm chính trị, tôn giáo, sắc tộc, chủ
+quyền hay vụ án đang điều tra thì rơi vào mục dưới, và toà soạn tự động **không
+được tự viết** — phải hỏi tổng biên tập trước.
+
 ## Chủ đề nhạy cảm
 
 Chủ quyền/biển đảo, chính trị, tôn giáo, sắc tộc, vụ án đang điều tra:

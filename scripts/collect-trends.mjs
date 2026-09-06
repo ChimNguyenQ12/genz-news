@@ -41,7 +41,7 @@ const prisma = new PrismaClient({
 
 const MAX_GOOGLE = Number(process.env.TRENDS_MAX_GOOGLE ?? 8);
 const MAX_YOUTUBE = Number(process.env.TRENDS_MAX_YOUTUBE ?? 6);
-const MAX_HEADLINES = Number(process.env.TRENDS_MAX_HEADLINES ?? 8);
+const MAX_HEADLINES = Number(process.env.TRENDS_MAX_HEADLINES ?? 12);
 const DEDUPE_DAYS = Number(process.env.TRENDS_DEDUPE_DAYS ?? 7);
 const DRY_RUN = process.env.TRENDS_DRY_RUN === "1";
 const UA = "GenZNewsBot/1.0 (+editorial trend collector)";
@@ -50,16 +50,34 @@ const parser = new XMLParser({
   ignoreAttributes: false,
   attributeNamePrefix: "@_",
   textNodeName: "#text",
+  // Vài báo Việt nhét thực thể HTML vào tít RSS ("qu&ecirc;" thay vì "quê").
+  // Không bật cái này thì đề tài lưu xuống còn nguyên mã, đọc không ra chữ.
+  htmlEntities: true,
 });
 
 // Giữ đồng bộ thủ công với lib/sources/rss.ts (script chạy độc lập bằng Node
 // nên không import trực tiếp file TypeScript của app).
 const RSS_FEEDS = [
+  // --- Quốc tế: tin thế giới
   { name: "BBC World", url: "https://feeds.bbci.co.uk/news/world/rss.xml" },
   { name: "The Guardian World", url: "https://www.theguardian.com/world/rss" },
   { name: "Al Jazeera", url: "https://www.aljazeera.com/xml/rss/all.xml" },
   { name: "NYT World", url: "https://rss.nytimes.com/services/xml/rss/nyt/World.xml" },
+  // --- Quốc tế: công nghệ và văn hoá mạng, mảng Gen Z đọc nhiều nhất
+  { name: "BBC Technology", url: "https://feeds.bbci.co.uk/news/technology/rss.xml" },
+  { name: "TechCrunch", url: "https://techcrunch.com/feed/" },
+  { name: "Ars Technica", url: "https://feeds.arstechnica.com/arstechnica/index" },
+  { name: "WIRED", url: "https://www.wired.com/feed/rss" },
+  // --- Việt Nam
   { name: "BBC Tiếng Việt", url: "https://feeds.bbci.co.uk/vietnamese/rss.xml" },
+  { name: "VnExpress Thế giới", url: "https://vnexpress.net/rss/the-gioi.rss" },
+  { name: "VnExpress Số hoá", url: "https://vnexpress.net/rss/so-hoa.rss" },
+  { name: "VnExpress Giải trí", url: "https://vnexpress.net/rss/giai-tri.rss" },
+  { name: "Thanh Niên Giới trẻ", url: "https://thanhnien.vn/rss/gioi-tre.rss" },
+  { name: "Thanh Niên Công nghệ", url: "https://thanhnien.vn/rss/cong-nghe.rss" },
+  { name: "Tuổi Trẻ Nhịp sống trẻ", url: "https://tuoitre.vn/rss/nhip-song-tre.rss" },
+  { name: "Kênh14 Star", url: "https://kenh14.vn/star.rss" },
+  { name: "Znews Công nghệ", url: "https://znews.vn/rss/cong-nghe.rss" },
 ];
 
 /**
@@ -72,26 +90,98 @@ const NOISE_PATTERNS = [
   /tỷ giá|đô la mỹ|usd hôm nay|euro hôm nay/i,
   /lịch âm|ngày tốt|tử vi|xem bói/i,
   /dự báo thời tiết|thời tiết hôm nay/i,
-  /lịch thi đấu|kết quả bóng đá hôm nay/i,
+  /lich thi dau|ket qua bong da hom nay/i,
+  // Tra lịch/bảng xếp hạng giải đấu — tiện ích, không phải tin.
+  /lich (ngoai hang anh|la liga|serie a|c1|cup)|bang xep hang|bxh/i,
+  // Tra cứu tiện ích — người ta gõ để dùng, không phải để đọc tin.
+  /lịch cúp điện|cắt điện|tra cứu|số điện thoại|mã vùng|bảng giá|tra điểm/i,
+  // Từ khoá là tên miền: "edu.vn", "abc.com" — không thành đề tài được.
+  /^[\w-]+\.(vn|com|net|org|edu|gov)$/i,
 ];
+
+/**
+ * Danh từ chung trần trụi. Google Trends VN hay đẩy lên những từ như "phường",
+ * "bệnh viện", "máy móc" — đúng là đang hot nhưng không nói lên chuyện gì.
+ */
+const GENERIC_WORDS = new Set(
+  [
+    "phường", "xã", "huyện", "tỉnh", "quận", "thành phố",
+    "bệnh viện", "trường học", "công ty", "ngân hàng", "máy móc",
+    "học sinh", "sinh viên", "giáo viên", "bác sĩ", "công an",
+    "thời tiết", "bóng đá", "điện thoại", "xe máy", "ô tô",
+  ].map((w) => stripDiacritics(w)),
+);
 
 /** Bỏ từ khoá quá ngắn/mơ hồ như "đất", "đâm" — không đủ thành đề tài. */
 function isTooVague(keyword) {
-  const words = keyword.trim().split(/\s+/);
-  return words.length < 2 && keyword.trim().length < 6;
+  // So khớp trên bản không dấu: Google Trends trả về cả "phường" lẫn "phuong".
+  const k = stripDiacritics(keyword.trim().toLowerCase());
+  if (GENERIC_WORDS.has(k)) return true;
+  const words = k.split(/\s+/);
+  // Một chữ thì phải đủ dài mới mong là tên riêng; ngưỡng cũ (6) lọt cả
+  // "phường", "edu.vn".
+  if (words.length < 2 && k.length < 10) return true;
+  // Hai chữ mà cả hai đều là danh từ chung thì cũng chẳng thành đề tài.
+  if (words.length === 2 && words.every((w) => GENERIC_WORDS.has(w))) return true;
+  return false;
+}
+
+/** Bỏ dấu tiếng Việt để so khớp. Google Trends VN trả về cả có dấu lẫn không. */
+function stripDiacritics(str) {
+  return str
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/đ/g, "d")
+    .replace(/Đ/g, "D");
 }
 
 function isNoise(keyword) {
-  return NOISE_PATTERNS.some((re) => re.test(keyword)) || isTooVague(keyword);
+  const bare = stripDiacritics(keyword);
+  const hit = (re) => re.test(keyword) || re.test(bare);
+  return NOISE_PATTERNS.some(hit) || isTooVague(keyword);
 }
 
 const toArray = (v) => (v === undefined ? [] : Array.isArray(v) ? v : [v]);
 
+/**
+ * Bảng thực thể HTML có tên, dải Latin-1 (mã 160–255) theo đúng thứ tự chuẩn.
+ * Tuỳ chọn htmlEntities của trình phân tích không phủ hết bộ này, mà báo Việt
+ * lại hay nhét "qu&ecirc;" vào tít RSS. Ký tự tiếng Việt ngoài dải Latin-1
+ * (ơ, ư, ạ, ấ...) không có tên riêng, chúng đi ở dạng số nên đã xử lý sẵn.
+ */
+const LATIN1_ENTITIES = (
+  "nbsp iexcl cent pound curren yen brvbar sect uml copy ordf laquo not shy " +
+  "reg macr deg plusmn sup2 sup3 acute micro para middot cedil sup1 ordm " +
+  "raquo frac14 frac12 frac34 iquest Agrave Aacute Acirc Atilde Auml Aring " +
+  "AElig Ccedil Egrave Eacute Ecirc Euml Igrave Iacute Icirc Iuml ETH Ntilde " +
+  "Ograve Oacute Ocirc Otilde Ouml times Oslash Ugrave Uacute Ucirc Uuml " +
+  "Yacute THORN szlig agrave aacute acirc atilde auml aring aelig ccedil " +
+  "egrave eacute ecirc euml igrave iacute icirc iuml eth ntilde ograve oacute " +
+  "ocirc otilde ouml divide oslash ugrave uacute ucirc uuml yacute thorn yuml"
+).split(" ").reduce((map, name, i) => map.set(name, String.fromCharCode(160 + i)), new Map());
+
+function decodeEntities(str) {
+  return (
+    str
+      .replace(/&#(\d+);/g, (_, d) => String.fromCharCode(Number(d)))
+      .replace(/&#x([0-9a-f]+);/gi, (_, h) => String.fromCharCode(parseInt(h, 16)))
+      .replace(/&([A-Za-z]+);/g, (whole, name) => {
+        if (LATIN1_ENTITIES.has(name)) return LATIN1_ENTITIES.get(name);
+        const extra = { quot: '"', apos: "'", lt: "<", gt: ">", amp: "&" };
+        return name in extra ? extra[name] : whole;
+      })
+      // &amp; gỡ sau cùng, nếu không "&amp;lt;" thành "<" một cách sai.
+      .replace(/&amp;/g, "&")
+  );
+}
+
 function textOf(v) {
   if (v === undefined || v === null) return "";
-  if (typeof v === "string") return v;
-  if (typeof v === "object" && "#text" in v) return String(v["#text"] ?? "");
-  return String(v);
+  let raw;
+  if (typeof v === "string") raw = v;
+  else if (typeof v === "object" && "#text" in v) raw = String(v["#text"] ?? "");
+  else raw = String(v);
+  return decodeEntities(raw).trim();
 }
 
 async function fetchWithTimeout(url, ms = 20000) {
@@ -282,7 +372,9 @@ async function main() {
     byFeed.get(h.source).push(h);
   }
   const roundRobin = [];
-  const lists = [...byFeed.values()];
+  // Đảo thứ tự nguồn: vòng round-robin luôn bắt đầu từ đầu danh sách, để
+  // nguyên thì mấy nguồn cuối gần như không bao giờ được chọn.
+  const lists = [...byFeed.values()].sort(() => Math.random() - 0.5);
   for (let i = 0; roundRobin.length < MAX_HEADLINES; i++) {
     let addedThisRound = false;
     for (const list of lists) {
