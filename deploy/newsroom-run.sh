@@ -54,7 +54,10 @@ trap cleanup EXIT
 
 # Trả đề tài về hàng đợi để lượt sau còn làm lại.
 release() {
-  db "UPDATE research_requests SET status='pending', updatedAt=CURRENT_TIMESTAMP WHERE id='$REQ_ID';"
+  # Định dạng thời gian phải khớp Prisma ("...T...+00:00"); hàm thời gian sẵn
+  # có của SQLite cho dạng khác, trộn vào là sắp xếp theo thời gian sai.
+  now="$(date -u +%Y-%m-%dT%H:%M:%S.000+00:00)"
+  db "UPDATE research_requests SET status='pending', updatedAt='$now' WHERE id='$REQ_ID';"
 }
 
 PROMPT="Đề tài trong hàng đợi toà soạn:

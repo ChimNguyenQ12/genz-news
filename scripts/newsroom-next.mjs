@@ -52,6 +52,16 @@ function sql(query, { json = true } = {}) {
 
 const quote = (s) => "'" + String(s).replace(/'/g, "''") + "'";
 
+/**
+ * Prisma lưu DateTime của SQLite ở dạng "2026-09-04T11:08:40.049+00:00", còn
+ * hàm thời gian sẵn có của SQLite cho "2026-09-04 11:08:40" — thiếu chữ T,
+ * thiếu mili giây, thiếu múi giờ. Trộn hai dạng thì sắp xếp theo thời gian
+ * sai, vì dấu cách xếp trước chữ "T". Luôn dùng hàm này khi ghi.
+ */
+function nowStamp() {
+  return new Date().toISOString().replace("Z", "+00:00");
+}
+
 function sensitiveHit(text) {
   const hay = String(text ?? "").toLowerCase();
   return SENSITIVE.find((k) => hay.includes(k));
@@ -82,7 +92,7 @@ function main() {
           `phải có tổng biên tập duyệt trước khi viết. Máy bỏ qua.`;
         sql(
           "UPDATE research_requests SET " +
-            `reporterNote = ${quote(note)}, updatedAt = CURRENT_TIMESTAMP ` +
+            `reporterNote = ${quote(note)}, updatedAt = ${quote(nowStamp())} ` +
             `WHERE id = ${quote(row.id)};`,
           { json: false },
         );
@@ -92,7 +102,7 @@ function main() {
 
     sql(
       "UPDATE research_requests SET " +
-        `status = 'in_progress', updatedAt = CURRENT_TIMESTAMP ` +
+        `status = 'in_progress', updatedAt = ${quote(nowStamp())} ` +
         `WHERE id = ${quote(row.id)};`,
       { json: false },
     );

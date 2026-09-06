@@ -24,20 +24,41 @@
 import fs from "fs/promises";
 import path from "path";
 import { XMLParser } from "fast-xml-parser";
-import prismaPkg from "@prisma/client";
-import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
-
-const { PrismaClient } = prismaPkg;
+import { execFileSync } from "child_process";
+import { randomUUID } from "crypto";
 
 const ROOT = process.cwd();
 const DATA_DIR = process.env.DATA_DIR ?? path.join(ROOT, "data");
-const DB_PATH = process.env.DATABASE_PATH ?? path.join(DATA_DIR, "app.db");
+const DB = process.env.DATABASE_PATH ?? path.join(DATA_DIR, "app.db");
 const DIGEST_FILE = path.join(DATA_DIR, "trends-digest.json");
 
-// Đường dẫn THUẦN, không có tiền tố "file:" — xem lib/prisma.ts.
-const prisma = new PrismaClient({
-  adapter: new PrismaBetterSqlite3({ url: DB_PATH }),
-});
+const quote = (v) => "'" + String(v).replace(/'/g, "''") + "'";
+
+/**
+ * Kho dữ liệu lưu DateTime ở dạng "2026-09-04T11:08:40.049+00:00", trong khi
+ * cột createdAt có DEFAULT CURRENT_TIMESTAMP cho ra "2026-09-04 11:08:40" —
+ * thiếu chữ T, thiếu mili giây, thiếu múi giờ. Nên INSERT thô phải TỰ điền cả
+ * hai cột thời gian, đừng trông vào giá trị mặc định.
+ */
+function nowStamp() {
+  return new Date().toISOString().replace("Z", "+00:00");
+}
+
+/**
+ * Chạy SQL bằng lệnh sqlite3 của máy chủ — script không cần thư viện ORM.
+ * Cần sqlite3 >= 3.33 (bản có tuỳ chọn -json). Máy Windows hay kèm bản cũ hơn,
+ * khi đó chạy trên máy chủ hoặc chỉ dùng TRENDS_DRY_RUN để xem nguồn.
+ */
+function sql(query, { json = false } = {}) {
+  const args = ["-cmd", ".timeout 5000"];
+  if (json) args.push("-json");
+  const out = execFileSync("sqlite3", [...args, DB, query], {
+    encoding: "utf8",
+    maxBuffer: 64 * 1024 * 1024,
+  }).trim();
+  if (!json) return out;
+  return out ? JSON.parse(out) : [];
+}
 
 const MAX_GOOGLE = Number(process.env.TRENDS_MAX_GOOGLE ?? 8);
 const MAX_YOUTUBE = Number(process.env.TRENDS_MAX_YOUTUBE ?? 6);
@@ -252,11 +273,12 @@ async function fetchRssFeed(feed) {
 
 // ---------------------------------------------------------------- hàng đợi
 /** Đề tài đã có trong DB ở N ngày gần nhất — để lọc trùng. */
-async function readRecentTopics(sinceMs) {
-  const rows = await prisma.researchRequest.findMany({
-    where: { createdAt: { gte: new Date(sinceMs) } },
-    select: { topic: true },
-  });
+function readRecentTopics(sinceMs) {
+  const since = new Date(sinceMs).toISOString().replace("Z", "+00:00");
+  const rows = sql(
+    `SELECT topic FROM research_requests WHERE createdAt >= ${quote(since)};`,
+    { json: true },
+  );
   return rows.map((r) => r.topic);
 }
 
@@ -395,7 +417,7 @@ async function main() {
 
   // --- lọc trùng
   const cutoff = Date.now() - DEDUPE_DAYS * 24 * 60 * 60 * 1000;
-  const seen = new Set((await readRecentTopics(cutoff)).map(normalize));
+  const seen = new Set(readRecentTopics(cutoff).map(normalize));
 
   const fresh = [];
   for (const c of candidates) {
@@ -417,15 +439,30 @@ async function main() {
   }
 
   if (fresh.length > 0) {
-    await prisma.researchRequest.createMany({
-      data: fresh.map((r) => ({
-        topic: r.topic,
-        // SQLite không có kiểu mảng: cột urls giữ chuỗi JSON, giống lib/queue.ts.
-        urls: JSON.stringify(r.urls ?? []),
-        notes: r.notes,
-        status: "pending",
-      })),
-    });
+    const stamp = nowStamp();
+    const values = fresh
+      .map((r) =>
+        "(" +
+        [
+          quote(randomUUID()),
+          quote(r.topic),
+          // SQLite không có kiểu mảng: cột urls giữ chuỗi JSON, như lib/queue.ts.
+          quote(JSON.stringify(r.urls ?? [])),
+          quote(r.notes ?? ""),
+          "'pending'",
+          "'[]'",
+          quote(stamp),
+          quote(stamp),
+        ].join(", ") +
+        ")",
+      )
+      .join(",");
+    sql(
+      "INSERT INTO research_requests " +
+        "(id, topic, urls, notes, status, articleIds, createdAt, updatedAt) VALUES " +
+        values +
+        ";",
+    );
   }
 
   // Dữ liệu thô vẫn ghi ra file để tra cứu khi viết bài.
@@ -450,9 +487,7 @@ async function main() {
   console.log("[collect-trends] mở /admin/research để duyệt.");
 }
 
-main()
-  .catch((err) => {
-    console.error("[collect-trends] LỖI KHÔNG BẮT ĐƯỢC:", err);
-    process.exitCode = 1;
-  })
-  .finally(() => prisma.$disconnect());
+main().catch((err) => {
+  console.error("[collect-trends] LỖI KHÔNG BẮT ĐƯỢC:", err);
+  process.exitCode = 1;
+});

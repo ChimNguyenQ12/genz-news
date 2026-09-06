@@ -37,6 +37,16 @@ function die(msg) {
   process.exit(2);
 }
 
+/**
+ * Prisma lưu DateTime của SQLite ở dạng "2026-09-04T11:08:40.049+00:00", còn
+ * hàm thời gian sẵn có của SQLite cho "2026-09-04 11:08:40" — thiếu chữ T,
+ * thiếu mili giây, thiếu múi giờ. Trộn hai dạng thì sắp xếp theo thời gian
+ * sai, vì dấu cách xếp trước chữ "T". Luôn dùng hàm này khi ghi.
+ */
+function nowStamp() {
+  return new Date().toISOString().replace("Z", "+00:00");
+}
+
 const quote = (s) => "'" + String(s).replace(/'/g, "''") + "'";
 
 /**
@@ -162,7 +172,7 @@ function closeRequest(requestId, article, articleId) {
         DB,
         "UPDATE research_requests SET status = 'done', " +
           `articleIds = ${quote(JSON.stringify([...ids, articleId]))}, ` +
-          `reporterNote = ${quote(note)}, updatedAt = CURRENT_TIMESTAMP ` +
+          `reporterNote = ${quote(note)}, updatedAt = ${quote(nowStamp())} ` +
           `WHERE id = ${quote(requestId)};`,
       ],
       { encoding: "utf8" },
