@@ -1,6 +1,7 @@
 /**
  * Lưu bài do phóng viên AI viết — đọc JSON từ stdin.
  *
+ *   node scripts/newsroom-save.mjs bai.json
  *   cat bai.json | node scripts/newsroom-save.mjs
  *
  * Cố tình đi qua HTTP API của app chứ không ghi thẳng vào cơ sở dữ liệu:
@@ -16,6 +17,7 @@
 import prismaPkg from "@prisma/client";
 import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
 import path from "path";
+import fs from "fs/promises";
 
 const { PrismaClient } = prismaPkg;
 const APP_URL = process.env.APP_URL ?? "http://127.0.0.1:5006";
@@ -37,11 +39,23 @@ function die(msg) {
   process.exit(2);
 }
 
-async function readStdin() {
-  const chunks = [];
-  for await (const c of process.stdin) chunks.push(c);
+/**
+ * Nhận JSON theo hai lối: đối số là đường dẫn tệp, hoặc stdin.
+ * Có lối "tệp" vì danh sách công cụ cho phép của Claude kiểm TỪNG VẾ của
+ * ống dẫn — dùng tệp thì khỏi phải mở quyền cho cả "echo" lẫn lệnh này.
+ */
+async function readInput() {
+  const file = process.argv[2];
+  let raw;
+  if (file) {
+    raw = await fs.readFile(file, "utf8");
+  } else {
+    const chunks = [];
+    for await (const c of process.stdin) chunks.push(c);
+    raw = Buffer.concat(chunks).toString("utf8");
+  }
   // Bỏ BOM: vài shell chèn vào đầu khi pipe, JSON.parse sẽ chết vì nó.
-  return Buffer.concat(chunks).toString("utf8").replace(/^\uFEFF/, "");
+  return raw.replace(/^\uFEFF/, "");
 }
 
 /** Những quy tắc trong hiến chương mà máy không được phép bỏ qua. */
@@ -116,7 +130,7 @@ async function login() {
 }
 
 async function main() {
-  const article = validate(JSON.parse(await readStdin()));
+  const article = validate(JSON.parse(await readInput()));
   const requestId = process.env.NEWSROOM_REQUEST_ID ?? "";
   const cookie = await login();
 

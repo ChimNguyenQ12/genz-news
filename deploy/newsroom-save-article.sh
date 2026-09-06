@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Cổng ghi bài duy nhất cho phóng viên AI. Nhận JSON qua stdin.
+# Cổng ghi bài duy nhất cho phóng viên AI. Nhận JSON qua tệp hoặc stdin.
 #
+#   genz-news-save-article /tmp/bai.json
 #   echo '{"title":...}' | genz-news-save-article
 #
 # Vì sao phải có tệp bọc này thay vì cho Claude gọi thẳng "docker exec":
@@ -14,6 +15,13 @@ ENV_FILE="${ENV_FILE:-/etc/genz-news/newsroom.env}"
 [ -f "$ENV_FILE" ] || { echo "THIẾU $ENV_FILE" >&2; exit 1; }
 # shellcheck disable=SC1090
 . "$ENV_FILE"
+
+# Tệp nằm trên máy chủ còn script chạy trong container, nên đọc ở đây rồi
+# đẩy vào stdin — đừng đưa đường dẫn của host vào trong container.
+if [ $# -ge 1 ]; then
+  [ -r "$1" ] || { echo "không đọc được tệp: $1" >&2; exit 1; }
+  exec < "$1"
+fi
 
 exec docker exec -i \
   -e APP_URL=http://127.0.0.1:3000 \
