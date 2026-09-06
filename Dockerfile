@@ -54,10 +54,6 @@ ENV NODE_ENV=production \
 COPY --from=build /app/.next/standalone ./
 COPY --from=build /app/.next/static ./.next/static
 COPY --from=build /app/public ./public
-# Script toà soạn chạy bằng "docker exec" trong chính container này — bản
-# standalone đã gói sẵn @prisma/client và better-sqlite3, nên không cần dựng
-# thêm một cây node_modules nữa trên máy chủ.
-COPY --from=build /app/scripts ./scripts
 
 RUN mkdir -p /app/data && chown -R node:node /app/data
 

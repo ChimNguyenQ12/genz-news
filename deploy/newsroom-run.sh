@@ -10,25 +10,28 @@
 set -uo pipefail
 
 REPO="${REPO:-/srv/genz-news/repo}"
-CONTAINER="${CONTAINER:-genz-news}"
 ENV_FILE="${ENV_FILE:-/etc/genz-news/newsroom.env}"
+APP_URL="${APP_URL:-http://127.0.0.1:5006}"
+export DATABASE_PATH="${DATABASE_PATH:-/srv/genz-news/data/app.db}"
+export APP_URL
 
 log() { echo "$(date -Iseconds) $*"; }
 
+db() {
+  sqlite3 -cmd ".timeout 5000" "$DATABASE_PATH" "$1" 2>/dev/null
+}
+
 [ -f "$ENV_FILE" ] || { log "THIẾU $ENV_FILE (tài khoản bot)"; exit 1; }
-command -v claude >/dev/null || { log "chưa cài claude"; exit 1; }
-docker ps --format '{{.Names}}' | grep -qx "$CONTAINER" || {
-  log "container $CONTAINER không chạy"; exit 1; }
+command -v claude  >/dev/null || { log "chưa cài claude";  exit 1; }
+command -v sqlite3 >/dev/null || { log "chưa cài sqlite3"; exit 1; }
+curl -fsS "$APP_URL/api/health" >/dev/null || {
+  log "app không trả lời, hoãn lượt này"; exit 1; }
 
 # Giữ hiến chương (CLAUDE.md) và script luôn khớp bản đã deploy.
 git -C "$REPO" fetch -q origin && git -C "$REPO" reset -q --hard origin/main || {
   log "không cập nhật được $REPO"; exit 1; }
 
-in_container() {
-  docker exec -e DATABASE_PATH=/app/data/app.db "$CONTAINER" "$@"
-}
-
-TASK_JSON="$(in_container node scripts/newsroom-next.mjs)" || {
+TASK_JSON="$(node "$REPO/scripts/newsroom-next.mjs")" || {
   log "lấy đề tài hỏng"; exit 1; }
 
 case "$TASK_JSON" in
@@ -41,19 +44,17 @@ TOPIC="$(printf '%s' "$TASK_JSON" | sed -n 's/.*"topic":"\([^"]*\)".*/\1/p')"
 
 log "nhận đề tài [$REQ_ID] $TOPIC"
 
-# Ghi id ra tệp môi trường để lệnh lưu bài biết đóng mục nào trong hàng đợi.
+# Lệnh lưu bài cần biết đóng mục nào trong hàng đợi. Ghi vào tệp môi trường
+# thay vì truyền qua prompt — Claude không cần thấy, và không sửa được.
 sed -i '/^NEWSROOM_REQUEST_ID=/d' "$ENV_FILE"
 echo "NEWSROOM_REQUEST_ID=$REQ_ID" >> "$ENV_FILE"
 
+cleanup() { sed -i '/^NEWSROOM_REQUEST_ID=/d' "$ENV_FILE"; }
+trap cleanup EXIT
+
 # Trả đề tài về hàng đợi để lượt sau còn làm lại.
 release() {
-  in_container node -e '
-    const {PrismaClient}=require("@prisma/client");
-    const {PrismaBetterSqlite3}=require("@prisma/adapter-better-sqlite3");
-    const p=new PrismaClient({adapter:new PrismaBetterSqlite3({url:process.env.DATABASE_PATH})});
-    p.researchRequest.update({where:{id:process.argv[1]},data:{status:"pending"}})
-      .catch(()=>{}).finally(()=>p.$disconnect());
-  ' "$REQ_ID" >/dev/null 2>&1
+  db "UPDATE research_requests SET status='pending', updatedAt=CURRENT_TIMESTAMP WHERE id='$REQ_ID';"
 }
 
 PROMPT="Đề tài trong hàng đợi toà soạn:
@@ -96,17 +97,8 @@ fi
 
 # Claude có thể kết thúc mà không lưu gì (không đủ nguồn). Khi đó mục vẫn
 # "in_progress" — trả về hàng đợi thay vì để nó kẹt mãi.
-STILL="$(in_container node -e '
-  const {PrismaClient}=require("@prisma/client");
-  const {PrismaBetterSqlite3}=require("@prisma/adapter-better-sqlite3");
-  const p=new PrismaClient({adapter:new PrismaBetterSqlite3({url:process.env.DATABASE_PATH})});
-  p.researchRequest.findUnique({where:{id:process.argv[1]}})
-    .then(r=>console.log(r?r.status:"")).finally(()=>p.$disconnect());
-' "$REQ_ID" 2>/dev/null | tr -d "\r\n")"
-
+STILL="$(db "SELECT status FROM research_requests WHERE id='$REQ_ID';" | tr -d '\r\n')"
 if [ "$STILL" = "in_progress" ]; then
   log "Claude không lưu bài nào (nhiều khả năng không đủ nguồn) — trả đề tài về"
   release
 fi
-
-sed -i '/^NEWSROOM_REQUEST_ID=/d' "$ENV_FILE"

@@ -4,29 +4,24 @@
 #   genz-news-save-article /tmp/bai.json
 #   echo '{"title":...}' | genz-news-save-article
 #
-# Vì sao phải có tệp bọc này thay vì cho Claude gọi thẳng "docker exec":
-# danh sách công cụ cho phép của Claude chỉ trỏ đúng lệnh này, nên nó không
-# mượn được quyền docker để làm việc khác. Một cửa, đóng hẹp.
+# Vì sao phải có tệp bọc này thay vì cho Claude gọi thẳng node: danh sách công
+# cụ cho phép của Claude chỉ trỏ đúng lệnh này, nên nó không chạy được node với
+# script khác. Một cửa, đóng hẹp. Khoá tài khoản bot cũng nằm trong này chứ
+# không lọt vào prompt.
 set -uo pipefail
 
-CONTAINER="${CONTAINER:-genz-news}"
+REPO="${REPO:-/srv/genz-news/repo}"
 ENV_FILE="${ENV_FILE:-/etc/genz-news/newsroom.env}"
 
 [ -f "$ENV_FILE" ] || { echo "THIẾU $ENV_FILE" >&2; exit 1; }
+# set -a: biến trong tệp phải được XUẤT ra, không thì tiến trình node con
+# không thấy gì và báo "thiếu NEWSROOM_USER".
+set -a
 # shellcheck disable=SC1090
 . "$ENV_FILE"
+set +a
 
-# Tệp nằm trên máy chủ còn script chạy trong container, nên đọc ở đây rồi
-# đẩy vào stdin — đừng đưa đường dẫn của host vào trong container.
-if [ $# -ge 1 ]; then
-  [ -r "$1" ] || { echo "không đọc được tệp: $1" >&2; exit 1; }
-  exec < "$1"
-fi
+export APP_URL="${APP_URL:-http://127.0.0.1:5006}"
+export DATABASE_PATH="${DATABASE_PATH:-/srv/genz-news/data/app.db}"
 
-exec docker exec -i \
-  -e APP_URL=http://127.0.0.1:3000 \
-  -e DATABASE_PATH=/app/data/app.db \
-  -e NEWSROOM_USER="${NEWSROOM_USER:-}" \
-  -e NEWSROOM_PASS="${NEWSROOM_PASS:-}" \
-  -e NEWSROOM_REQUEST_ID="${NEWSROOM_REQUEST_ID:-}" \
-  "$CONTAINER" node scripts/newsroom-save.mjs
+exec node "$REPO/scripts/newsroom-save.mjs" "$@"

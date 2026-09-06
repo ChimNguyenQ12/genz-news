@@ -1,48 +1,48 @@
 /**
- * Lưu bài do phóng viên AI viết — đọc JSON từ stdin.
+ * Lưu bài do phóng viên AI viết.
  *
  *   node scripts/newsroom-save.mjs bai.json
  *   cat bai.json | node scripts/newsroom-save.mjs
  *
- * Cố tình đi qua HTTP API của app chứ không ghi thẳng vào cơ sở dữ liệu:
- * như vậy bài phải qua đúng bộ làm sạch HTML và đúng lớp phân quyền mà người
- * thật cũng phải qua. Hai đường ghi khác nhau là hai đường sẽ lệch nhau.
+ * KHÔNG phụ thuộc gói ngoài nào: fetch có sẵn từ Node 18, phần đụng cơ sở dữ
+ * liệu gọi lệnh sqlite3 của máy chủ.
+ *
+ * Bài đi qua HTTP API của app chứ không ghi thẳng vào cơ sở dữ liệu: như vậy
+ * nó phải qua đúng bộ làm sạch HTML và đúng lớp phân quyền mà người thật cũng
+ * phải qua. Hai đường ghi khác nhau là hai đường sẽ lệch nhau.
  *
  * Bot đăng nhập bằng tài khoản THƯỜNG (contributor), không phải admin. API chỉ
  * cho tài khoản thường đặt "draft" hoặc "pending" — nên kể cả khi bị chèn lệnh
  * từ trang web mà nó đọc, nó vẫn không thể tự đăng bài. Người vẫn bấm nút cuối.
  *
- * Biến môi trường: APP_URL, NEWSROOM_USER, NEWSROOM_PASS, DATABASE_PATH
+ * Biến môi trường: APP_URL, NEWSROOM_USER, NEWSROOM_PASS, DATABASE_PATH,
+ *                  NEWSROOM_REQUEST_ID
  */
-import prismaPkg from "@prisma/client";
-import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
-import path from "path";
+import { execFileSync } from "child_process";
 import fs from "fs/promises";
+import path from "path";
 
-const { PrismaClient } = prismaPkg;
 const APP_URL = process.env.APP_URL ?? "http://127.0.0.1:5006";
 const USER = process.env.NEWSROOM_USER ?? "";
 const PASS = process.env.NEWSROOM_PASS ?? "";
 const DATA_DIR = process.env.DATA_DIR ?? path.join(process.cwd(), "data");
-const DB_PATH = process.env.DATABASE_PATH ?? path.join(DATA_DIR, "app.db");
+const DB = process.env.DATABASE_PATH ?? path.join(DATA_DIR, "app.db");
 
 const CATEGORIES = [
   "the-gioi", "cong-nghe", "giai-tri", "doi-song", "kinh-doanh", "the-thao",
 ];
-
-const prisma = new PrismaClient({
-  adapter: new PrismaBetterSqlite3({ url: DB_PATH }),
-});
 
 function die(msg) {
   console.error(`[newsroom-save] TỪ CHỐI: ${msg}`);
   process.exit(2);
 }
 
+const quote = (s) => "'" + String(s).replace(/'/g, "''") + "'";
+
 /**
  * Nhận JSON theo hai lối: đối số là đường dẫn tệp, hoặc stdin.
- * Có lối "tệp" vì danh sách công cụ cho phép của Claude kiểm TỪNG VẾ của
- * ống dẫn — dùng tệp thì khỏi phải mở quyền cho cả "echo" lẫn lệnh này.
+ * Có lối "tệp" vì danh sách công cụ cho phép của Claude kiểm TỪNG VẾ của ống
+ * dẫn — dùng tệp thì khỏi phải mở quyền cho cả "echo" lẫn lệnh này.
  */
 async function readInput() {
   const file = process.argv[2];
@@ -60,7 +60,7 @@ async function readInput() {
 
 /** Những quy tắc trong hiến chương mà máy không được phép bỏ qua. */
 function validate(a) {
-  if (!a || typeof a !== "object") die("stdin không phải JSON hợp lệ");
+  if (!a || typeof a !== "object") die("dữ liệu vào không phải JSON hợp lệ");
 
   const title = String(a.title ?? "").trim();
   if (!title) die("thiếu tiêu đề");
@@ -83,18 +83,19 @@ function validate(a) {
   const hosts = new Set();
   for (const s of sources) {
     const url = String(s?.url ?? "");
-    let h;
     try {
       const u = new URL(url);
       if (u.protocol !== "http:" && u.protocol !== "https:") throw new Error();
-      h = u.hostname.replace(/^www\./, "");
+      hosts.add(u.hostname.replace(/^www\./, ""));
     } catch {
       die(`nguồn có URL không hợp lệ: ${url || "(rỗng)"}`);
     }
-    hosts.add(h);
   }
   if (hosts.size < 2) {
-    die(`chỉ có ${hosts.size} nguồn độc lập (${[...hosts].join(", ") || "không có"}), cần ít nhất 2 tên miền khác nhau`);
+    die(
+      `chỉ có ${hosts.size} nguồn độc lập (${[...hosts].join(", ") || "không có"}), ` +
+        "cần ít nhất 2 tên miền khác nhau",
+    );
   }
 
   // Ảnh của báo khác thì không lấy. Mặc định dùng gradient.
@@ -123,10 +124,47 @@ async function login() {
     body: JSON.stringify({ username: USER, password: PASS }),
   });
   if (!res.ok) die(`đăng nhập hỏng (${res.status}) — kiểm lại tài khoản bot`);
-  const raw = res.headers.getSetCookie?.() ?? [];
-  const cookie = raw.map((c) => c.split(";")[0]).join("; ");
+  const cookie = (res.headers.getSetCookie?.() ?? [])
+    .map((c) => c.split(";")[0])
+    .join("; ");
   if (!cookie) die("đăng nhập không trả về cookie phiên");
   return cookie;
+}
+
+/** Đóng mục trong hàng đợi. Lỗi ở đây không được làm mất bài đã lưu. */
+function closeRequest(requestId, article, articleId) {
+  try {
+    const rows = JSON.parse(
+      execFileSync(
+        "sqlite3",
+        ["-cmd", ".timeout 5000", "-json", DB, `SELECT articleIds FROM research_requests WHERE id = ${quote(requestId)};`],
+        { encoding: "utf8" },
+      ).trim() || "[]",
+    );
+    let ids = [];
+    try {
+      ids = JSON.parse(rows[0]?.articleIds ?? "[]");
+    } catch {
+      ids = [];
+    }
+    const note =
+      `Đã viết "${article.title}" từ ${article.sources.length} nguồn, ` +
+      `đang chờ duyệt. ${new Date().toISOString()}`;
+    execFileSync(
+      "sqlite3",
+      [
+        "-cmd", ".timeout 5000",
+        DB,
+        "UPDATE research_requests SET status = 'done', " +
+          `articleIds = ${quote(JSON.stringify([...ids, articleId]))}, ` +
+          `reporterNote = ${quote(note)}, updatedAt = CURRENT_TIMESTAMP ` +
+          `WHERE id = ${quote(requestId)};`,
+      ],
+      { encoding: "utf8" },
+    );
+  } catch (err) {
+    console.error(`[newsroom-save] bài đã lưu nhưng không đóng được hàng đợi: ${err.message}`);
+  }
 }
 
 async function main() {
@@ -155,37 +193,14 @@ async function main() {
     die(`gửi duyệt hỏng (${sent.status}): ${(await sent.text()).slice(0, 300)}`);
   }
 
-  // 3) Đóng mục trong hàng đợi.
-  if (requestId) {
-    const prev = await prisma.researchRequest.findUnique({ where: { id: requestId } });
-    if (prev) {
-      let ids = [];
-      try {
-        ids = JSON.parse(prev.articleIds ?? "[]");
-      } catch {
-        ids = [];
-      }
-      await prisma.researchRequest.update({
-        where: { id: requestId },
-        data: {
-          status: "done",
-          articleIds: JSON.stringify([...ids, saved.id]),
-          reporterNote:
-            `Đã viết "${article.title}" từ ${article.sources.length} nguồn, ` +
-            `đang chờ duyệt. ${new Date().toISOString()}`,
-        },
-      });
-    }
-  }
+  if (requestId) closeRequest(requestId, article, saved.id);
 
   console.log(
     JSON.stringify({ ok: true, id: saved.id, slug: saved.slug, status: "pending" }),
   );
 }
 
-main()
-  .catch((err) => {
-    console.error("[newsroom-save]", err.message);
-    process.exitCode = 1;
-  })
-  .finally(() => prisma.$disconnect());
+main().catch((err) => {
+  console.error("[newsroom-save]", err.message);
+  process.exitCode = 1;
+});

@@ -5,39 +5,52 @@
  *
  * In ra JSON một dòng:
  *   {"id":"...","topic":"...","urls":[...],"notes":"..."}   — có việc
- *   {"empty":true}                                          — hàng đợi rỗng
+ *   {"empty":true}                                          — không có gì để làm
+ *
+ * KHÔNG phụ thuộc gói ngoài nào: chỉ dùng thư viện chuẩn của Node và lệnh
+ * sqlite3 có sẵn trên máy chủ. Bản standalone của Next chỉ chép một phần tệp
+ * của @prisma/adapter-*, nên import Prisma ở đây sẽ hỏng.
  *
  * Đề tài thuộc nhóm nhạy cảm (chủ quyền, chính trị, tôn giáo, sắc tộc, vụ án
  * đang điều tra) KHÔNG được giao cho máy. Hiến chương bắt phải hỏi tổng biên
  * tập trước, mà cron thì không có ai để hỏi — nên script đánh dấu rồi bỏ qua.
  */
-import prismaPkg from "@prisma/client";
-import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
+import { execFileSync } from "child_process";
 import path from "path";
 
-const { PrismaClient } = prismaPkg;
 const DATA_DIR = process.env.DATA_DIR ?? path.join(process.cwd(), "data");
-const DB_PATH = process.env.DATABASE_PATH ?? path.join(DATA_DIR, "app.db");
-
-const prisma = new PrismaClient({
-  adapter: new PrismaBetterSqlite3({ url: DB_PATH }),
-});
+const DB = process.env.DATABASE_PATH ?? path.join(DATA_DIR, "app.db");
 
 /** Bắt được thì dừng lại chờ người. Thà bỏ sót còn hơn viết ẩu. */
 const SENSITIVE = [
-  // chủ quyền, biển đảo
   "hoàng sa", "trường sa", "biển đông", "chủ quyền", "lãnh hải", "lãnh thổ",
   "spratly", "paracel", "south china sea",
-  // chính trị, nhà nước
-  "bộ chính trị", "tổng bí thư", "quốc hội", "chính phủ", "bầu cử", "đảng cộng sản",
-  "biểu tình", "đảo chính", "election", "coup", "protest",
-  // tôn giáo, sắc tộc
-  "tôn giáo", "phật giáo", "công giáo", "tin lành", "hồi giáo", "dân tộc thiểu số",
-  "sắc tộc", "religion", "ethnic",
-  // vụ án đang điều tra
+  "bộ chính trị", "tổng bí thư", "quốc hội", "chính phủ", "bầu cử",
+  "đảng cộng sản", "biểu tình", "đảo chính", "election", "coup", "protest",
+  "tôn giáo", "phật giáo", "công giáo", "tin lành", "hồi giáo",
+  "dân tộc thiểu số", "sắc tộc", "religion", "ethnic",
   "khởi tố", "bắt tạm giam", "điều tra", "cáo buộc", "toà án", "xét xử",
   "indicted", "arrested", "on trial",
 ];
+
+/**
+ * Chạy SQL, trả về mảng object. Dấu nháy đơn trong SQL phải nhân đôi.
+ * Thời gian chờ khoá đặt bằng dot-command ".timeout": nếu để "PRAGMA
+ * busy_timeout" chung câu ở chế độ -json thì sqlite3 in ra HAI khối JSON nối
+ * nhau và JSON.parse chết.
+ */
+function sql(query, { json = true } = {}) {
+  const base = ["-cmd", ".timeout 5000"];
+  const args = json ? [...base, "-json", DB, query] : [...base, DB, query];
+  const out = execFileSync("sqlite3", args, {
+    encoding: "utf8",
+    maxBuffer: 32 * 1024 * 1024,
+  }).trim();
+  if (!json) return out;
+  return out ? JSON.parse(out) : [];
+}
+
+const quote = (s) => "'" + String(s).replace(/'/g, "''") + "'";
 
 function sensitiveHit(text) {
   const hay = String(text ?? "").toLowerCase();
@@ -53,35 +66,36 @@ function parseUrls(raw) {
   }
 }
 
-async function main() {
-  const queue = await prisma.researchRequest.findMany({
-    where: { status: "pending" },
-    orderBy: { createdAt: "asc" },
-    take: 50,
-  });
+function main() {
+  // busy_timeout: app cũng đang mở tệp này, đợi chứ đừng bỏ cuộc ngay.
+  const rows = sql(
+    "SELECT id, topic, urls, notes, reporterNote FROM research_requests " +
+      "WHERE status = 'pending' ORDER BY createdAt ASC LIMIT 50;",
+  );
 
-  for (const row of queue) {
-    const hit = sensitiveHit(`${row.topic}\n${row.notes}`);
+  for (const row of rows) {
+    const hit = sensitiveHit(`${row.topic}\n${row.notes ?? ""}`);
     if (hit) {
-      // Để nguyên "pending" — vẫn nằm chờ, nhưng có ghi chú để tổng biên tập
-      // thấy vì sao máy không đụng vào. Chỉ ghi một lần.
       if (!String(row.reporterNote ?? "").includes("[nhạy cảm]")) {
-        await prisma.researchRequest.update({
-          where: { id: row.id },
-          data: {
-            reporterNote:
-              `[nhạy cảm] Khớp từ khoá "${hit}". Theo hiến chương, nhóm chủ đề ` +
-              `này phải có tổng biên tập duyệt trước khi viết. Máy bỏ qua.`,
-          },
-        });
+        const note =
+          `[nhạy cảm] Khớp từ khoá "${hit}". Theo hiến chương, nhóm chủ đề này ` +
+          `phải có tổng biên tập duyệt trước khi viết. Máy bỏ qua.`;
+        sql(
+          "UPDATE research_requests SET " +
+            `reporterNote = ${quote(note)}, updatedAt = CURRENT_TIMESTAMP ` +
+            `WHERE id = ${quote(row.id)};`,
+          { json: false },
+        );
       }
       continue;
     }
 
-    await prisma.researchRequest.update({
-      where: { id: row.id },
-      data: { status: "in_progress" },
-    });
+    sql(
+      "UPDATE research_requests SET " +
+        `status = 'in_progress', updatedAt = CURRENT_TIMESTAMP ` +
+        `WHERE id = ${quote(row.id)};`,
+      { json: false },
+    );
 
     console.log(
       JSON.stringify({
@@ -97,9 +111,9 @@ async function main() {
   console.log(JSON.stringify({ empty: true }));
 }
 
-main()
-  .catch((err) => {
-    console.error("[newsroom-next]", err.message);
-    process.exitCode = 1;
-  })
-  .finally(() => prisma.$disconnect());
+try {
+  main();
+} catch (err) {
+  console.error("[newsroom-next]", err.message);
+  process.exitCode = 1;
+}
