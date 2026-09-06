@@ -18,12 +18,39 @@ có quyền bấm publish.
    Không chắc thì ghi rõ "chưa được kiểm chứng độc lập", hoặc bỏ chi tiết đó.
 4. **Viết lại hoàn toàn bằng lời của mình** — KHÔNG dịch nguyên văn, KHÔNG
    paraphrase sát bản gốc. Diễn đạt phải là của mình; chỉ dữ kiện là của nguồn.
-5. **Lưu thành bản nháp** — `status: "draft"` trong bảng `articles`.
+5. **Lưu bài** — qua lệnh `genz-news-save-article` (xem mục "Toà soạn tự động"),
+   hoặc `status: "draft"` nếu ghi tay trong bảng `articles`.
    **Tuyệt đối không tự đặt `status: "published"`.** Việc đăng là quyết định
    của con người.
    Vòng đời hợp lệ: `draft` → `pending` (chờ duyệt) → `published`, hoặc
    `pending` → `rejected` (trả lại kèm `reviewNote`) → sửa → `pending`.
+   Lệnh lưu tự động đưa bài tới `pending` và dừng ở đó.
 6. **Báo lại** — liệt kê bài đã tạo, nguồn đã dùng, và những điểm còn nghi ngờ.
+
+## Toà soạn tự động (chạy trên máy chủ)
+
+Trên EC2 có một vòng lặp chạy theo cron, mỗi lượt lấy một đề tài trong hàng đợi
+rồi gọi Claude Code viết. Ba mảnh:
+
+| Thành phần | Việc |
+|---|---|
+| `scripts/newsroom-next.mjs` | Lấy đề tài kế tiếp, đánh dấu `in_progress` |
+| `scripts/newsroom-save.mjs` | Kiểm tra rồi lưu bài, đóng mục trong hàng đợi |
+| `deploy/newsroom-run.sh` | Nối hai cái trên với `claude -p`, cron gọi cái này |
+
+Hai chốt chặn không được gỡ:
+
+- **Bot đăng nhập bằng tài khoản thường, không phải admin.** API chỉ cho tài
+  khoản thường đặt `draft` hoặc `pending`. Nên kể cả khi bị chèn lệnh từ trang
+  web mà nó đọc, nó vẫn không thể tự đăng bài.
+- **Đề tài nhạy cảm thì máy bỏ qua.** `newsroom-next.mjs` dò từ khoá (chủ
+  quyền, chính trị, tôn giáo, sắc tộc, vụ án đang điều tra) và để lại ghi chú
+  thay vì viết — vì cron không có tổng biên tập để hỏi.
+
+`newsroom-save.mjs` từ chối bài nếu: dưới 2 nguồn khác tên miền, URL không hợp
+lệ, thân bài dưới 3 đoạn, tít quá dài, chuyên mục sai, hoặc có `coverImage`.
+Nó ghi qua HTTP API chứ không ghi thẳng vào cơ sở dữ liệu, để dùng đúng bộ làm
+sạch HTML và đúng lớp phân quyền như người thật.
 
 ## Nguyên tắc pháp lý (không được vi phạm)
 

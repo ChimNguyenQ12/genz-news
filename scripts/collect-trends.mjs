@@ -24,18 +24,20 @@
 import fs from "fs/promises";
 import path from "path";
 import { XMLParser } from "fast-xml-parser";
-import "dotenv/config";
 import prismaPkg from "@prisma/client";
-import { PrismaPg } from "@prisma/adapter-pg";
+import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
 
 const { PrismaClient } = prismaPkg;
-const prisma = new PrismaClient({
-  adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }),
-});
 
 const ROOT = process.cwd();
-const DATA_DIR = path.join(ROOT, "data");
+const DATA_DIR = process.env.DATA_DIR ?? path.join(ROOT, "data");
+const DB_PATH = process.env.DATABASE_PATH ?? path.join(DATA_DIR, "app.db");
 const DIGEST_FILE = path.join(DATA_DIR, "trends-digest.json");
+
+// Đường dẫn THUẦN, không có tiền tố "file:" — xem lib/prisma.ts.
+const prisma = new PrismaClient({
+  adapter: new PrismaBetterSqlite3({ url: DB_PATH }),
+});
 
 const MAX_GOOGLE = Number(process.env.TRENDS_MAX_GOOGLE ?? 8);
 const MAX_YOUTUBE = Number(process.env.TRENDS_MAX_YOUTUBE ?? 6);
@@ -326,7 +328,8 @@ async function main() {
     await prisma.researchRequest.createMany({
       data: fresh.map((r) => ({
         topic: r.topic,
-        urls: r.urls,
+        // SQLite không có kiểu mảng: cột urls giữ chuỗi JSON, giống lib/queue.ts.
+        urls: JSON.stringify(r.urls ?? []),
         notes: r.notes,
         status: "pending",
       })),
