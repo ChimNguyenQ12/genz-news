@@ -76,24 +76,8 @@ deploy:
       docker-compose logs --tail=80
       exit 1
 
-# Script chạy trên host (toà soạn tự động, thu thập đề tài, sao lưu) và hiến
-# chương CLAUDE.md chỉ cần bản checkout mới — không phải dựng lại ảnh.
-sync-scripts:
-  stage: deploy
-  tags: [genz-news-deploy]
-  rules:
-    - if: '$CI_COMMIT_BRANCH == "main"'
-      changes:
-        - scripts/**/*
-        - deploy/**/*
-        - CLAUDE.md
-  script:
-    - git -C /srv/genz-news/repo fetch -q origin
-    - git -C /srv/genz-news/repo reset -q --hard origin/main
-    - install -m 700 /srv/genz-news/repo/deploy/newsroom-run.sh          /usr/local/bin/genz-news-newsroom.sh
-    - install -m 700 /srv/genz-news/repo/deploy/newsroom-save-article.sh /usr/local/bin/genz-news-save-article
-    - install -m 700 /srv/genz-news/repo/deploy/backup-to-s3.sh          /usr/local/bin/genz-news-backup.sh
-    - bash -n /usr/local/bin/genz-news-newsroom.sh
-    - bash -n /usr/local/bin/genz-news-save-article
-    - bash -n /usr/local/bin/genz-news-backup.sh
-    - echo "đã đồng bộ script host tới $(git -C /srv/genz-news/repo rev-parse --short HEAD)"
+# KHÔNG có job đồng bộ script ở đây: job của runner chạy bằng user
+# gitlab-runner, không ghi được vào /usr/local/bin lẫn /srv/<app>/repo (đều
+# thuộc root). Thay vì cấp thêm quyền cho runner, các lệnh trong /usr/local/bin
+# chỉ là vỏ bọc gọi thẳng bản trong repo, còn repo thì do chính cron kéo về.
+# Sửa scripts/ hay CLAUDE.md là lượt cron kế tiếp đã dùng bản mới.
