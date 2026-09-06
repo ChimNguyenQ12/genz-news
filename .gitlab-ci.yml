@@ -29,11 +29,27 @@ lint:
         npx tsc --noEmit
       '
 
+# Dựng lại ảnh CHỈ khi mã của ứng dụng đổi. Máy chủ dùng chung 2 vCPU với
+# nhiều dự án khác, mỗi lần biên dịch Next.js là một lần cả máy nghẹt thở —
+# sửa một script chạy trên host hay một dòng tài liệu thì không đáng làm vậy.
 deploy:
   stage: deploy
   tags: [genz-news-deploy]
   rules:
     - if: '$CI_COMMIT_BRANCH == "main"'
+      changes:
+        - app/**/*
+        - components/**/*
+        - lib/**/*
+        - prisma/**/*
+        - public/**/*
+        - package.json
+        - package-lock.json
+        - Dockerfile
+        - docker-compose.yml
+        - next.config.*
+        - tsconfig.json
+        - prisma.config.ts
   script:
     # Bí mật tuỳ chọn. Để trống cũng chạy được: app tự sinh khoá phiên và
     # cất vào thư mục data.
@@ -59,3 +75,25 @@ deploy:
       echo "App không phản hồi sau 60s — log 80 dòng cuối:"
       docker-compose logs --tail=80
       exit 1
+
+# Script chạy trên host (toà soạn tự động, thu thập đề tài, sao lưu) và hiến
+# chương CLAUDE.md chỉ cần bản checkout mới — không phải dựng lại ảnh.
+sync-scripts:
+  stage: deploy
+  tags: [genz-news-deploy]
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      changes:
+        - scripts/**/*
+        - deploy/**/*
+        - CLAUDE.md
+  script:
+    - git -C /srv/genz-news/repo fetch -q origin
+    - git -C /srv/genz-news/repo reset -q --hard origin/main
+    - install -m 700 /srv/genz-news/repo/deploy/newsroom-run.sh          /usr/local/bin/genz-news-newsroom.sh
+    - install -m 700 /srv/genz-news/repo/deploy/newsroom-save-article.sh /usr/local/bin/genz-news-save-article
+    - install -m 700 /srv/genz-news/repo/deploy/backup-to-s3.sh          /usr/local/bin/genz-news-backup.sh
+    - bash -n /usr/local/bin/genz-news-newsroom.sh
+    - bash -n /usr/local/bin/genz-news-save-article
+    - bash -n /usr/local/bin/genz-news-backup.sh
+    - echo "đã đồng bộ script host tới $(git -C /srv/genz-news/repo rev-parse --short HEAD)"
