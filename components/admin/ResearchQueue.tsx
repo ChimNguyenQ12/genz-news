@@ -26,6 +26,7 @@ export default function ResearchQueue({ requests }: { requests: ResearchRequest[
   const [pending, setPending] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -49,18 +50,29 @@ export default function ResearchQueue({ requests }: { requests: ResearchRequest[
     router.refresh();
   }
 
-  async function convert(id: string) {
+  async function convert(id: string, mode: "ai" | "manual") {
     setBusy(id);
     setError("");
-    const res = await fetch(`/api/admin/requests/${id}/convert`, { method: "POST" });
+    setNotice("");
+    const res = await fetch(`/api/admin/requests/${id}/convert`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mode }),
+    });
     setBusy(null);
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
-      setError(data.error ?? "Tạo bài thất bại");
+      setError(data.error ?? "Giao bài thất bại");
       return;
     }
-    const { article } = await res.json();
-    router.push(`/admin/articles/${article.id}`);
+    const data = await res.json();
+    // Nhờ AI thì không có bài ngay — nó cần vài phút để tìm nguồn và viết.
+    if (data.queued) {
+      setNotice(data.message ?? "Đã giao cho AI.");
+      router.refresh();
+      return;
+    }
+    router.push(`/admin/articles/${data.article.id}`);
   }
 
   const pendingCount = requests.filter((r) => r.status === "pending").length;
@@ -71,18 +83,17 @@ export default function ResearchQueue({ requests }: { requests: ResearchRequest[
         <h1 className="font-display text-2xl font-black">Đặt đề tài</h1>
         <div className="mt-2 max-w-2xl space-y-2 text-sm text-muted">
           <p>
-            <strong className="text-foreground">Cách 1 — tự viết:</strong> bấm{" "}
-            <strong className="text-foreground">Tạo bài</strong> ở đề tài bất kỳ. Hệ
-            thống tạo sẵn bản nháp, đưa các link vào mục nguồn tham khảo, bạn viết nội
-            dung.
+            <strong className="text-foreground">Nhờ AI viết:</strong> bấm{" "}
+            <strong className="text-foreground">Nhờ AI viết</strong> ở đề tài bất kỳ.
+            AI sẽ tự tìm nguồn trên web (cả báo Việt lẫn quốc tế), đối chiếu số liệu
+            giữa các nguồn, rồi tổng hợp thành bài hoàn chỉnh 800–1400 từ. Mất vài
+            phút; xong bài sẽ nằm ở mục <strong className="text-foreground">chờ
+            duyệt</strong> để bạn đọc và quyết định đăng hay không.
           </p>
           <p>
-            <strong className="text-foreground">Cách 2 — nhờ AI tổng hợp:</strong> mở
-            Claude Code trong thư mục dự án rồi nói{" "}
-            <code className="rounded bg-surface-2 px-1.5 py-0.5 text-xs">
-              xử lý hàng đợi đề tài
-            </code>
-            . AI sẽ tìm nguồn trên web, đối chiếu, viết thành bản nháp cho bạn duyệt.
+            <strong className="text-foreground">Tự viết:</strong> bấm{" "}
+            <strong className="text-foreground">Nháp trống</strong> nếu bạn muốn tự
+            viết — hệ thống chỉ dựng sẵn khung và đưa các link vào mục nguồn.
           </p>
         </div>
       </div>
@@ -153,6 +164,12 @@ export default function ResearchQueue({ requests }: { requests: ResearchRequest[
         </p>
       )}
 
+      {notice && (
+        <p className="mb-3 rounded-xl border border-blue-500/30 bg-blue-500/10 px-4 py-2 text-sm text-blue-600 dark:text-blue-400">
+          {notice}
+        </p>
+      )}
+
       {requests.length === 0 ? (
         <p className="rounded-2xl border border-border bg-surface p-8 text-center text-sm text-muted">
           Chưa có đề tài nào.
@@ -206,14 +223,28 @@ export default function ResearchQueue({ requests }: { requests: ResearchRequest[
                       Mở bài nháp →
                     </a>
                   ) : (
-                    <button
-                      onClick={() => convert(r.id)}
-                      disabled={busy === r.id}
-                      title="Tạo bản nháp từ đề tài này, kèm sẵn các link làm nguồn"
-                      className="rounded-lg bg-accent px-3 py-1.5 text-xs font-bold text-white transition hover:opacity-90 disabled:opacity-50"
-                    >
-                      {busy === r.id ? "Đang tạo..." : "Tạo bài"}
-                    </button>
+                    <>
+                      <button
+                        onClick={() => convert(r.id, "ai")}
+                        disabled={busy === r.id || r.status === "in_progress"}
+                        title="AI tìm nguồn, đối chiếu rồi tổng hợp thành bài hoàn chỉnh"
+                        className="rounded-lg bg-accent px-3 py-1.5 text-xs font-bold text-white transition hover:opacity-90 disabled:opacity-50"
+                      >
+                        {busy === r.id
+                          ? "Đang giao..."
+                          : r.status === "in_progress"
+                            ? "AI đang viết..."
+                            : "Nhờ AI viết"}
+                      </button>
+                      <button
+                        onClick={() => convert(r.id, "manual")}
+                        disabled={busy === r.id}
+                        title="Chỉ dựng bản nháp trống kèm sẵn link nguồn, để tự viết"
+                        className="rounded-lg border border-border px-3 py-1.5 text-xs font-semibold hover:border-accent hover:text-accent disabled:opacity-50"
+                      >
+                        Nháp trống
+                      </button>
+                    </>
                   )}
                   <button
                     onClick={() => remove(r.id)}

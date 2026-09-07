@@ -90,8 +90,25 @@ function validate(a) {
 
   const body = String(a.body ?? "").trim();
   if (!body) die("thân bài rỗng");
+
+  // Đây là bài tổng hợp nhiều nguồn, không phải tin vắn. Hiến chương đặt mốc
+  // 800–1400 từ; chặn ở mức thấp hơn để không trả về bài chỉ vì thiếu vài chục
+  // từ, nhưng đủ để loại những bài chỉ tóm tắt một nguồn rồi gắn link.
   const paragraphs = (body.match(/<p[\s>]/gi) ?? []).length;
-  if (paragraphs < 3) die(`thân bài chỉ có ${paragraphs} đoạn <p>, cần ít nhất 3`);
+  if (paragraphs < 6) {
+    die(`thân bài chỉ có ${paragraphs} đoạn <p>, cần ít nhất 6 (hiến chương: 8–14)`);
+  }
+  const words = body
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&[a-z]+;/gi, " ")
+    .split(/\s+/)
+    .filter(Boolean).length;
+  if (words < 550) {
+    die(`thân bài chỉ ${words} từ, cần ít nhất 550 (hiến chương: 800–1400)`);
+  }
+  if (words < 800) {
+    console.error(`[newsroom-save] LƯU Ý: bài ${words} từ, dưới mốc 800 của hiến chương.`);
+  }
 
   // Tối thiểu 2 nguồn ĐỘC LẬP: khác tên miền, không phải cùng một báo.
   const sources = Array.isArray(a.sources) ? a.sources : [];
@@ -123,7 +140,8 @@ function validate(a) {
     body,
     tags: Array.isArray(a.tags) ? a.tags.map(String).slice(0, 6) : [],
     language: a.language === "en" ? "en" : "vi",
-    readingTimeMin: Number(a.readingTimeMin) || 3,
+    // Tính từ số từ thật thay vì tin con số mô hình tự khai.
+    readingTimeMin: Math.max(1, Math.round(words / 200)),
     sources: sources.map((s) => ({
       name: String(s.name ?? "Nguồn"),
       url: String(s.url),

@@ -31,11 +31,19 @@ curl -fsS "$APP_URL/api/health" >/dev/null || {
 git -C "$REPO" fetch -q origin && git -C "$REPO" reset -q --hard origin/main || {
   log "không cập nhật được $REPO"; exit 1; }
 
-TASK_JSON="$(node "$REPO/scripts/newsroom-next.mjs")" || {
-  log "lấy đề tài hỏng"; exit 1; }
+# Đối số 1 (tuỳ chọn): id đề tài cụ thể — dùng khi tổng biên tập bấm nút trong
+# /admin/research. Không có thì tự chọn đề tài mới nhất trong hàng đợi.
+WANT="${1:-}"
+if [ -n "$WANT" ]; then
+  TASK_JSON="$(node "$REPO/scripts/newsroom-next.mjs" "--id=$WANT")"
+else
+  TASK_JSON="$(node "$REPO/scripts/newsroom-next.mjs")"
+fi
+[ -n "$TASK_JSON" ] || { log "lấy đề tài hỏng"; exit 1; }
 
 case "$TASK_JSON" in
   *'"empty":true'*) log "hàng đợi rỗng, không có gì để viết"; exit 0 ;;
+  *'"skipped"'*)    log "đề tài thuộc nhóm nhạy cảm, máy không viết: $TASK_JSON"; exit 0 ;;
 esac
 
 REQ_ID="$(printf '%s' "$TASK_JSON" | sed -n 's/.*"id":"\([^"]*\)".*/\1/p')"
@@ -84,17 +92,31 @@ Làm theo đúng quy trình trong CLAUDE.md của repo này:
      luận có thật thì viết, đừng bịa ra mâu thuẫn cho kịch tính.
    - KHÔNG giật tít câu view, không chêm tiếng lóng gượng ép. Hấp dẫn nằm ở
      thông tin cụ thể, không nằm ở dấu chấm than.
-4. Ghi JSON bài viết ra tệp /tmp/bai-$REQ_ID.json rồi lưu bằng lệnh:
+4. ĐÂY LÀ BÀI TỔNG HỢP, KHÔNG PHẢI TIN VẮN. Đọc mục "Dựng một bài tổng hợp"
+   trong CLAUDE.md và làm theo. Yêu cầu cứng: **800–1400 từ, 8–14 đoạn**.
+   Gộp nhiều nguồn thành một mạch kể — đừng tóm tắt một bài rồi gắn thêm link.
+   Mỗi đoạn phải mang thêm một thông tin mới; thà 900 từ chắc còn hơn 1400 từ
+   loãng. Nên có: chuyện gì vừa xảy ra (số liệu cụ thể), nó dính gì tới bạn đọc
+   18–27 tuổi, bối cảnh trước đó, các bên nói gì, chỗ các nguồn không khớp
+   nhau, và sắp tới thì sao.
+   Được dùng <h2> để chia phần và <blockquote> cho trích dẫn trực tiếp (1–3 câu,
+   kèm tên và chức danh người nói).
+
+5. Ghi JSON bài viết ra tệp /tmp/bai-$REQ_ID.json rồi lưu bằng lệnh:
 
    genz-news-save-article /tmp/bai-$REQ_ID.json
 
    Dùng tệp, KHÔNG dùng ống dẫn — quyền chỉ mở cho đúng lệnh trên.
 
    JSON gồm: title, dek, category (the-gioi|cong-nghe|giai-tri|doi-song|
-   kinh-doanh|the-thao), tags[], body (HTML, mỗi đoạn một thẻ <p>), language,
-   readingTimeMin, sources[{name,url}].
+   kinh-doanh|the-thao), tags[], body (HTML), language, sources[{name,url}].
+   Liệt kê ĐỦ mọi nguồn đã thật sự dùng, không phải chỉ hai cái.
    Không đặt status — lệnh tự đưa bài vào hàng chờ duyệt.
+   Không đặt readingTimeMin — lệnh tự tính từ số từ.
    Không đặt coverImage — ảnh của báo khác có bản quyền riêng.
+
+   Lệnh sẽ TỪ CHỐI bài dưới 6 đoạn hoặc dưới 550 từ. Bị từ chối thì viết dày
+   thêm bằng thông tin thật, đừng độn chữ.
 
 Nếu không tìm đủ 2 nguồn độc lập đáng tin thì ĐỪNG viết bài: nói rõ là không đủ
 nguồn rồi dừng. Thà bỏ sót còn hơn đăng sai.

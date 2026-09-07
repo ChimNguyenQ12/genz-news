@@ -98,7 +98,35 @@ Chủ quyền/biển đảo, chính trị, tôn giáo, sắc tộc, vụ án đa
 - Không dùng "gen Z hoá" gượng ép (không chêm tiếng lóng vô tội vạ).
 - Tít: cụ thể, có thông tin thật, dưới ~75 ký tự.
 - `dek`: một câu tóm tắt cái mới nhất/quan trọng nhất, không lặp lại tít.
-- Độ dài thân bài: 4–6 đoạn cho tin thường.
+- Độ dài thân bài: **800–1400 từ, khoảng 8–14 đoạn**. Đây là bài tổng hợp từ
+  nhiều nguồn, không phải bản tin vắn — người đọc xong phải hiểu đủ chuyện mà
+  không cần mở nguồn gốc.
+
+## Dựng một bài tổng hợp
+
+Bài phải **gộp nhiều nguồn thành một mạch kể**, không phải tóm tắt một bài rồi
+gắn thêm link. Mỗi nguồn đóng góp một mẩu; việc của mình là ghép chúng lại và
+chỉ ra chỗ chúng bổ sung hay mâu thuẫn nhau.
+
+Khung thường dùng (không cứng nhắc, nhưng thiếu phần nào phải có lý do):
+
+1. **Chuyện gì vừa xảy ra** — dữ kiện cụ thể: ai, ở đâu, khi nào, con số.
+2. **Dính gì tới bạn đọc 18–27 tuổi** — đặt ngay đoạn đầu hoặc đoạn hai.
+3. **Bối cảnh** — chuyện này nối tiếp cái gì trước đó, vì sao bây giờ mới nổi.
+4. **Các bên nói gì** — dẫn phát ngôn thật, ghi rõ ai nói và nói ở đâu.
+5. **Chỗ các nguồn không khớp** — nếu báo A nói một đằng báo B nói một nẻo, viết
+   thẳng ra là chưa thống nhất, đừng chọn bừa một bên.
+6. **Sắp tới thì sao** — mốc thời gian, quyết định đang chờ, thứ cần theo dõi.
+
+Vài điều cụ thể làm bài dày lên mà không loãng:
+
+- **Con số phải có tham chiếu.** "Tăng 40%" thì so với mốc nào, năm nào.
+- **Giải thích thuật ngữ ngay tại chỗ**, bằng một mệnh đề ngắn — đừng bắt người
+  đọc tra Google giữa chừng.
+- **Trích dẫn trực tiếp 1–3 câu** từ người trong cuộc, đặt trong `<blockquote>`,
+  kèm tên và chức danh. Trích ngắn, có dẫn nguồn — không chép cả đoạn.
+- Đừng độn chữ. Thà 900 từ chắc còn hơn 1400 từ loãng. Mỗi đoạn phải mang thêm
+  một thông tin mới.
 
 ## Kỹ thuật
 

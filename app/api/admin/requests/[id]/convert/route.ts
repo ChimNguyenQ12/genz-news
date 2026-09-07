@@ -1,3 +1,5 @@
+import fs from "fs/promises";
+import path from "path";
 import { NextResponse } from "next/server";
 import { requireRole } from "@/lib/auth";
 import { listRequests, updateRequest } from "@/lib/queue";
@@ -12,13 +14,27 @@ function hostLabel(url: string) {
   }
 }
 
+const DATA_DIR = process.env.DATA_DIR ?? path.join(process.cwd(), "data");
 /**
- * Biến một đề tài trong hàng đợi thành bản nháp bài viết.
- * Tiêu đề = đề tài, các link gợi ý được đưa sẵn vào mục nguồn tham khảo,
- * ghi chú thu thập được đưa vào thân bài để người viết dựa vào đó biên tập.
+ * Hộp thư gửi việc cho toà soạn tự động.
+ *
+ * App chạy trong container, còn `claude` chạy trên host — container không gọi
+ * được lệnh của host. Nhưng hai bên dùng chung thư mục dữ liệu qua bind mount,
+ * nên thả một tệp rỗng tên là id đề tài vào đây là cách gọn nhất: không mở
+ * thêm cổng, không cấp thêm quyền cho container.
+ * Phía host có deploy/newsroom-watch.sh chạy mỗi phút để nhặt.
+ */
+const INBOX = path.join(DATA_DIR, "newsroom-requests");
+
+/**
+ * Giao một đề tài trong hàng đợi cho người viết.
+ *
+ * - mặc định (`mode: "ai"`): nhờ toà soạn tự động tìm nguồn, kiểm chứng và
+ *   tổng hợp thành bài hoàn chỉnh. Bài xong sẽ nằm ở "chờ duyệt".
+ * - `mode: "manual"`: chỉ dựng bản nháp trống kèm sẵn link nguồn, để tự viết.
  */
 export async function POST(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const user = await requireRole("admin");
@@ -27,12 +43,47 @@ export async function POST(
   }
 
   const { id } = await params;
-  const request = (await listRequests()).find((r) => r.id === id);
-  if (!request) {
+  const topic = (await listRequests()).find((r) => r.id === id);
+  if (!topic) {
     return NextResponse.json({ error: "Không tìm thấy đề tài" }, { status: 404 });
   }
 
-  const notesHtml = request.notes
+  let mode = "ai";
+  try {
+    const body = (await request.json()) as { mode?: unknown };
+    if (body?.mode === "manual") mode = "manual";
+  } catch {
+    // Không có thân yêu cầu thì dùng mặc định.
+  }
+
+  if (mode === "ai") {
+    if (topic.status === "in_progress") {
+      return NextResponse.json(
+        { error: "Đề tài này đang được viết, đợi một chút." },
+        { status: 409 },
+      );
+    }
+
+    await fs.mkdir(INBOX, { recursive: true });
+    await fs.writeFile(path.join(INBOX, id), "", "utf8");
+
+    await updateRequest(id, {
+      status: "in_progress",
+      reporterNote:
+        "Đã giao cho toà soạn tự động lúc " +
+        new Date().toISOString() +
+        ". Bài sẽ xuất hiện ở mục chờ duyệt khi viết xong.",
+    });
+
+    return NextResponse.json({
+      queued: true,
+      message:
+        "Đã giao cho AI. Bài cần vài phút để tìm nguồn và tổng hợp, " +
+        "xong sẽ nằm ở mục chờ duyệt.",
+    });
+  }
+
+  const notesHtml = topic.notes
     .split("\n")
     .map((line) => line.trim())
     .filter(Boolean)
@@ -47,7 +98,7 @@ export async function POST(
 
   const article = await createArticle({
     slug: "",
-    title: request.topic,
+    title: topic.topic,
     dek: "",
     category: "the-gioi",
     language: "vi",
@@ -59,13 +110,13 @@ export async function POST(
     readingTimeMin: 3,
     status: "draft",
     body,
-    sources: request.urls.map((url) => ({ name: hostLabel(url), url })),
+    sources: topic.urls.map((url) => ({ name: hostLabel(url), url })),
   });
 
   await updateRequest(id, {
     status: "done",
-    reporterNote: `Đã tạo bản nháp: ${article.slug}`,
-    articleIds: [...(request.articleIds ?? []), article.id],
+    reporterNote: `Đã tạo bản nháp trống để tự viết: ${article.slug}`,
+    articleIds: [...(topic.articleIds ?? []), article.id],
   });
 
   return NextResponse.json({ article }, { status: 201 });

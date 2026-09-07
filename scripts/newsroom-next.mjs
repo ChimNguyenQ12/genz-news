@@ -77,14 +77,23 @@ function parseUrls(raw) {
 }
 
 function main() {
+  // Đối số --id=<uuid>: làm đúng đề tài này, dùng khi tổng biên tập bấm nút
+  // "Nhờ AI viết" trong /admin/research. Không có thì tự chọn trong hàng đợi.
+  const wanted = (process.argv.find((a) => a.startsWith("--id=")) ?? "").slice(5);
+
   // busy_timeout: app cũng đang mở tệp này, đợi chứ đừng bỏ cuộc ngay.
   // MỚI NHẤT TRƯỚC. Đây là trang tin: đề tài hai hôm trước đã nguội, viết ra
   // không ai đọc. Đề tài do tổng biên tập tự đặt ở /admin/research cũng nhờ vậy
   // mà được làm ngay, không phải xếp sau hàng trăm mục cũ.
-  const rows = sql(
-    "SELECT id, topic, urls, notes, reporterNote FROM research_requests " +
-      "WHERE status = 'pending' ORDER BY createdAt DESC LIMIT 50;",
-  );
+  const rows = wanted
+    ? sql(
+        "SELECT id, topic, urls, notes, reporterNote FROM research_requests " +
+          `WHERE id = ${quote(wanted)} AND status IN ('pending','in_progress');`,
+      )
+    : sql(
+        "SELECT id, topic, urls, notes, reporterNote FROM research_requests " +
+          "WHERE status = 'pending' ORDER BY createdAt DESC LIMIT 50;",
+      );
 
   for (const row of rows) {
     const hit = sensitiveHit(`${row.topic}\n${row.notes ?? ""}`);
@@ -99,6 +108,17 @@ function main() {
             `WHERE id = ${quote(row.id)};`,
           { json: false },
         );
+      }
+      // Yêu cầu chỉ định thì trả đề tài về hàng đợi, đừng để nó kẹt
+      // "in_progress" mãi vì máy sẽ không bao giờ đụng vào.
+      if (wanted) {
+        sql(
+          "UPDATE research_requests SET status = 'pending', " +
+            `updatedAt = ${quote(nowStamp())} WHERE id = ${quote(row.id)};`,
+          { json: false },
+        );
+        console.log(JSON.stringify({ skipped: "nhay cam", keyword: hit }));
+        return;
       }
       continue;
     }
