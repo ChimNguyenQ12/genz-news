@@ -18,11 +18,10 @@ APP_URL="${APP_URL:-http://127.0.0.1:5006}"
 export DATABASE_PATH="${DATABASE_PATH:-/srv/genz-news/data/app.db}"
 export APP_URL
 
-# Số bài tối đa mỗi lượt cron. Mỗi bài mất khoảng 8–10 phút (tìm nguồn, kiểm
-# chứng, viết), nên đây cũng là cách chặn tải cho máy chủ dùng chung.
-MAX_ARTICLES="${MAX_ARTICLES:-3}"
-# Trần thời gian cả lượt, phòng khi một bài sa lầy.
-MAX_MINUTES="${MAX_MINUTES:-50}"
+# Thứ tự ưu tiên: biến môi trường > tệp cấu hình > mặc định. Để trống ở đây,
+# điền mặc định sau khi đã đọc tệp.
+MAX_ARTICLES="${MAX_ARTICLES:-}"
+MAX_MINUTES="${MAX_MINUTES:-}"
 
 log() { echo "$(date -Iseconds) $*"; }
 
@@ -31,6 +30,19 @@ db() {
 }
 
 [ -f "$ENV_FILE" ] || { log "THIẾU $ENV_FILE (tài khoản bot)"; exit 1; }
+
+# Đọc cấu hình từ tệp môi trường để đổi số bài mà không phải sửa script.
+[ -n "$MAX_ARTICLES" ] || MAX_ARTICLES="$(sed -n 's/^MAX_ARTICLES=//p' "$ENV_FILE" | tail -1)"
+[ -n "$MAX_MINUTES" ]  || MAX_MINUTES="$(sed -n 's/^MAX_MINUTES=//p'  "$ENV_FILE" | tail -1)"
+
+# Số bài tối đa mỗi lượt cron. Mỗi bài mất khoảng 8–10 phút (tìm nguồn, kiểm
+# chứng, viết), nên đây cũng là cách chặn tải cho máy chủ dùng chung.
+[ -n "$MAX_ARTICLES" ] || MAX_ARTICLES=3
+# Trần thời gian cả lượt, phòng khi một bài sa lầy.
+[ -n "$MAX_MINUTES" ]  || MAX_MINUTES=50
+
+case "$MAX_ARTICLES" in ''|*[!0-9]*) log "MAX_ARTICLES không phải số, dùng 3"; MAX_ARTICLES=3 ;; esac
+case "$MAX_MINUTES"  in ''|*[!0-9]*) log "MAX_MINUTES không phải số, dùng 50"; MAX_MINUTES=50 ;; esac
 command -v claude  >/dev/null || { log "chưa cài claude";  exit 1; }
 command -v sqlite3 >/dev/null || { log "chưa cài sqlite3"; exit 1; }
 
