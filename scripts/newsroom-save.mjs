@@ -32,6 +32,16 @@ const CATEGORIES = [
   "the-gioi", "cong-nghe", "giai-tri", "doi-song", "kinh-doanh", "the-thao",
 ];
 
+/**
+ * Bách khoa toàn thư và trang tổng hợp tin: được phép liệt kê làm tài liệu
+ * tham khảo, nhưng KHÔNG tính vào mức tối thiểu 2 nguồn độc lập. Chúng chép
+ * lại nguồn khác, nên hai bài cùng dẫn Wikipedia không phải là hai nguồn.
+ */
+const NOT_INDEPENDENT = [
+  "wikipedia.org", "wikimedia.org", "wikiwand.com", "britannica.com",
+  "baomoi.com", "news.google.com", "msn.com", "news.yahoo.com",
+];
+
 function die(msg) {
   console.error(`[newsroom-save] TỪ CHỐI: ${msg}`);
   process.exit(2);
@@ -123,10 +133,14 @@ function validate(a) {
       die(`nguồn có URL không hợp lệ: ${url || "(rỗng)"}`);
     }
   }
-  if (hosts.size < 2) {
+  const independent = [...hosts].filter(
+    (h) => !NOT_INDEPENDENT.some((x) => h === x || h.endsWith("." + x)),
+  );
+  if (independent.length < 2) {
     die(
-      `chỉ có ${hosts.size} nguồn độc lập (${[...hosts].join(", ") || "không có"}), ` +
-        "cần ít nhất 2 tên miền khác nhau",
+      `chỉ có ${independent.length} nguồn độc lập (${independent.join(", ") || "không có"}), ` +
+        "cần ít nhất 2 tên miền khác nhau. Bách khoa toàn thư và trang tổng hợp " +
+        "tin không được tính.",
     );
   }
 

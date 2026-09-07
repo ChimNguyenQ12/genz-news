@@ -57,6 +57,10 @@ sạch HTML và đúng lớp phân quyền như người thật.
 - Dữ kiện/sự kiện không có bản quyền — cách diễn đạt thì có. Luôn viết lại.
 - Mỗi bài **bắt buộc** có mảng `sources` trỏ về nguồn gốc thật (URL thật, đã
   kiểm tra tồn tại). Không bịa nguồn, không bịa URL.
+- Wikipedia, Baomoi, Google News và các trang tổng hợp/bách khoa được phép
+  liệt kê làm tài liệu tham khảo, nhưng **không tính** vào mức tối thiểu 2
+  nguồn độc lập — chúng chép lại nguồn khác. Phải có ít nhất 2 hãng tin
+  tự đưa tin.
 - **Không tải/nhúng ảnh, video của báo khác vào bài.** Ảnh có bản quyền riêng,
   ghi nguồn không đủ. Mặc định dùng `coverGradient`. Chỉ dùng `coverImage` khi
   tổng biên tập tự cung cấp ảnh có quyền sử dụng.

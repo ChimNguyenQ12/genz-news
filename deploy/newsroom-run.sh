@@ -166,6 +166,7 @@ fi
 # "in_progress" — trả về hàng đợi thay vì để nó kẹt mãi.
 STILL="$(db "SELECT status FROM research_requests WHERE id='$REQ_ID';" | tr -d '\r\n')"
 if [ "$STILL" = "in_progress" ]; then
-  log "Claude không lưu bài nào (nhiều khả năng không đủ nguồn) — trả đề tài về"
+  log "Claude không lưu bài nào — trả đề tài về hàng đợi. Xem các dòng ngay"
+  log "trên để biết vì sao (thiếu nguồn, bị bộ kiểm từ chối, hay lỗi hệ thống)."
   release
 fi
