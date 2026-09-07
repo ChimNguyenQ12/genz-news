@@ -74,8 +74,16 @@ sạch HTML và đúng lớp phân quyền như người thật.
   nguồn độc lập — chúng chép lại nguồn khác. Phải có ít nhất 2 hãng tin
   tự đưa tin.
 - **Không tải/nhúng ảnh, video của báo khác vào bài.** Ảnh có bản quyền riêng,
-  ghi nguồn không đủ. Mặc định dùng `coverGradient`. Chỉ dùng `coverImage` khi
-  tổng biên tập tự cung cấp ảnh có quyền sử dụng.
+  ghi nguồn không đủ. Có đúng ba đường hợp lệ để bài có hình:
+  1. `genz-news-fetch-image "<từ khoá tiếng Anh>"` — lấy ảnh **giấy phép tự do**
+     trên Wikimedia Commons rồi đẩy lên kho của toà soạn. Caption nó trả về là
+     phần ghi công bắt buộc, giữ nguyên.
+  2. Nhúng video **chính thức** từ YouTube/Vimeo bằng iframe (`youtube-nocookie.com`
+     hoặc `player.vimeo.com`) — nền tảng cho phép nhúng, khác hẳn tải về.
+  3. Ảnh do tổng biên tập tự cung cấp.
+
+  Không có gì hợp lệ thì để `coverGradient`. Lệnh lưu bài từ chối mọi
+  `coverImage` không nằm trên kho của mình.
 - Không scrape các nền tảng cấm bot (Threads, Facebook, Instagram). Chỉ dùng
   RSS công khai, API chính thức, và nội dung nhúng bằng công cụ chính thức.
 

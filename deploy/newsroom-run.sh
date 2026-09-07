@@ -31,17 +31,34 @@ db() {
 
 [ -f "$ENV_FILE" ] || { log "THIẾU $ENV_FILE (tài khoản bot)"; exit 1; }
 
-# Đọc cấu hình từ tệp môi trường để đổi số bài mà không phải sửa script.
+# Cấu hình do tổng biên tập đặt trong /admin/research, cất ở thư mục dữ liệu
+# dùng chung giữa app (trong container) và script này (trên host).
+SETTINGS="${SETTINGS:-$(dirname "$DATABASE_PATH")/newsroom-settings.json}"
+if [ -r "$SETTINGS" ]; then
+  SET_ENABLED="$(node -e 'try{const s=require(process.argv[1]);console.log(s.enabled===false?"0":"1")}catch(e){console.log("1")}' "$SETTINGS" 2>/dev/null)"
+  [ -n "$MAX_ARTICLES" ] || MAX_ARTICLES="$(node -e 'try{const s=require(process.argv[1]);const n=Math.floor(Number(s.maxArticlesPerRun));console.log(Number.isFinite(n)&&n>0?Math.min(n,5):"")}catch(e){console.log("")}' "$SETTINGS" 2>/dev/null)"
+else
+  SET_ENABLED=1
+fi
+
+# Tắt công tắc thì cron ngừng viết. Nút "Nhờ AI viết" ở từng đề tài (có đối số
+# id) vẫn chạy — đó là tổng biên tập chủ động yêu cầu, không phải máy tự làm.
+if [ "$SET_ENABLED" = "0" ] && [ -z "${1:-}" ]; then
+  log "toà soạn tự động đang TẮT trong /admin/research — bỏ lượt này"
+  exit 0
+fi
+
+# Dự phòng: nếu chưa có tệp cài đặt thì đọc tệp môi trường.
 [ -n "$MAX_ARTICLES" ] || MAX_ARTICLES="$(sed -n 's/^MAX_ARTICLES=//p' "$ENV_FILE" | tail -1)"
 [ -n "$MAX_MINUTES" ]  || MAX_MINUTES="$(sed -n 's/^MAX_MINUTES=//p'  "$ENV_FILE" | tail -1)"
 
-# Số bài tối đa mỗi lượt cron. Mỗi bài mất khoảng 8–10 phút (tìm nguồn, kiểm
-# chứng, viết), nên đây cũng là cách chặn tải cho máy chủ dùng chung.
-[ -n "$MAX_ARTICLES" ] || MAX_ARTICLES=3
+# Số bài tối đa mỗi lượt cron. Mặc định 1, tức 2 bài/ngày với hai lượt. Mỗi bài
+# mất 8–10 phút nên đây cũng là cách chặn tải cho máy chủ dùng chung.
+[ -n "$MAX_ARTICLES" ] || MAX_ARTICLES=1
 # Trần thời gian cả lượt, phòng khi một bài sa lầy.
 [ -n "$MAX_MINUTES" ]  || MAX_MINUTES=50
 
-case "$MAX_ARTICLES" in ''|*[!0-9]*) log "MAX_ARTICLES không phải số, dùng 3"; MAX_ARTICLES=3 ;; esac
+case "$MAX_ARTICLES" in ''|*[!0-9]*) log "MAX_ARTICLES không phải số, dùng 1"; MAX_ARTICLES=1 ;; esac
 case "$MAX_MINUTES"  in ''|*[!0-9]*) log "MAX_MINUTES không phải số, dùng 50"; MAX_MINUTES=50 ;; esac
 command -v claude  >/dev/null || { log "chưa cài claude";  exit 1; }
 command -v sqlite3 >/dev/null || { log "chưa cài sqlite3"; exit 1; }
@@ -155,18 +172,39 @@ Làm theo đúng quy trình trong CLAUDE.md của repo này:
    Được dùng <h2> để chia phần và <blockquote> cho trích dẫn trực tiếp (1–3 câu,
    kèm tên và chức danh người nói).
 
-5. Ghi JSON bài viết ra tệp /tmp/bai-$req_id.json rồi lưu bằng lệnh:
+5. ẢNH VÀ VIDEO — làm cả hai nếu có, bài có hình đọc hơn hẳn:
+
+   a) Ảnh bìa. Chạy lệnh sau với từ khoá tiếng Anh mô tả chủ đề:
+
+        genz-news-fetch-image "high speed rail vietnam"
+
+      Nó tìm ảnh có GIẤY PHÉP TỰ DO trên Wikimedia Commons, đẩy lên kho của
+      toà soạn và in ra {url, caption}. Đưa url vào coverImage và caption vào
+      coverImageCaption, giữ nguyên caption vì đó là phần ghi công bắt buộc.
+      Không tìm được ảnh phù hợp thì BỎ QUA, bài dùng gradient — đừng bao giờ
+      trỏ coverImage vào ảnh của báo khác, lệnh lưu sẽ từ chối.
+
+   b) Video. Nếu có video CHÍNH THỨC trên YouTube (kênh của hãng tin, cơ quan,
+      doanh nghiệp liên quan) thì nhúng vào thân bài:
+
+        <div data-youtube-video><iframe src="https://www.youtube-nocookie.com/embed/VIDEO_ID" allowfullscreen></iframe></div>
+
+      Chỉ nhúng video bạn đã thực sự mở và xác nhận đúng nội dung. Không bịa
+      VIDEO_ID. Không nhúng video của kênh reaction/tổng hợp lại.
+
+6. Ghi JSON bài viết ra tệp /tmp/bai-$req_id.json rồi lưu bằng lệnh:
 
    genz-news-save-article /tmp/bai-$req_id.json
 
    Dùng tệp, KHÔNG dùng ống dẫn — quyền chỉ mở cho đúng lệnh trên.
 
    JSON gồm: title, dek, category (the-gioi|cong-nghe|giai-tri|doi-song|
-   kinh-doanh|the-thao), tags[], body (HTML), language, sources[{name,url}].
+   kinh-doanh|the-thao), tags[], body (HTML), language, sources[{name,url}],
+   và coverImage + coverImageCaption nếu bước 5a có ảnh.
    Liệt kê ĐỦ mọi nguồn đã thật sự dùng, không phải chỉ hai cái.
    Không đặt status — lệnh tự đưa bài vào hàng chờ duyệt.
    Không đặt readingTimeMin — lệnh tự tính từ số từ.
-   Không đặt coverImage — ảnh của báo khác có bản quyền riêng.
+   coverImage chỉ được là url do genz-news-fetch-image trả về.
 
    Lệnh sẽ TỪ CHỐI bài dưới 6 đoạn hoặc dưới 550 từ. Bị từ chối thì viết dày
    thêm bằng thông tin thật, đừng độn chữ.

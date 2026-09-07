@@ -28,6 +28,14 @@ const PASS = process.env.NEWSROOM_PASS ?? "";
 const DATA_DIR = process.env.DATA_DIR ?? path.join(process.cwd(), "data");
 const DB = process.env.DATABASE_PATH ?? path.join(DATA_DIR, "app.db");
 
+/**
+ * Ảnh hợp lệ phải nằm trên kho của chính mình. Đây là bằng chứng nó đã đi qua
+ * /api/upload (có kiểm magic bytes, giới hạn dung lượng, tên tệp do server đặt)
+ * chứ không phải link thẳng tới ảnh của báo khác.
+ */
+const MEDIA_BASE =
+  process.env.MEDIA_BASE ?? "https://genz-news.s3.us-east-1.amazonaws.com/uploads/";
+
 const CATEGORIES = [
   "the-gioi", "cong-nghe", "giai-tri", "doi-song", "kinh-doanh", "the-thao",
 ];
@@ -144,8 +152,27 @@ function validate(a) {
     );
   }
 
-  // Ảnh của báo khác thì không lấy. Mặc định dùng gradient.
-  if (a.coverImage) die("không được đặt coverImage — ảnh báo khác có bản quyền riêng");
+  // Ảnh chỉ được nhận nếu đã đi qua đường tải lên của chính mình. URL trỏ
+  // thẳng vào báo khác là hotlink ảnh có bản quyền — chặn thẳng.
+  // Đường hợp lệ duy nhất: genz-news-fetch-image, nó chỉ lấy ảnh có giấy phép
+  // tự do trên Wikimedia Commons rồi đẩy lên S3 của mình.
+  let coverImage;
+  let coverImageCaption;
+  if (a.coverImage) {
+    const img = String(a.coverImage);
+    if (!img.startsWith(MEDIA_BASE)) {
+      die(
+        `coverImage phải nằm trên kho ảnh của mình (${MEDIA_BASE}...). ` +
+          "Dùng lệnh genz-news-fetch-image để lấy ảnh có giấy phép tự do; " +
+          "không được trỏ thẳng vào ảnh của báo khác.",
+      );
+    }
+    coverImageCaption = String(a.coverImageCaption ?? "").trim();
+    if (!coverImageCaption) {
+      die("có coverImage thì bắt buộc có coverImageCaption ghi công tác giả và giấy phép");
+    }
+    coverImage = img;
+  }
 
   return {
     title,
@@ -156,6 +183,8 @@ function validate(a) {
     language: a.language === "en" ? "en" : "vi",
     // Tính từ số từ thật thay vì tin con số mô hình tự khai.
     readingTimeMin: Math.max(1, Math.round(words / 200)),
+    coverImage,
+    coverImageCaption,
     sources: sources.map((s) => ({
       name: String(s.name ?? "Nguồn"),
       url: String(s.url),
