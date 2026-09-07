@@ -34,11 +34,15 @@ const ALLOWED_EXT = { jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", w
  * bản đồ, sơ đồ, biểu tượng, cờ, huy hiệu. Một tấm bản đồ đường sắt Trung Quốc
  * cho bài về đường sắt Việt Nam còn tệ hơn là không có ảnh.
  */
-const BAD_KIND = /(map|diagram|chart|logo|icon|flag|coat of arms|seal|svg|scheme|plan|graph)/i;
+const BAD_KIND =
+  /\b(map|diagram|chart|logo|wordmark|icon|flag|coat of arms|seal|scheme|floor ?plan|graph)\b/i;
 
 /** Bỏ dấu để so khớp từ khoá với tên tệp. */
 const bare = (str) =>
-  str.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+  str
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
 
 /**
  * Ảnh phải thật sự liên quan. Yêu cầu tên tệp chứa ít nhất một từ có nghĩa
