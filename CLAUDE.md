@@ -29,14 +29,26 @@ có quyền bấm publish.
 
 ## Toà soạn tự động (chạy trên máy chủ)
 
-Trên EC2 có một vòng lặp chạy theo cron, mỗi lượt lấy một đề tài trong hàng đợi
-rồi gọi Claude Code viết. Ba mảnh:
+Trên EC2 có một vòng lặp chạy theo cron. Mỗi ngày:
+
+- **06:00** — thu thập đề tài mới từ Google Trends VN, YouTube VN và 17 nguồn
+  RSS (quốc tế + Việt Nam), rồi viết luôn tối đa `MAX_ARTICLES` bài.
+- **18:00** — viết tiếp tối đa `MAX_ARTICLES` bài từ hàng đợi.
+
+Mặc định `MAX_ARTICLES=3`, tức tối đa 6 bài mỗi ngày, đổi được trong
+`/etc/genz-news/newsroom.env`. Mỗi bài mất 8–10 phút nên con số này cũng là
+cách chặn tải cho máy chủ dùng chung. Lượt viết dừng sớm khi hàng đợi rỗng, khi
+quá `MAX_MINUTES` (mặc định 50), hoặc sau **hai lượt hỏng liên tiếp** — hỏng
+hai lần liền thường là hỏng hệ thống chứ không phải xui một đề tài.
+
+Bốn mảnh:
 
 | Thành phần | Việc |
 |---|---|
 | `scripts/newsroom-next.mjs` | Lấy đề tài kế tiếp, đánh dấu `in_progress` |
 | `scripts/newsroom-save.mjs` | Kiểm tra rồi lưu bài, đóng mục trong hàng đợi |
-| `deploy/newsroom-run.sh` | Nối hai cái trên với `claude -p`, cron gọi cái này |
+| `deploy/newsroom-run.sh` | Nối hai cái trên với `claude -p`; lặp tới `MAX_ARTICLES` bài |
+| `deploy/newsroom-watch.sh` | Nhặt yêu cầu từ nút "Nhờ AI viết" trong /admin, chạy mỗi phút |
 
 Hai chốt chặn không được gỡ:
 
