@@ -327,7 +327,7 @@ vào thư mục tạm ngay sau khi dựng xong, rồi mới yên tâm.
 | Upload file lớn báo 413 | `client_max_body_size` của nginx nhỏ hơn giới hạn của app |
 | Đọc dữ liệu được nhưng ghi báo `SQLITE_READONLY` | Chuỗi kết nối đưa `file:` vào driver; hoặc tệp `.db` do container migrate chạy bằng root tạo ra |
 | SDK cloud báo `Could not load credentials` dù đã mount `~/.aws` | Thư mục khoá thuộc root quyền 600, container chạy uid khác nên không đọc được |
-| Cả máy chủ mất SSH lẫn HTTP ngay sau khi build | Bước biên dịch giành hết CPU (không phải hết RAM — kiểm `journalctl -k` trước); xem mục L |
+| Cả máy chủ mất SSH lẫn HTTP ngay sau khi build | Hết bộ nhớ trên máy KHÔNG swap. Đo `/proc/pressure/memory`, đừng tin việc thiếu dòng oom-killer; xem mục L |
 
 ---
 
@@ -616,43 +616,86 @@ Trên máy nhiều dự án, cổng tiếp theo còn trống không chắc là c
 theo số. Và luôn bind `127.0.0.1:<port>` — thấy `0.0.0.0:<port>` ở dự án nào là
 dự án đó đang phơi thẳng ra Internet, bỏ qua nginx.
 
-## L. Dựng ảnh ngay trên máy chủ dùng chung: nghẽn CPU, không phải hết RAM
+## L. Máy chủ treo khi dựng ảnh: đo PSI trước, đừng đoán
 
 Trên VPS nhỏ đang chạy sẵn nhiều dự án, `docker compose up -d --build` là lệnh
-nguy hiểm nhất trong cả quy trình — nhưng thủ phạm thường bị đoán nhầm. Phản xạ
-đầu tiên của ai cũng là "hết RAM". Phải đo rồi hãy kết luận.
+nguy hiểm nhất trong cả quy trình. Nhưng thủ phạm rất dễ đoán nhầm — tôi đã
+đoán nhầm hai lần trên cùng một máy trước khi chịu đo.
 
-Một lần thật, trên `t3.medium` (2 vCPU, 4 GB) đang chạy 5 dự án khác:
+Hiện tượng: cổng 22 và 80 vẫn **bắt tay TCP được** (kernel còn sống, còn nghe)
+nhưng `sshd` và `nginx` không tiến trình nào trả lời. Ping không nói lên gì:
+security group của EC2 chặn ICMP mặc định.
 
-```
-Mem:  total 3836 | used 3219 | free 118 | available 345 | Swap: 0
-load average: 27.29, 64.89, 61.54          ← trên 2 nhân
-journalctl -k: KHÔNG có dòng oom-killer nào
-```
+### Đoán sai lần 1: "hết RAM, OOM killer giết mất dịch vụ"
 
-RAM căng thật, nhưng kernel **chưa hề** phải giết ai. Thứ chết là CPU: load 65
-trên 2 nhân là gấp hơn 30 lần sức máy. Bước biên dịch (`tsc`, bundler, và
-`npm ci` biên dịch native module bằng `g++`) sinh ra worker theo số nhân và ăn
-sạch thời gian CPU. `sshd` với `nginx` không được cấp CPU để trả lời — nên
-**cổng 22/80 vẫn bắt tay TCP được mà không tiến trình nào đáp**.
+`journalctl -k | grep -i oom-killer` không có một dòng nào. Kết luận vội là
+"vậy không phải RAM" — và khuyên reboot. Reboot không chữa gì, lại làm chết
+những container của dự án khác không có `restart: unless-stopped`.
 
-Trên máy burstable (`t2.*`, `t3.*`) còn nặng hơn: cạn CPU credit là bị bóp về
-~20% baseline, một bản dựng 3 phút kéo thành 40 phút, và cả máy bò trong suốt
-thời gian đó.
+### Đoán sai lần 2: "nghẽn CPU"
 
-### Phân biệt hai bệnh trước khi chữa
+`load average: 27.29, 64.89, 61.54` trên 2 nhân, `us=91 sy=9 id=0`. Trông rất
+giống nghẽn CPU. Nhưng load cao là **hậu quả**, không phải nguyên nhân — hàng
+đợi dài vì mọi tiến trình đang kẹt chờ thứ khác.
+
+Có nghi máy burstable bị bóp (`t2.*`, `t3.*` cạn CPU credit) thì đo `st` trong
+`vmstat`. Ở đây `st=0`: nhà cung cấp không hề bóp. Loại giả thuyết đó.
+
+### Đo đúng: PSI trả lời thẳng máy đang tắc ở đâu
 
 ```bash
-uptime                                   # load / số nhân — nghẽn CPU?
-free -m                                  # available còn bao nhiêu, có swap chưa
-journalctl -k | grep -i oom-killer       # có dòng nào không? Không có = KHÔNG phải OOM
-ps -eo pcpu,pmem,etimes,args --sort=-pcpu | head
+for f in cpu memory io; do echo "$f: $(cat /proc/pressure/$f)"; done
 ```
 
-Không có dòng OOM mà load cao ngất thì đừng thêm RAM, đừng reboot vội — reboot
-giết luôn mọi dự án khác trên máy mà không chữa được nguyên nhân.
+Số thật lấy được lúc máy đang treo:
 
-Ping không nói lên gì: security group của EC2 chặn ICMP mặc định.
+```
+memory   full avg300=57.16     ← 57% thời gian MỌI tiến trình đứng im
+io       full avg300=44.33
+cpu      full avg300=0.00      ← CPU chưa bao giờ là thứ chặn
+```
+
+`full` nghĩa là **không một tiến trình nào chạy được**. CPU `full=0` đóng đinh
+rằng CPU vô can. Thủ phạm là bộ nhớ.
+
+### Vì sao hết RAM mà OOM killer không chạy
+
+Đây là chỗ phản trực giác nhất, và là lý do lần đoán 1 bị loại oan.
+
+Máy **không có swap**. Khi thiếu bộ nhớ, kernel không đẩy được dữ liệu ra swap,
+nên thứ duy nhất nó thu hồi được là bộ nhớ đệm — **kể cả trang mã lệnh của
+chính các chương trình đang chạy**. Nó đuổi mã của `sshd`, `nginx`, `node` ra
+khỏi RAM, rồi ngay lệnh kế tiếp lại phải đọc ngược từ đĩa:
+
+```
+pgmajfault      9.136.049      ← 9 triệu lần phải đọc lại trang từ đĩa
+pgscan_kswapd 411.569.503
+pgsteal_kswapd 101.900.674     ← quét 411 triệu trang để thu hồi 101 triệu
+pswpin / pswpout        0      ← không có swap để mà dùng
+```
+
+Vòng lặp đó **không bao giờ chạm ngưỡng OOM**, vì lúc nào cũng còn bộ nhớ đệm
+để vứt. Kernel không giết ai cả — nó chỉ thoi thóp mãi. Nên **"không có dòng
+oom-killer" KHÔNG chứng minh được là đủ RAM**, đặc biệt trên máy không swap.
+
+### Chữa: thêm swap
+
+```bash
+fallocate -l 4G /swapfile && chmod 600 /swapfile
+mkswap /swapfile && swapon /swapfile
+echo '/swapfile none swap sw 0 0' >> /etc/fstab   # giữ sau khi reboot
+sysctl -w vm.swappiness=10                        # chỉ dùng khi thật cần
+```
+
+Swap không làm máy nhanh hơn. Nó biến "cả máy đứng hình 50 phút" thành "bản
+dựng chậm hơn một chút". Kết quả đo ngay sau khi bật, trong lúc một bản dựng
+khác đang chạy:
+
+```
+Swap: đang dùng 948 MB        ← đúng phần trước đây gây thrash
+load: 4.03 (1 phút)  ↓ từ 34.73 (15 phút)
+ssh vào bình thường trong khi vẫn đang build
+```
 
 ### Cái bẫy lớn nhất: mỗi lần `git push` là một lần máy chủ tự biên dịch
 
@@ -664,15 +707,34 @@ máy. Đây là cách tự bắn vào chân phổ biến nhất.
 Trong lúc chưa đổi được kiến trúc CI: **gom thay đổi lại rồi push một lần**,
 đừng push lắt nhắt.
 
-### Ba cách xử lý, theo thứ tự nên chọn
+### Ngoài swap, hãy giảm hẳn SỐ LẦN phải dựng
 
-**1. Dựng ảnh ở nơi khác, máy chủ chỉ kéo về.** Đây là cách đúng. Runner dựng
-và đẩy lên registry (GitLab có registry sẵn cho mỗi repo), máy chủ chỉ
-`pull` rồi `up -d`. Kéo ảnh gần như không tốn CPU.
+Swap chữa triệu chứng. Cách bền hơn là đừng dựng nhiều đến thế.
 
-Lưu ý: runner `shell` cài **ngay trên máy chủ** thì "dựng ở runner" vẫn là
-dựng trên chính máy đó — không giải quyết gì. Muốn ăn thua thì runner phải nằm
-ở máy khác (một VPS nhỏ riêng, hoặc runner dùng chung của GitLab).
+**1. Chỉ dựng lại khi mã ứng dụng thật sự đổi.** Đây là thứ đáng làm nhất và
+gần như miễn phí. Sửa một script chạy trên host hay một dòng tài liệu mà cũng
+kích một bản dựng đầy đủ là lãng phí thuần tuý:
+
+```yaml
+deploy:
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      changes:
+        - app/**/*
+        - lib/**/*
+        - package.json
+        - package-lock.json
+        - Dockerfile
+```
+
+Trong một ngày làm việc thật, cách này cắt được 4 trên 6 bản dựng.
+
+**2. Gom thay đổi rồi push một lần.** Đẩy 3 commit liên tiếp là 3 pipeline xếp
+hàng chồng lên nhau. Đây là kiểu tự bắn vào chân phổ biến nhất.
+
+**3. Dựng ảnh ở máy khác, máy chủ chỉ kéo về.** Đúng về kiến trúc nhưng tốn
+tiền: runner `shell` cài **ngay trên máy chủ** thì "dựng ở runner" vẫn là dựng
+trên chính máy đó. Muốn ăn thua phải có máy riêng để dựng.
 
 ```yaml
 build:
@@ -684,37 +746,38 @@ deploy:
     - docker compose pull && docker compose up -d
 ```
 
-**2. Giới hạn CPU cho bản dựng.** Đừng bọc `nice` quanh `docker-compose` —
-việc biên dịch chạy trong `dockerd`, không phải trong tiến trình client, nên
-`nice` ở đó gần như vô tác dụng. Phải chặn ở chỗ thật sự làm việc:
-
-```bash
-# builder cổ điển: ghim bản dựng vào 1 nhân, chừa nhân kia cho dịch vụ
-DOCKER_BUILDKIT=0 docker build --cpuset-cpus=0 -t myapp:new .
-docker-compose up -d --no-build
-```
-
-**3. Thêm swap và chặn trần heap** — chốt chặn phụ, phòng khi RAM mới là vấn đề
-thật ở dự án khác:
-
-```bash
-fallocate -l 4G /swapfile && chmod 600 /swapfile
-mkswap /swapfile && swapon /swapfile
-echo '/swapfile none swap sw 0 0' >> /etc/fstab
-```
+**4. Chặn trần heap** — chốt chặn phụ, để nếu vẫn vỡ thì vỡ *bên trong* bản
+dựng chứ không lôi cả máy xuống:
 
 ```dockerfile
-FROM node:22-bookworm-slim AS build
 ENV NODE_OPTIONS=--max-old-space-size=1536
-RUN npm run build
 ```
+
+Đừng bọc `nice` quanh `docker compose`: việc biên dịch chạy trong `dockerd`,
+không phải trong tiến trình client, nên `nice` ở đó vô tác dụng.
 
 ### Nếu đã lỡ treo
 
-Không cứu được từ xa: SSH chính là thứ đã chết. Phải vào console của nhà cung
-cấp (EC2 → Instances → Reboot). Vì vậy giữ sẵn **quyền vào console** trước khi
-deploy, đừng chỉ có mỗi khoá SSH. Reboot xong nhớ kiểm lại: job CI nào đang
-chạy dở sẽ bị giết và pipeline báo failed — deploy lại từ đầu.
+**Đừng reboot vội.** Máy thoi thóp vì thu hồi bộ nhớ thì thường tự bò ra sau
+vài chục phút, còn reboot thì giết luôn mọi container của dự án khác **không**
+có `restart: unless-stopped` — và chúng sẽ không tự lên lại. Tôi đã khuyên
+reboot một lần dựa trên chẩn đoán sai, và làm sập một dự án chẳng liên quan.
+
+Kiểm trước khi quyết:
+
+```bash
+docker ps -a --filter status=exited --format '{{.Names}}'
+for c in $(docker ps -aq); do
+  echo "$(docker inspect -f '{{.Name}} {{.HostConfig.RestartPolicy.Name}}' $c)"
+done
+```
+
+Cái nào `no` mà đang chạy thì reboot là mất. Và giữ sẵn **quyền vào console**
+của nhà cung cấp trước khi deploy, đừng chỉ có mỗi khoá SSH — nếu thật sự phải
+reboot thì SSH chính là thứ đã chết.
+
+Reboot xong nhớ kiểm lại: job CI nào đang chạy dở sẽ bị giết và pipeline báo
+failed — deploy lại từ đầu.
 
 ## M. Job lint ở CI đỏ dù máy nhà xanh: kiểu do framework tự sinh
 
@@ -744,3 +807,28 @@ Ba cách chữa, nên chọn cách đầu:
 2. Chạy lệnh sinh kiểu trước khi kiểm (`next typegen`) — nhanh hơn build đủ.
 3. Build đủ rồi mới `tsc` — chậm nhất, và trên máy chủ yếu thì đụng đúng vấn đề
    ở mục L.
+
+## N. Bit thực thi của script phải nằm trong git
+
+Script `deploy/*.sh` commit ở chế độ `100644` sẽ chạy được trên máy nhà (vì
+bạn `chmod +x` một lần) rồi hỏng trên máy chủ, với thông báo khó lần:
+
+```
+exec: /srv/app/repo/deploy/run.sh: cannot execute: Permission denied
+```
+
+`ls -l` lại hiện `-rwxr-xr-x`, nên rất dễ tưởng là chuyện khác. Bẫy nằm ở chỗ:
+mỗi lần deploy chạy `git reset --hard`, git **đặt lại chế độ tệp theo đúng thứ
+đã commit** — tức xoá sạch bit thực thi vừa `chmod`. Nó chạy được ngay sau khi
+bạn chmod, rồi tự hỏng ở lượt sau.
+
+Kiểm và sửa:
+
+```bash
+git ls-files -s deploy/          # thấy 100644 là sai
+git update-index --chmod=+x deploy/*.sh
+git commit -m "ghi bit thực thi vào git"
+```
+
+Cùng họ với bẫy CRLF ở mục A: cả hai đều là **thuộc tính tệp không được commit**,
+và cả hai đều chỉ lộ ra trên máy chủ.
