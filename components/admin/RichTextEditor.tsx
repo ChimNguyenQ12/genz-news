@@ -29,7 +29,7 @@ function ToolbarButton({
       onClick={onClick}
       title={title}
       disabled={disabled}
-      className={`min-w-8 rounded-md px-2 py-1 text-sm font-semibold transition disabled:opacity-30 ${
+      className={`min-h-9 min-w-9 shrink-0 rounded-md px-2 py-1 text-sm font-semibold transition disabled:opacity-30 sm:min-h-0 sm:min-w-8 ${
         active
           ? "bg-accent text-white"
           : "text-foreground/70 hover:bg-surface-2 hover:text-foreground"
@@ -116,7 +116,9 @@ export default function RichTextEditor({
 
   return (
     <div className="overflow-hidden rounded-xl border border-border bg-surface focus-within:border-accent">
-      <div className="no-scrollbar flex flex-wrap items-center gap-0.5 border-b border-border px-2 py-1.5">
+      {/* Điện thoại: cuộn ngang một hàng. Dùng flex-wrap ở đây thì thanh công
+          cụ xuống 4-5 hàng và đẩy khung soạn thảo khỏi màn hình. */}
+      <div className="no-scrollbar flex items-center gap-0.5 overflow-x-auto border-b border-border px-2 py-1.5 sm:flex-wrap sm:overflow-x-visible">
         <ToolbarButton
           onClick={() => editor.chain().focus().undo().run()}
           disabled={!editor.can().undo()}

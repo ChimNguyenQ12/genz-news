@@ -114,9 +114,9 @@ function CommentItem({
           {comment.body}
         </p>
 
-        <div className="mt-1.5 flex gap-3 text-xs font-semibold text-muted">
+        <div className="mt-1.5 flex items-center gap-4 text-xs font-semibold text-muted">
           {!isReply && user && onReply && (
-            <button onClick={onReply} className="hover:text-accent">
+            <button onClick={onReply} className="-my-2 py-2 hover:text-accent">
               Trả lời
             </button>
           )}
@@ -248,7 +248,7 @@ export default function CommentSection({
               />
 
               {replyTo === c.id && user && (
-                <div className="ml-11 mt-2">
+                <div className="ml-4 mt-2 sm:ml-11">
                   <CommentForm
                     value={replyText}
                     onChange={setReplyText}
@@ -267,7 +267,7 @@ export default function CommentSection({
               )}
 
               {c.replies.length > 0 && (
-                <div className="ml-11 mt-4 space-y-4 border-l-2 border-border pl-4">
+                <div className="ml-4 mt-4 space-y-4 border-l-2 border-border pl-3 sm:ml-11 sm:pl-4">
                   {c.replies.map((r) => (
                     <CommentItem
                       key={r.id}
