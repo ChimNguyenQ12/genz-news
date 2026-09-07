@@ -29,6 +29,29 @@ const BAD_LICENCE = /(non[- ]?commercial|nc\b|nd\b|fair use|copyright|all rights
 
 const ALLOWED_EXT = { jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", webp: "image/webp" };
 
+/**
+ * Loại những thứ Commons hay đẩy lên đầu nhưng không dùng làm ảnh bìa tin được:
+ * bản đồ, sơ đồ, biểu tượng, cờ, huy hiệu. Một tấm bản đồ đường sắt Trung Quốc
+ * cho bài về đường sắt Việt Nam còn tệ hơn là không có ảnh.
+ */
+const BAD_KIND = /(map|diagram|chart|logo|icon|flag|coat of arms|seal|svg|scheme|plan|graph)/i;
+
+/** Bỏ dấu để so khớp từ khoá với tên tệp. */
+const bare = (str) =>
+  str.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+
+/**
+ * Ảnh phải thật sự liên quan. Yêu cầu tên tệp chứa ít nhất một từ có nghĩa
+ * (từ 4 chữ trở lên) của truy vấn — Commons xếp hạng theo độ liên quan nhưng
+ * vẫn hay trả về thứ chỉ trùng một phần.
+ */
+function relevant(title, query) {
+  const words = bare(query).split(/[^a-z0-9]+/).filter((w) => w.length >= 4);
+  if (!words.length) return true;
+  const t = bare(title);
+  return words.some((w) => t.includes(w));
+}
+
 function die(msg) {
   console.error(`[fetch-image] ${msg}`);
   process.exit(2);
@@ -71,6 +94,10 @@ async function main() {
     if (!licence || BAD_LICENCE.test(licence) || !OK_LICENCE.test(licence)) continue;
     if (!/^image\//.test(info.mime ?? "")) continue;
 
+    const title = String(page.title ?? "").replace(/^File:/, "");
+    if (BAD_KIND.test(title)) continue;
+    if (!relevant(title, query)) continue;
+
     // Bản đã co nhỏ (thumburl) cho nhẹ; không có thì lấy bản gốc.
     const src = info.thumburl || info.url;
     const ext = (src.split("?")[0].split(".").pop() ?? "").toLowerCase();
@@ -103,10 +130,12 @@ async function main() {
     if (!up.ok) die(`đẩy lên hỏng (${up.status}): ${(await up.text()).slice(0, 200)}`);
     const { url } = await up.json();
 
-    const title = String(page.title ?? "").replace(/^File:/, "");
-    const caption =
-      `Ảnh: ${artist || "không rõ tác giả"} — ${licence}, qua Wikimedia Commons ` +
-      `(${title})`;
+    // Phần ghi công của Commons hay có xuống dòng và tên tệp phái sinh — gộp
+    // lại thành một dòng, nếu không caption hiện ra rất xấu.
+    const tidy = (t) => t.replace(/\s+/g, " ").trim();
+    const caption = tidy(
+      `Ảnh: ${artist || "không rõ tác giả"} — ${licence}, qua Wikimedia Commons (${title})`,
+    );
 
     console.log(JSON.stringify({ url, caption, licence, source: info.descriptionurl ?? src }));
     return;
