@@ -23,14 +23,25 @@ const DB = process.env.DATABASE_PATH ?? path.join(DATA_DIR, "app.db");
 
 /** Bắt được thì dừng lại chờ người. Thà bỏ sót còn hơn viết ẩu. */
 const SENSITIVE = [
+  // chủ quyền, biển đảo
   "hoàng sa", "trường sa", "biển đông", "chủ quyền", "lãnh hải", "lãnh thổ",
   "spratly", "paracel", "south china sea",
-  "bộ chính trị", "tổng bí thư", "quốc hội", "chính phủ", "bầu cử",
-  "đảng cộng sản", "biểu tình", "đảo chính", "election", "coup", "protest",
-  "tôn giáo", "phật giáo", "công giáo", "tin lành", "hồi giáo",
-  "dân tộc thiểu số", "sắc tộc", "religion", "ethnic",
-  "khởi tố", "bắt tạm giam", "điều tra", "cáo buộc", "toà án", "xét xử",
-  "indicted", "arrested", "on trial",
+  // chính trị, nhà nước
+  "bộ chính trị", "tổng bí thư", "quốc hội", "chính phủ", "bầu cử", "bỏ phiếu",
+  "đảng cộng sản", "đảng cầm quyền", "biểu tình", "đảo chính", "nội các",
+  "tổng thống", "thủ tướng", "chủ tịch nước", "nghị viện", "chính trị",
+  "cực hữu", "cực tả", "cánh hữu", "cánh tả",
+  "election", "coup", "protest", "parliament", "prime minister", "cabinet",
+  "far-right", "far right", "far-left", "political", "politician", "ballot",
+  // tôn giáo, sắc tộc
+  "tôn giáo", "phật giáo", "công giáo", "tin lành", "hồi giáo", "nhà thờ",
+  "dân tộc thiểu số", "sắc tộc", "religion", "ethnic", "muslim", "christian",
+  // vụ án đang điều tra
+  "khởi tố", "bắt tạm giam", "tạm giữ", "điều tra", "cáo buộc", "toà án",
+  "xét xử", "truy nã", "truy tố", "phạm tội", "công an", "cảnh sát",
+  "hung khí", "án mạng", "sát hại", "giết người", "ma tuý", "lừa đảo",
+  "indicted", "arrested", "on trial", "police", "murder", "stabbing",
+  "shooting", "assault", "fraud", "trafficking",
 ];
 
 /**
@@ -62,9 +73,18 @@ function nowStamp() {
   return new Date().toISOString().replace("Z", "+00:00");
 }
 
+/** Bỏ dấu tiếng Việt để so khớp cả khi nguồn viết không dấu. */
+function stripDiacritics(str) {
+  return str
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/đ/g, "d");
+}
+
 function sensitiveHit(text) {
   const hay = String(text ?? "").toLowerCase();
-  return SENSITIVE.find((k) => hay.includes(k));
+  const bare = stripDiacritics(hay);
+  return SENSITIVE.find((k) => hay.includes(k) || bare.includes(stripDiacritics(k)));
 }
 
 function parseUrls(raw) {
@@ -96,29 +116,24 @@ function main() {
       );
 
   for (const row of rows) {
-    const hit = sensitiveHit(`${row.topic}\n${row.notes ?? ""}`);
-    if (hit) {
+    const hit = sensitiveHit(`${row.topic}
+${row.notes ?? ""}`);
+
+    // Bộ lọc này tồn tại vì CRON không có ai để hỏi. Còn khi tổng biên tập tự
+    // bấm nút (--id=), thì người cần hỏi đã trả lời rồi — chặn tiếp là sai.
+    // Lúc đó chỉ gắn cờ để prompt nhắc AI theo mục "Chủ đề nhạy cảm".
+    if (hit && !wanted) {
       if (!String(row.reporterNote ?? "").includes("[nhạy cảm]")) {
         const note =
           `[nhạy cảm] Khớp từ khoá "${hit}". Theo hiến chương, nhóm chủ đề này ` +
-          `phải có tổng biên tập duyệt trước khi viết. Máy bỏ qua.`;
+          `phải có tổng biên tập duyệt trước. Máy tự động bỏ qua — bấm ` +
+          `"Nhờ AI viết" nếu bạn muốn làm đề tài này.`;
         sql(
           "UPDATE research_requests SET " +
             `reporterNote = ${quote(note)}, updatedAt = ${quote(nowStamp())} ` +
             `WHERE id = ${quote(row.id)};`,
           { json: false },
         );
-      }
-      // Yêu cầu chỉ định thì trả đề tài về hàng đợi, đừng để nó kẹt
-      // "in_progress" mãi vì máy sẽ không bao giờ đụng vào.
-      if (wanted) {
-        sql(
-          "UPDATE research_requests SET status = 'pending', " +
-            `updatedAt = ${quote(nowStamp())} WHERE id = ${quote(row.id)};`,
-          { json: false },
-        );
-        console.log(JSON.stringify({ skipped: "nhay cam", keyword: hit }));
-        return;
       }
       continue;
     }
@@ -136,6 +151,7 @@ function main() {
         topic: row.topic,
         urls: parseUrls(row.urls),
         notes: row.notes ?? "",
+        sensitive: hit ?? null,
       }),
     );
     return;

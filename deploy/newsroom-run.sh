@@ -52,6 +52,27 @@ TOPIC="$(printf '%s' "$TASK_JSON" | sed -n 's/.*"topic":"\([^"]*\)".*/\1/p')"
 
 log "nhận đề tài [$REQ_ID] $TOPIC"
 
+# Đề tài thuộc nhóm nhạy cảm mà vẫn tới được đây nghĩa là tổng biên tập tự bấm
+# nút — người cần hỏi đã trả lời. Không chặn, nhưng nhắc AI theo luật riêng.
+SENSITIVE_NOTE=""
+case "$TASK_JSON" in
+  *'"sensitive":"'*)
+    SENSITIVE_NOTE="
+CẢNH BÁO: đề tài này thuộc nhóm NHẠY CẢM (chủ quyền, chính trị, tôn giáo, sắc
+tộc, hoặc vụ án đang điều tra). Tổng biên tập đã tự chọn nó nên bạn được viết,
+nhưng phải theo mục 'Chủ đề nhạy cảm' trong CLAUDE.md:
+- Chỉ dùng phát ngôn chính thức, có nguồn rõ ràng. Không suy diễn, không bình luận.
+- Tin chủ quyền: theo khung của báo chí Việt Nam, đồng thời nêu chính xác phía
+  bên kia nói gì.
+- Vụ án đang điều tra: dùng đúng chữ 'bị cáo buộc', 'đang điều tra'; không kết
+  luận thay cơ quan chức năng; không nêu danh tính người chưa bị kết án.
+- Chỗ nào chưa rõ thì ghi thẳng là chưa rõ.
+"
+    log "đề tài nhạy cảm — tổng biên tập tự chọn, viết kèm ràng buộc riêng"
+    ;;
+esac
+
+
 # Lệnh lưu bài cần biết đóng mục nào trong hàng đợi. Ghi vào tệp môi trường
 # thay vì truyền qua prompt — Claude không cần thấy, và không sửa được.
 sed -i '/^NEWSROOM_REQUEST_ID=/d' "$ENV_FILE"
@@ -73,7 +94,7 @@ release() {
 # và báo "PROMPT: unbound variable". Heredoc không trích dấu vẫn thay được
 # $TASK_JSON và $REQ_ID.
 PROMPT="$(cat <<PROMPTEOF
-Đề tài trong hàng đợi toà soạn:
+Đề tài trong hàng đợi toà soạn:$SENSITIVE_NOTE
 
 $TASK_JSON
 
