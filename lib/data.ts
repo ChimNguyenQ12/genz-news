@@ -14,6 +14,7 @@ export const categories: Category[] = [
   { slug: "doi-song", name: "Đời Sống", color: "amber" },
   { slug: "kinh-doanh", name: "Kinh Doanh", color: "emerald" },
   { slug: "the-thao", name: "Thể Thao", color: "orange" },
+  { slug: "thread-city", name: "Thread City", color: "black" },
 ];
 
 export function getCategory(slug: string) {
