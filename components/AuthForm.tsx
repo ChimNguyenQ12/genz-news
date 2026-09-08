@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 const inputCls =
-  "w-full rounded-xl border border-border bg-surface px-4 py-2.5 text-sm outline-none focus:border-accent";
+  "w-full rounded-xl border border-border bg-surface px-4 py-2.5 text-base sm:text-sm outline-none focus:border-accent";
 
 export default function AuthForm({ mode }: { mode: "login" | "register" }) {
   const router = useRouter();
@@ -30,8 +30,12 @@ export default function AuthForm({ mode }: { mode: "login" | "register" }) {
     });
 
     if (res.ok) {
-      router.replace("/admin");
-      router.refresh();
+      const data = await res.json().catch(() => ({}));
+      const destination =
+        data.redirectUrl || (data.user?.role === "admin" ? "/admin" : "/dashboard");
+      // Dùng window.location.assign thay vì router.replace để buộc mobile browser
+      // reload hoàn chỉnh kèm cookie mới nhất, tránh lỗi RSC cache và cookie desync.
+      window.location.assign(destination);
     } else {
       const data = await res.json().catch(() => ({}));
       setError(data.error ?? "Có lỗi xảy ra");

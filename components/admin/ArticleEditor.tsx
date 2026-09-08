@@ -25,12 +25,15 @@ const STATUS_STYLE: Record<Article["status"], string> = {
 export default function ArticleEditor({
   article,
   role,
+  baseRoute,
 }: {
   article: Article;
   role: Role;
+  baseRoute?: string;
 }) {
   const router = useRouter();
   const isAdmin = role === "admin";
+  const base = baseRoute ?? (isAdmin ? "/admin" : "/dashboard");
 
   const [title, setTitle] = useState(article.title);
   const [slug, setSlug] = useState(article.slug);
@@ -135,7 +138,7 @@ export default function ArticleEditor({
               ? "Đã đưa về nháp."
               : "Đã lưu thay đổi.",
       );
-      if (status === "pending") router.push("/admin");
+      if (status === "pending") router.push(base);
       else router.refresh();
     } else {
       const data = await res.json().catch(() => ({}));
@@ -146,7 +149,7 @@ export default function ArticleEditor({
   return (
     <div>
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <Link href="/admin" className="text-sm font-semibold text-muted hover:text-accent">
+        <Link href={base} className="text-sm font-semibold text-muted hover:text-accent">
           ← Danh sách bài
         </Link>
         <div className="flex flex-wrap items-center gap-2">

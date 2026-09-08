@@ -1,0 +1,35 @@
+import { redirect } from "next/navigation";
+import { getSessionUser } from "@/lib/auth";
+import { listArticles } from "@/lib/store";
+import ArticleList from "@/components/admin/ArticleList";
+
+export const dynamic = "force-dynamic";
+
+export default async function DashboardPage() {
+  const user = await getSessionUser();
+  if (!user) redirect("/dang-nhap");
+
+  const all = await listArticles();
+  const mine = all.filter((a) => a.authorId === user.id);
+
+  const pending = mine.filter((a) => a.status === "pending").length;
+  const published = mine.filter((a) => a.status === "published").length;
+  const drafts = mine.filter((a) => a.status === "draft").length;
+
+  return (
+    <div>
+      <div className="mb-6">
+        <h1 className="font-display text-2xl font-black">Bài viết của tôi</h1>
+        <p className="mt-1 text-sm text-muted">
+          {published} đã đăng · {pending} đợi duyệt · {drafts} nháp
+        </p>
+      </div>
+
+      <div className="mb-5 rounded-2xl border border-border bg-surface p-4 text-sm text-muted">
+        Viết xong bấm <strong className="text-foreground">Gửi duyệt</strong> để ban biên tập kiểm tra và xuất bản. Bạn có thể rút về nháp để chỉnh sửa bất cứ lúc nào trước khi bài được duyệt.
+      </div>
+
+      <ArticleList articles={mine} role={user.role} baseRoute="/dashboard" />
+    </div>
+  );
+}

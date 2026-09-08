@@ -6,7 +6,10 @@ import AuthForm from "@/components/AuthForm";
 export const dynamic = "force-dynamic";
 
 export default async function LoginPage() {
-  if (await getSessionUser()) redirect("/admin");
+  const user = await getSessionUser();
+  if (user) {
+    redirect(user.role === "admin" ? "/admin" : "/dashboard");
+  }
 
   return (
     <div className="mx-auto flex max-w-sm flex-col justify-center px-4 py-16">

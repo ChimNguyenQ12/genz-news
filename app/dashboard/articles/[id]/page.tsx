@@ -5,18 +5,20 @@ import ArticleEditor from "@/components/admin/ArticleEditor";
 
 export const dynamic = "force-dynamic";
 
-export default async function EditArticlePage({
+export default async function EditDashboardArticlePage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
   const user = await getSessionUser();
   if (!user) redirect("/dang-nhap");
-  if (user.role !== "admin") redirect("/dashboard");
 
   const { id } = await params;
   const article = await getArticleById(id);
   if (!article) notFound();
 
-  return <ArticleEditor article={article} role={user.role} baseRoute="/admin" />;
+  // Tài khoản thường chỉ mở được bài của chính mình.
+  if (user.role !== "admin" && article.authorId !== user.id) notFound();
+
+  return <ArticleEditor article={article} role={user.role} baseRoute="/dashboard" />;
 }

@@ -49,10 +49,26 @@ export async function requireRole(role: Role): Promise<PublicUser | null> {
   return user;
 }
 
-export const sessionCookieOptions = {
-  httpOnly: true,
-  sameSite: "lax" as const,
-  path: "/",
-  secure: process.env.NODE_ENV === "production",
-  maxAge: SESSION_TTL_MS / 1000,
-};
+export function getSessionCookieOptions(req?: Request) {
+  let isSecure = process.env.NODE_ENV === "production";
+  if (process.env.COOKIE_SECURE === "false") {
+    isSecure = false;
+  } else if (process.env.COOKIE_SECURE === "true") {
+    isSecure = true;
+  } else if (req) {
+    const proto = req.headers.get("x-forwarded-proto");
+    const isHttps = proto ? proto === "https" : req.url.startsWith("https:");
+    // Chỉ bật secure nếu kết nối thực sự là HTTPS (tránh trình duyệt mobile chặn cookie khi chạy HTTP mạng LAN)
+    isSecure = isSecure && isHttps;
+  }
+
+  return {
+    httpOnly: true,
+    sameSite: "lax" as const,
+    path: "/",
+    secure: isSecure,
+    maxAge: SESSION_TTL_MS / 1000,
+  };
+}
+
+export const sessionCookieOptions = getSessionCookieOptions();

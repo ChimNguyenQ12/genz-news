@@ -4,10 +4,9 @@ import ChangePasswordForm from "@/components/admin/ChangePasswordForm";
 
 export const dynamic = "force-dynamic";
 
-export default async function AccountPage() {
+export default async function DashboardAccountPage() {
   const user = await getSessionUser();
   if (!user) redirect("/dang-nhap");
-  if (user.role !== "admin") redirect("/dashboard");
 
   return (
     <div className="max-w-md">
@@ -24,7 +23,7 @@ export default async function AccountPage() {
         <div className="flex justify-between">
           <dt className="text-muted">Vai trò</dt>
           <dd className="font-semibold">
-            {user.role === "admin" ? "Quản trị" : "Tài khoản"}
+            {user.role === "admin" ? "Quản trị" : "Tác giả / Thành viên"}
           </dd>
         </div>
       </dl>

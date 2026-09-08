@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createSessionToken, SESSION_COOKIE, sessionCookieOptions } from "@/lib/auth";
+import { createSessionToken, getSessionCookieOptions, SESSION_COOKIE } from "@/lib/auth";
 import { registerContributor } from "@/lib/users";
 
 /** Đặt ALLOW_REGISTRATION=0 để đóng đăng ký công khai (chống spam). */
@@ -30,11 +30,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: result.error }, { status: 400 });
   }
 
-  const response = NextResponse.json({ user: result.user }, { status: 201 });
+  const response = NextResponse.json(
+    { user: result.user, redirectUrl: "/dashboard" },
+    { status: 201 },
+  );
   response.cookies.set(
     SESSION_COOKIE,
     createSessionToken(result.user.id),
-    sessionCookieOptions,
+    getSessionCookieOptions(request),
   );
   return response;
 }

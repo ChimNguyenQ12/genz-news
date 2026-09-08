@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createSessionToken, SESSION_COOKIE, sessionCookieOptions } from "@/lib/auth";
+import { createSessionToken, getSessionCookieOptions, SESSION_COOKIE } from "@/lib/auth";
 import { findByUsername, toPublicUser, verifyPassword } from "@/lib/users";
 
 export async function POST(request: Request) {
@@ -22,7 +22,18 @@ export async function POST(request: Request) {
   if (!user) return failed;
   if (!(await verifyPassword(user, password))) return failed;
 
-  const response = NextResponse.json({ user: toPublicUser(user) });
-  response.cookies.set(SESSION_COOKIE, createSessionToken(user.id), sessionCookieOptions);
+  const publicUser = toPublicUser(user);
+  const redirectUrl = publicUser.role === "admin" ? "/admin" : "/dashboard";
+
+  const response = NextResponse.json({
+    user: publicUser,
+    redirectUrl,
+  });
+
+  response.cookies.set(
+    SESSION_COOKIE,
+    createSessionToken(user.id),
+    getSessionCookieOptions(request),
+  );
   return response;
 }

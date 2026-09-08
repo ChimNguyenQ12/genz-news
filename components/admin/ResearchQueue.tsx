@@ -129,7 +129,7 @@ export default function ResearchQueue({ requests }: { requests: ResearchRequest[
 
         <div>
           <label className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-muted">
-            Ghi chú cho phóng viên
+            Ghi chú cho AI
           </label>
           <textarea
             value={notes}

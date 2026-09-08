@@ -8,7 +8,10 @@ export const dynamic = "force-dynamic";
 const REGISTRATION_OPEN = process.env.ALLOW_REGISTRATION !== "0";
 
 export default async function RegisterPage() {
-  if (await getSessionUser()) redirect("/admin");
+  const user = await getSessionUser();
+  if (user) {
+    redirect(user.role === "admin" ? "/admin" : "/dashboard");
+  }
 
   return (
     <div className="mx-auto flex max-w-sm flex-col justify-center px-4 py-16">

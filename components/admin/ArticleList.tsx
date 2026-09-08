@@ -33,12 +33,15 @@ const FILTERS: (ArticleStatus | "all")[] = [
 export default function ArticleList({
   articles,
   role,
+  baseRoute,
 }: {
   articles: Article[];
   role: Role;
+  baseRoute?: string;
 }) {
   const router = useRouter();
   const isAdmin = role === "admin";
+  const base = baseRoute ?? (isAdmin ? "/admin" : "/dashboard");
   const [filter, setFilter] = useState<ArticleStatus | "all">(
     isAdmin && articles.some((a) => a.status === "pending") ? "pending" : "all",
   );
@@ -94,7 +97,7 @@ export default function ArticleList({
     });
     const data = await res.json();
     setBusy(null);
-    if (data.article) router.push(`/admin/articles/${data.article.id}`);
+    if (data.article) router.push(`${base}/articles/${data.article.id}`);
     else setError(data.error ?? "Không tạo được bài");
   }
 
@@ -188,7 +191,7 @@ export default function ArticleList({
 
                   {canEdit ? (
                     <Link
-                      href={`/admin/articles/${a.id}`}
+                      href={`${base}/articles/${a.id}`}
                       className="mt-1 block truncate font-semibold hover:text-accent"
                     >
                       {a.title}
@@ -221,7 +224,7 @@ export default function ArticleList({
 
                   {canEdit && (
                     <Link
-                      href={`/admin/articles/${a.id}`}
+                      href={`${base}/articles/${a.id}`}
                       className="rounded-lg border border-border px-3 py-1.5 text-xs font-semibold hover:border-accent hover:text-accent"
                     >
                       Sửa

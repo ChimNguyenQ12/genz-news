@@ -49,23 +49,34 @@ export async function PUT(
   if (!isAdmin && !isOwner) {
     return NextResponse.json({ error: "Không có quyền sửa bài này" }, { status: 403 });
   }
-  if (!isAdmin && !CONTRIBUTOR_EDITABLE.includes(current.status)) {
-    return NextResponse.json(
-      {
-        error:
-          current.status === "pending"
-            ? "Bài đang đợi duyệt, không sửa được. Rút về nháp trước đã."
-            : "Bài đã đăng, bạn không sửa được.",
-      },
-      { status: 403 },
-    );
-  }
 
   let body: Record<string, unknown>;
   try {
     body = await request.json();
   } catch {
     return NextResponse.json({ error: "Dữ liệu không hợp lệ" }, { status: 400 });
+  }
+
+  if (!isAdmin) {
+    if (current.status === "pending") {
+      // Khi bài đang đợi duyệt, tác giả được phép rút về nháp (status: "draft").
+      if (body.status !== "draft") {
+        return NextResponse.json(
+          { error: "Bài đang đợi duyệt, không sửa được. Rút về nháp trước đã." },
+          { status: 403 },
+        );
+      }
+    } else if (current.status === "published") {
+      return NextResponse.json(
+        { error: "Bài đã đăng, bạn không sửa được." },
+        { status: 403 },
+      );
+    } else if (!CONTRIBUTOR_EDITABLE.includes(current.status)) {
+      return NextResponse.json(
+        { error: "Không thể chỉnh sửa bài viết ở trạng thái này." },
+        { status: 403 },
+      );
+    }
   }
 
   const patch: Partial<Article> = {};
