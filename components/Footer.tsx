@@ -16,7 +16,9 @@ export default function Footer() {
               </span>
             </Link>
             <p className="mt-3 max-w-xs text-sm text-muted">
-              Tin tức quốc tế được chắt lọc, biên tập lại và dẫn nguồn rõ ràng — gọn cho Gen Z đọc mỗi ngày.
+              Tin tức Việt Nam mà phải đọc báo nước ngoài?
+              Báo Việt không dám viết về nó?
+              Trang báo nhỏ dành cho GenZ, cập nhật và chắt lọc tin tức từ các nguồn chính thống + các nguồn bí ẩn
             </p>
           </div>
 
@@ -43,26 +45,13 @@ export default function Footer() {
           </div>
 
           <div>
-            <h3 className="text-sm font-bold uppercase tracking-wide text-muted">Nhận bản tin</h3>
-            <p className="mt-3 text-sm text-muted">Tổng hợp tin đáng chú ý mỗi tối, gửi thẳng vào inbox.</p>
-            <form className="mt-3 flex gap-2">
-              <input
-                type="email"
-                placeholder="email@cua-ban.com"
-                className="w-full rounded-full border border-border bg-background px-4 py-2 text-sm outline-none focus:border-accent"
-              />
-              <button
-                type="submit"
-                className="shrink-0 rounded-full bg-accent px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90"
-              >
-                Đăng ký
-              </button>
-            </form>
+            <h3 className="text-sm font-bold uppercase tracking-wide text-muted">Liên hệ</h3>
+            <p className="mt-3 text-sm text-muted">tinhbu0123@gmail.com</p>
           </div>
         </div>
 
         <div className="mt-10 flex flex-col items-center justify-between gap-3 border-t border-border pt-6 text-xs text-muted sm:flex-row">
-          <p>© 2026 GenZ News. Mọi bài viết tổng hợp đều được biên tập lại và trích dẫn nguồn gốc.</p>
+          <p>© 2026 GenZ News. Mọi bài viết tổng hợp đều được BIÊN TẬP LẠI và trích dẫn nguồn gốc.</p>
           <div className="flex gap-4">
             <Link href="#" className="hover:text-accent">Điều khoản</Link>
             <Link href="#" className="hover:text-accent">Quyền riêng tư</Link>

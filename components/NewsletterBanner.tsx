@@ -27,7 +27,12 @@ export default function NewsletterBanner() {
             className="shrink-0 rounded-full px-5 py-2.5 text-sm font-bold text-foreground transition hover:opacity-90"
             style={{ background: "var(--accent-2)" }}
           >
-            Đăng ký
+            <Link
+              href="/dang-ky"
+              className="flex items-center gap-1.5 rounded-full bg-accent px-3 py-1.5 text-xs font-bold text-white shadow-sm transition hover:opacity-90 sm:px-3.5 sm:py-2 sm:text-sm"
+            >
+              Đăng ký
+            </Link>
           </button>
         </form>
       </div>
