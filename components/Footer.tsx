@@ -21,9 +21,10 @@ export default function Footer() {
             <p className="mt-1 max-w-xs text-sm text-muted">
               Báo Việt không viết về nó?
             </p>
-            <p className="mt-1 max-w-xs text-sm text-muted">
-              Trang báo nhỏ dành cho GenZ, cập nhật và chắt lọc tin tức từ các nguồn chính thống + các nguồn bí ẩn
-            </p>
+            <br></br>
+            <strong className="mt-1 max-w-xs text-sm text-muted">
+              Trang báo nhỏ dành cho GenZ, cập nhật và chắt lọc tin tức từ các nguồn chính thống + <i>các nguồn không chính thống</i>
+            </strong>
           </div>
 
           <div>
@@ -51,7 +52,7 @@ export default function Footer() {
           <div>
             <h3 className="text-sm font-bold uppercase tracking-wide text-muted">Liên hệ</h3>
             <p className="mt-3 text-sm text-muted">tinhbu0123@gmail.com</p>
-            <p className="mt-3 text-sm text-muted">Meeting App: https://meet.pliny.blog/</p>
+            <p className="mt-3 text-sm text-muted">Meeting App: <a href="https://meet.pliny.blog">meet.pliny.blog</a></p>
           </div>
         </div>
 
