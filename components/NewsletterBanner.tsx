@@ -1,3 +1,4 @@
+import Link from "next/link";
 export default function NewsletterBanner() {
   return (
     <div className="relative overflow-hidden rounded-3xl bg-foreground px-6 py-10 text-background sm:px-12 sm:py-14">
