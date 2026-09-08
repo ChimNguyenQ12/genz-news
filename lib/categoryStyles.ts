@@ -42,4 +42,10 @@ export const categoryStyles: Record<
     dot: "bg-orange-500",
     ring: "ring-orange-500",
   },
+  "thread-city": {
+    pill: "bg-black/10 text-black dark:text-black",
+    text: "text-black dark:text-black",
+    dot: "bg-black",
+    ring: "ring-black",
+  },
 };

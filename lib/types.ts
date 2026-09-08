@@ -4,7 +4,8 @@ export type CategorySlug =
   | "giai-tri"
   | "doi-song"
   | "kinh-doanh"
-  | "the-thao";
+  | "the-thao"
+  | "thread-city";
 
 export interface Category {
   slug: CategorySlug;
@@ -50,20 +51,20 @@ export type Block =
   | { type: "quote"; text: string; attribution?: string }
   | { type: "list"; ordered?: boolean; items: string[] }
   | {
-      type: "image";
-      url: string;
-      caption?: string;
-      credit?: ImageCredit;
-    }
+    type: "image";
+    url: string;
+    caption?: string;
+    credit?: ImageCredit;
+  }
   | {
-      /** Nhúng video bằng công cụ chính thức của nền tảng (hợp pháp),
-       *  khác với tải video về rồi đăng lại. */
-      type: "video";
-      provider: "youtube" | "vimeo";
-      videoId: string;
-      caption?: string;
-      sourceUrl?: string;
-    };
+    /** Nhúng video bằng công cụ chính thức của nền tảng (hợp pháp),
+     *  khác với tải video về rồi đăng lại. */
+    type: "video";
+    provider: "youtube" | "vimeo";
+    videoId: string;
+    caption?: string;
+    sourceUrl?: string;
+  };
 
 export type BlockType = Block["type"];
 
