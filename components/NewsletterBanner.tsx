@@ -30,7 +30,6 @@ export default function NewsletterBanner() {
           >
             <Link
               href="/dang-ky"
-              className="flex items-center gap-1.5 rounded-full bg-accent px-3 py-1.5 text-xs font-bold text-white shadow-sm transition hover:opacity-90 sm:px-3.5 sm:py-2 sm:text-sm"
             >
               Đăng ký
             </Link>
