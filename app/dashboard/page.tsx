@@ -26,7 +26,7 @@ export default async function DashboardPage() {
       </div>
 
       <div className="mb-5 rounded-2xl border border-border bg-surface p-4 text-sm text-muted">
-        Viết xong bấm <strong className="text-foreground">Gửi duyệt</strong> để ban biên tập kiểm tra và xuất bản. Bạn có thể rút về nháp để chỉnh sửa bất cứ lúc nào trước khi bài được duyệt.
+        Viết xong <strong className="text-foreground">Gửi duyệt</strong> tui duyệt cho. Bạn có thể rút về nháp để chỉnh sửa bất cứ lúc nào trước khi bài được duyệt.
       </div>
 
       <ArticleList articles={mine} role={user.role} baseRoute="/dashboard" />
