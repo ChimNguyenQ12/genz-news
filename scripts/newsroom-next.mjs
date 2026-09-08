@@ -98,7 +98,7 @@ function parseUrls(raw) {
 
 function main() {
   // Đối số --id=<uuid>: làm đúng đề tài này, dùng khi tổng biên tập bấm nút
-  // "Nhờ AI viết" trong /admin/research. Không có thì tự chọn trong hàng đợi.
+  // "Create Post" trong /admin/research. Không có thì tự chọn trong hàng đợi.
   const wanted = (process.argv.find((a) => a.startsWith("--id=")) ?? "").slice(5);
 
   // busy_timeout: app cũng đang mở tệp này, đợi chứ đừng bỏ cuộc ngay.
@@ -107,13 +107,13 @@ function main() {
   // mà được làm ngay, không phải xếp sau hàng trăm mục cũ.
   const rows = wanted
     ? sql(
-        "SELECT id, topic, urls, notes, reporterNote FROM research_requests " +
-          `WHERE id = ${quote(wanted)} AND status IN ('pending','in_progress');`,
-      )
+      "SELECT id, topic, urls, notes, reporterNote FROM research_requests " +
+      `WHERE id = ${quote(wanted)} AND status IN ('pending','in_progress');`,
+    )
     : sql(
-        "SELECT id, topic, urls, notes, reporterNote FROM research_requests " +
-          "WHERE status = 'pending' ORDER BY createdAt DESC LIMIT 50;",
-      );
+      "SELECT id, topic, urls, notes, reporterNote FROM research_requests " +
+      "WHERE status = 'pending' ORDER BY createdAt DESC LIMIT 50;",
+    );
 
   for (const row of rows) {
     const hit = sensitiveHit(`${row.topic}
@@ -127,11 +127,11 @@ ${row.notes ?? ""}`);
         const note =
           `[nhạy cảm] Khớp từ khoá "${hit}". Theo hiến chương, nhóm chủ đề này ` +
           `phải có tổng biên tập duyệt trước. Máy tự động bỏ qua — bấm ` +
-          `"Nhờ AI viết" nếu bạn muốn làm đề tài này.`;
+          `"Create Post" nếu bạn muốn làm đề tài này.`;
         sql(
           "UPDATE research_requests SET " +
-            `reporterNote = ${quote(note)}, updatedAt = ${quote(nowStamp())} ` +
-            `WHERE id = ${quote(row.id)};`,
+          `reporterNote = ${quote(note)}, updatedAt = ${quote(nowStamp())} ` +
+          `WHERE id = ${quote(row.id)};`,
           { json: false },
         );
       }
@@ -140,8 +140,8 @@ ${row.notes ?? ""}`);
 
     sql(
       "UPDATE research_requests SET " +
-        `status = 'in_progress', updatedAt = ${quote(nowStamp())} ` +
-        `WHERE id = ${quote(row.id)};`,
+      `status = 'in_progress', updatedAt = ${quote(nowStamp())} ` +
+      `WHERE id = ${quote(row.id)};`,
       { json: false },
     );
 

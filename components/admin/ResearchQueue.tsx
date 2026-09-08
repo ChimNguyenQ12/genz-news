@@ -83,12 +83,12 @@ export default function ResearchQueue({ requests }: { requests: ResearchRequest[
         <h1 className="font-display text-2xl font-black">Đặt đề tài</h1>
         <div className="mt-2 max-w-2xl space-y-2 text-sm text-muted">
           <p>
-            <strong className="text-foreground">Nhờ AI viết:</strong> bấm{" "}
-            <strong className="text-foreground">Nhờ AI viết</strong> ở đề tài bất kỳ.
+            <strong className="text-foreground">Create Post:</strong> bấm{" "}
+            <strong className="text-foreground">Create Post</strong> ở đề tài bất kỳ.
             AI sẽ tự tìm nguồn trên web (cả báo Việt lẫn quốc tế), đối chiếu số liệu
             giữa các nguồn, rồi tổng hợp thành bài hoàn chỉnh 800–1400 từ. Mất vài
             phút; xong bài sẽ nằm ở mục <strong className="text-foreground">chờ
-            duyệt</strong> để bạn đọc và quyết định đăng hay không.
+              duyệt</strong> để bạn đọc và quyết định đăng hay không.
           </p>
           <p>
             <strong className="text-foreground">Tự viết:</strong> bấm{" "}
@@ -231,10 +231,10 @@ export default function ResearchQueue({ requests }: { requests: ResearchRequest[
                         className="rounded-lg bg-accent px-3 py-1.5 text-xs font-bold text-white transition hover:opacity-90 disabled:opacity-50"
                       >
                         {busy === r.id
-                          ? "Đang giao..."
+                          ? "Assigning..."
                           : r.status === "in_progress"
-                            ? "AI đang viết..."
-                            : "Nhờ AI viết"}
+                            ? "Creating..."
+                            : "Create Post"}
                       </button>
                       <button
                         onClick={() => convert(r.id, "manual")}

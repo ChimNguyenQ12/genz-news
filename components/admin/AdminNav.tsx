@@ -11,9 +11,9 @@ export default function AdminNav({ user }: { user: PublicUser }) {
   const isAdmin = user.role === "admin";
 
   const links = [
-    { href: "/admin", label: isAdmin ? "Bài viết" : "Bài của tôi" },
-    ...(isAdmin ? [{ href: "/admin/research", label: "Đặt đề tài" }] : []),
-    { href: "/admin/tai-khoan", label: "Tài khoản" },
+    { href: "/admin", label: isAdmin ? "Artical" : "Bài của tôi" },
+    ...(isAdmin ? [{ href: "/admin/research", label: "Research" }] : []),
+    { href: "/admin/tai-khoan", label: "Profile" },
   ];
 
   async function logout() {
@@ -42,11 +42,10 @@ export default function AdminNav({ user }: { user: PublicUser }) {
                 <Link
                   key={l.href}
                   href={l.href}
-                  className={`shrink-0 rounded-lg px-3 py-1.5 text-sm font-semibold transition ${
-                    active
+                  className={`shrink-0 rounded-lg px-3 py-1.5 text-sm font-semibold transition ${active
                       ? "bg-accent/10 text-accent"
                       : "text-foreground/70 hover:bg-surface-2"
-                  }`}
+                    }`}
                 >
                   {l.label}
                 </Link>

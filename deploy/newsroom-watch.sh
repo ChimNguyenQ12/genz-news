@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Canh "hộp thư" mà app thả yêu cầu viết bài vào, rồi gọi toà soạn tự động.
+# Canh "hộp thư" mà app thả yêu cầu viết bài vào, rồi gọi Automatically Generate.
 #
 #   crontab -e
 #   * * * * * /usr/local/bin/genz-news-watch.sh >> /var/log/genz-news-newsroom.log 2>&1

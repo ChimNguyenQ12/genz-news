@@ -2,14 +2,14 @@ import fs from "fs/promises";
 import path from "path";
 
 /**
- * Cấu hình toà soạn tự động.
+ * Cấu hình Automatically Generate.
  *
  * Cất trong một tệp JSON ở thư mục dữ liệu chứ không nằm trong cơ sở dữ liệu:
  * script chạy trên host (cron) cần đọc được nó mà không phải mở SQLite hay gọi
  * API, còn app trong container ghi vào cùng tệp đó qua bind mount.
  */
 export interface NewsroomSettings {
-  /** Tắt là cron không viết bài nữa. Nút "Nhờ AI viết" vẫn dùng được. */
+  /** Tắt là cron không viết bài nữa. Nút "Create Post" vẫn dùng được. */
   enabled: boolean;
   /** Số bài tối đa mỗi lượt cron. Có hai lượt/ngày (6h và 18h). */
   maxArticlesPerRun: number;

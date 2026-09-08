@@ -41,10 +41,10 @@ else
   SET_ENABLED=1
 fi
 
-# Tắt công tắc thì cron ngừng viết. Nút "Nhờ AI viết" ở từng đề tài (có đối số
+# Tắt công tắc thì cron ngừng viết. Nút "Create Post" ở từng đề tài (có đối số
 # id) vẫn chạy — đó là tổng biên tập chủ động yêu cầu, không phải máy tự làm.
 if [ "$SET_ENABLED" = "0" ] && [ -z "${1:-}" ]; then
-  log "toà soạn tự động đang TẮT trong /admin/research — bỏ lượt này"
+  log "Automatically Generate đang TẮT trong /admin/research — bỏ lượt này"
   exit 0
 fi
 

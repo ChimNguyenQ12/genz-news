@@ -16,7 +16,7 @@ function hostLabel(url: string) {
 
 const DATA_DIR = process.env.DATA_DIR ?? path.join(process.cwd(), "data");
 /**
- * Hộp thư gửi việc cho toà soạn tự động.
+ * Hộp thư gửi việc cho Automatically Generate.
  *
  * App chạy trong container, còn `claude` chạy trên host — container không gọi
  * được lệnh của host. Nhưng hai bên dùng chung thư mục dữ liệu qua bind mount,
@@ -29,7 +29,7 @@ const INBOX = path.join(DATA_DIR, "newsroom-requests");
 /**
  * Giao một đề tài trong hàng đợi cho người viết.
  *
- * - mặc định (`mode: "ai"`): nhờ toà soạn tự động tìm nguồn, kiểm chứng và
+ * - mặc định (`mode: "ai"`): nhờ Automatically Generate tìm nguồn, kiểm chứng và
  *   tổng hợp thành bài hoàn chỉnh. Bài xong sẽ nằm ở "chờ duyệt".
  * - `mode: "manual"`: chỉ dựng bản nháp trống kèm sẵn link nguồn, để tự viết.
  */
@@ -70,7 +70,7 @@ export async function POST(
     await updateRequest(id, {
       status: "in_progress",
       reporterNote:
-        "Đã giao cho toà soạn tự động lúc " +
+        "Đã giao cho Automatically Generate lúc " +
         new Date().toISOString() +
         ". Bài sẽ xuất hiện ở mục chờ duyệt khi viết xong.",
     });

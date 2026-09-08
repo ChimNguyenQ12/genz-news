@@ -18,7 +18,7 @@ có quyền bấm publish.
    Không chắc thì ghi rõ "chưa được kiểm chứng độc lập", hoặc bỏ chi tiết đó.
 4. **Viết lại hoàn toàn bằng lời của mình** — KHÔNG dịch nguyên văn, KHÔNG
    paraphrase sát bản gốc. Diễn đạt phải là của mình; chỉ dữ kiện là của nguồn.
-5. **Lưu bài** — qua lệnh `genz-news-save-article` (xem mục "Toà soạn tự động"),
+5. **Lưu bài** — qua lệnh `genz-news-save-article` (xem mục "Automatically Generate"),
    hoặc `status: "draft"` nếu ghi tay trong bảng `articles`.
    **Tuyệt đối không tự đặt `status: "published"`.** Việc đăng là quyết định
    của con người.
@@ -27,7 +27,7 @@ có quyền bấm publish.
    Lệnh lưu tự động đưa bài tới `pending` và dừng ở đó.
 6. **Báo lại** — liệt kê bài đã tạo, nguồn đã dùng, và những điểm còn nghi ngờ.
 
-## Toà soạn tự động (chạy trên máy chủ)
+## Automatically Generate (chạy trên máy chủ)
 
 Trên EC2 có một vòng lặp chạy theo cron. Mỗi ngày:
 
@@ -48,7 +48,7 @@ Bốn mảnh:
 | `scripts/newsroom-next.mjs` | Lấy đề tài kế tiếp, đánh dấu `in_progress` |
 | `scripts/newsroom-save.mjs` | Kiểm tra rồi lưu bài, đóng mục trong hàng đợi |
 | `deploy/newsroom-run.sh` | Nối hai cái trên với `claude -p`; lặp tới `MAX_ARTICLES` bài |
-| `deploy/newsroom-watch.sh` | Nhặt yêu cầu từ nút "Nhờ AI viết" trong /admin, chạy mỗi phút |
+| `deploy/newsroom-watch.sh` | Nhặt yêu cầu từ nút "Create Post" trong /admin, chạy mỗi phút |
 
 Hai chốt chặn không được gỡ:
 
@@ -104,7 +104,7 @@ không giật tít câu view — cái hấp dẫn nằm ở thông tin cụ th�
 
 Lưu ý ranh giới: "gây tranh cãi" ở đây là tranh luận trong đời sống, công nghệ,
 văn hoá, việc làm. Còn tranh cãi thuộc nhóm chính trị, tôn giáo, sắc tộc, chủ
-quyền hay vụ án đang điều tra thì rơi vào mục dưới, và toà soạn tự động **không
+quyền hay vụ án đang điều tra thì rơi vào mục dưới, và Automatically Generate **không
 được tự viết** — phải hỏi tổng biên tập trước.
 
 ## Chủ đề nhạy cảm
