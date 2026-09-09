@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import type { Article, ArticleLanguage, CategorySlug, SourceRef } from "@/lib/types";
+import type { Article, CategorySlug, SourceRef } from "@/lib/types";
 import type { Role } from "@/lib/users";
 import { categories } from "@/lib/data";
 import BackToTopButton from "@/components/BackToTopButton";
@@ -40,7 +40,6 @@ export default function ArticleEditor({
   const [slug, setSlug] = useState(article.slug);
   const [dek, setDek] = useState(article.dek);
   const [category, setCategory] = useState<CategorySlug>(article.category);
-  const [language, setLanguage] = useState<ArticleLanguage>(article.language);
   const [author, setAuthor] = useState(article.author);
   const [publishedAt, setPublishedAt] = useState(article.publishedAt);
   const [readingTimeMin, setReadingTimeMin] = useState(article.readingTimeMin);
@@ -87,7 +86,7 @@ export default function ArticleEditor({
       slug,
       dek,
       category,
-      language,
+      language: "vi",
       author,
       publishedAt,
       readingTimeMin,
@@ -321,20 +320,6 @@ export default function ArticleEditor({
                   {c.name}
                 </option>
               ))}
-            </select>
-          </Field>
-
-          <Field
-            label="Ngôn ngữ bài"
-            hint="Quyết định chiều dịch cho người đọc"
-          >
-            <select
-              value={language}
-              onChange={(e) => setLanguage(e.target.value as ArticleLanguage)}
-              className="w-full rounded-xl border border-border bg-surface px-4 py-2.5 text-sm outline-none focus:border-accent"
-            >
-              <option value="vi">Tiếng Việt</option>
-              <option value="en">English</option>
             </select>
           </Field>
 

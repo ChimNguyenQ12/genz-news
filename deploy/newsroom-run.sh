@@ -137,6 +137,7 @@ nhưng phải theo mục 'Chủ đề nhạy cảm' trong CLAUDE.md:
   # nháy kép lẫn nháy đơn, nhét thẳng vào "..." là shell đóng chuỗi giữa chừng
   # và báo "unbound variable". Heredoc không trích dấu vẫn thay được biến.
   prompt="$(cat <<PROMPTEOF
+MANDATORY: Write the final title, dek, and full article body in Vietnamese. Set the JSON field "language" to "vi". International sources are reference material, not the output language.
 Đề tài trong hàng đợi toà soạn:$sensitive_note
 
 $task_json

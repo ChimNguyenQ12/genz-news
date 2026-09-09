@@ -73,22 +73,6 @@ Tên tệp do server sinh (UUID) và **kiểm magic bytes** chứ không tin ph�
 hay `Content-Type` client khai. Trên EC2 dùng profile AWS mount chỉ đọc từ
 `/root/.aws`; có IAM role thì bỏ mount đi, an toàn hơn.
 
-## Dịch Anh ↔ Việt trên từng bài
-
-Trang mặc định tiếng Việt. Mỗi bài có trường **Ngôn ngữ bài** (`vi` hoặc `en`)
-trong editor, quyết định chiều dịch hiện cho người đọc.
-
-Dưới phần meta của bài có nút dịch. Bấm là dịch tại chỗ, bấm lần nữa về bản gốc.
-
-- Dùng **Translator API có sẵn của trình duyệt** — Chrome 138+ hoặc Edge 148+.
-  Mô hình chạy trên máy người đọc: không tốn phí API, không gửi nội dung đi đâu.
-- **Không lưu bản dịch.** Chỉ đổi chữ trên DOM, tải lại trang là về bản gốc.
-- **Giữ nguyên format**: chỉ thay text node, không đụng thẻ HTML, nên ảnh, video,
-  danh sách, trích dẫn giữ nguyên bố cục.
-- Firefox/Safari chưa hỗ trợ — hiện dòng nhắc dùng Chrome/Edge thay vì nút.
-- Có timeout: nếu mô hình chưa tải xong hoặc trình duyệt không phản hồi, báo lỗi
-  rõ ràng và giữ nguyên bản gốc chứ không treo.
-
 ## Bình luận
 
 Mỗi bài đã đăng có phần bình luận ở cuối trang.

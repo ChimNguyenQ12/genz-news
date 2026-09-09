@@ -8,7 +8,6 @@ import { getSessionUser } from "@/lib/auth";
 import { listComments } from "@/lib/comments";
 import ArticleCard from "@/components/ArticleCard";
 import CommentSection from "@/components/CommentSection";
-import TranslateButton from "@/components/TranslateButton";
 import BackToTopButton from "@/components/BackToTopButton";
 
 export const dynamic = "force-dynamic";
@@ -70,7 +69,7 @@ export default async function ArticlePage({
         {category?.name}
       </Link>
 
-      <div id="article-translatable">
+      <div>
         <h1 className="font-display text-balance text-3xl font-black leading-tight sm:text-4xl lg:text-5xl">
           {article.title}
         </h1>
@@ -83,18 +82,6 @@ export default async function ArticlePage({
         <span>{formatDate(article.publishedAt)}</span>
         <span aria-hidden>·</span>
         <span>{article.readingTimeMin} phút đọc</span>
-        {article.language === "en" && (
-          <span className="rounded-full bg-surface-2 px-2 py-0.5 text-[11px] font-bold">
-            English
-          </span>
-        )}
-      </div>
-
-      <div className="border-b border-border pb-6">
-        <TranslateButton
-          language={article.language}
-          targetSelector="#article-translatable, .article-body"
-        />
       </div>
 
       {article.coverImage ? (

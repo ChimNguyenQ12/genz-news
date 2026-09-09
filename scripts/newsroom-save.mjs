@@ -180,7 +180,7 @@ function validate(a) {
     category,
     body,
     tags: Array.isArray(a.tags) ? a.tags.map(String).slice(0, 6) : [],
-    language: a.language === "en" ? "en" : "vi",
+    language: "vi",
     // Tính từ số từ thật thay vì tin con số mô hình tự khai.
     readingTimeMin: Math.max(1, Math.round(words / 200)),
     coverImage,
