@@ -9,6 +9,7 @@ import { listComments } from "@/lib/comments";
 import ArticleCard from "@/components/ArticleCard";
 import CommentSection from "@/components/CommentSection";
 import TranslateButton from "@/components/TranslateButton";
+import BackToTopButton from "@/components/BackToTopButton";
 
 export const dynamic = "force-dynamic";
 
@@ -195,6 +196,7 @@ export default async function ArticlePage({
           </div>
         </div>
       )}
+      <BackToTopButton />
     </article>
   );
 }

@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import type { Article, ArticleLanguage, CategorySlug, SourceRef } from "@/lib/types";
 import type { Role } from "@/lib/users";
 import { categories } from "@/lib/data";
+import BackToTopButton from "@/components/BackToTopButton";
 import RichTextEditor from "./RichTextEditor";
 
 const STATUS_LABEL: Record<Article["status"], string> = {
@@ -148,11 +149,11 @@ export default function ArticleEditor({
 
   return (
     <div>
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+      <div className="sticky top-0 z-30 -mx-3 mb-5 flex flex-wrap items-center justify-between gap-3 border-b border-border bg-background/95 px-3 py-3 backdrop-blur sm:static sm:mx-0 sm:mb-6 sm:border-0 sm:bg-transparent sm:p-0">
         <Link href={base} className="text-sm font-semibold text-muted hover:text-accent">
           ← Danh sách bài
         </Link>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="grid w-full grid-cols-2 items-center gap-2 sm:flex sm:w-auto sm:flex-wrap">
           {message && !isDirty && (
             <span className="text-sm text-emerald-600 dark:text-emerald-400">
               {message}
@@ -178,7 +179,7 @@ export default function ArticleEditor({
                 ? "Lưu thay đổi, giữ nguyên trạng thái đăng/nháp"
                 : "Không có thay đổi nào để lưu"
             }
-            className="rounded-xl border border-border px-4 py-2 text-sm font-bold transition hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-40"
+            className="w-full rounded-xl border border-border px-3 py-2 text-sm font-bold transition hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-40 sm:w-auto sm:px-4"
           >
             {saving ? "Đang lưu..." : isDirty ? "Lưu thay đổi" : "Đã lưu"}
           </button>
@@ -188,7 +189,7 @@ export default function ArticleEditor({
               <button
                 onClick={() => save("draft")}
                 disabled={saving}
-                className="rounded-xl border border-border px-4 py-2 text-sm font-bold transition hover:border-amber-500 hover:text-amber-500 disabled:opacity-50"
+                className="w-full rounded-xl border border-border px-3 py-2 text-sm font-bold transition hover:border-amber-500 hover:text-amber-500 disabled:opacity-50 sm:w-auto sm:px-4"
               >
                 Gỡ xuống
               </button>
@@ -196,7 +197,7 @@ export default function ArticleEditor({
               <button
                 onClick={() => save("published")}
                 disabled={saving}
-                className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-bold text-white transition hover:opacity-90 disabled:opacity-50"
+                className="w-full rounded-xl bg-emerald-600 px-3 py-2 text-sm font-bold text-white transition hover:opacity-90 disabled:opacity-50 sm:w-auto sm:px-4"
               >
                 Đăng bài
               </button>
@@ -206,7 +207,7 @@ export default function ArticleEditor({
               onClick={() => save("pending")}
               disabled={saving}
               title="Gửi bài đi duyệt"
-              className="rounded-xl bg-amber-600 px-4 py-2 text-sm font-bold text-white transition hover:opacity-90 disabled:opacity-50"
+              className="w-full rounded-xl bg-amber-600 px-3 py-2 text-sm font-bold text-white transition hover:opacity-90 disabled:opacity-50 sm:w-auto sm:px-4"
             >
               Gửi duyệt
             </button>
@@ -269,7 +270,7 @@ export default function ArticleEditor({
           <Field label="Nguồn tham khảo" hint="Bắt buộc với bài tổng hợp — tối thiểu 2 nguồn">
             <div className="space-y-2">
               {sources.map((s, i) => (
-                <div key={i} className="flex gap-2">
+                <div key={i} className="flex flex-col gap-2 sm:flex-row">
                   <input
                     value={s.name}
                     onChange={(e) => {
@@ -278,7 +279,7 @@ export default function ArticleEditor({
                       setSources(next);
                     }}
                     placeholder="Tên nguồn"
-                    className="w-40 shrink-0 rounded-xl border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-accent"
+                    className="w-full rounded-xl border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-accent sm:w-40 sm:shrink-0"
                   />
                   <input
                     value={s.url}
@@ -288,11 +289,11 @@ export default function ArticleEditor({
                       setSources(next);
                     }}
                     placeholder="https://..."
-                    className="flex-1 rounded-xl border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-accent"
+                    className="min-w-0 flex-1 rounded-xl border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-accent"
                   />
                   <button
                     onClick={() => setSources(sources.filter((_, j) => j !== i))}
-                    className="rounded-xl border border-border px-3 text-sm text-red-500 hover:border-red-500"
+                    className="self-end rounded-xl border border-border px-3 py-2 text-sm text-red-500 hover:border-red-500 sm:self-auto"
                   >
                     ✕
                   </button>
@@ -496,6 +497,7 @@ export default function ArticleEditor({
           )}
         </div>
       </div>
+      <BackToTopButton />
     </div>
   );
 }
@@ -511,7 +513,7 @@ function Field({
 }) {
   return (
     <div>
-      <div className="mb-1.5 flex items-baseline justify-between gap-2">
+      <div className="mb-1.5 flex flex-col items-start gap-0.5 sm:flex-row sm:items-baseline sm:justify-between sm:gap-2">
         <label className="text-xs font-bold uppercase tracking-wide text-muted">
           {label}
         </label>

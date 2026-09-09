@@ -78,7 +78,7 @@ export default function ChangePasswordForm() {
       <button
         type="submit"
         disabled={pending || !currentPassword || !newPassword}
-        className="rounded-xl bg-accent px-5 py-2.5 text-sm font-bold text-white transition hover:opacity-90 disabled:opacity-50"
+        className="w-full rounded-xl bg-accent px-5 py-2.5 text-sm font-bold text-white transition hover:opacity-90 disabled:opacity-50 sm:w-auto"
       >
         {pending ? "Đang đổi..." : "Đổi mật khẩu"}
       </button>

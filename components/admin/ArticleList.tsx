@@ -103,8 +103,8 @@ export default function ArticleList({
 
   return (
     <div>
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <div className="no-scrollbar flex gap-1 overflow-x-auto rounded-xl border border-border bg-surface p-1">
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="no-scrollbar flex w-full gap-1 overflow-x-auto rounded-xl border border-border bg-surface p-1 sm:w-auto">
           {FILTERS.map((key) => {
             const count =
               key === "all"
@@ -130,7 +130,7 @@ export default function ArticleList({
         <button
           onClick={createNew}
           disabled={busy === "new"}
-          className="rounded-xl bg-accent px-4 py-2 text-sm font-bold text-white transition hover:opacity-90 disabled:opacity-50"
+          className="w-full rounded-xl bg-accent px-4 py-2 text-sm font-bold text-white transition hover:opacity-90 disabled:opacity-50 sm:w-auto"
         >
           + Viết bài mới
         </button>
@@ -157,18 +157,18 @@ export default function ArticleList({
             return (
               <div
                 key={a.id}
-                className="flex flex-wrap items-center gap-3 rounded-2xl border border-border bg-surface p-3"
+                className="flex flex-wrap items-start gap-3 rounded-2xl border border-border bg-surface p-3 sm:items-center"
               >
                 {a.coverImage ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
                     src={a.coverImage}
                     alt=""
-                    className="size-12 shrink-0 rounded-lg object-cover"
+                    className="size-11 shrink-0 rounded-lg object-cover sm:size-12"
                   />
                 ) : (
                   <div
-                    className="size-12 shrink-0 rounded-lg"
+                    className="size-11 shrink-0 rounded-lg sm:size-12"
                     style={{
                       background: `linear-gradient(135deg, ${a.coverGradient[0]}, ${a.coverGradient[1]})`,
                     }}
@@ -211,7 +211,7 @@ export default function ArticleList({
                   )}
                 </div>
 
-                <div className="flex shrink-0 flex-wrap items-center gap-2">
+                <div className="flex w-full shrink-0 flex-wrap items-center gap-2 [&>*]:flex-1 sm:w-auto sm:[&>*]:flex-none">
                   {a.status === "published" && (
                     <Link
                       href={`/bai-viet/${a.slug}`}

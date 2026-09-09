@@ -12,15 +12,15 @@ export default async function DashboardAccountPage() {
     <div className="max-w-md">
       <h1 className="font-display text-2xl font-black">Tài khoản</h1>
       <dl className="mt-4 space-y-1 rounded-2xl border border-border bg-surface p-4 text-sm">
-        <div className="flex justify-between">
+        <div className="flex items-baseline justify-between gap-4">
           <dt className="text-muted">Tên đăng nhập</dt>
-          <dd className="font-semibold">{user.username}</dd>
+          <dd className="min-w-0 truncate text-right font-semibold">{user.username}</dd>
         </div>
-        <div className="flex justify-between">
+        <div className="flex items-baseline justify-between gap-4">
           <dt className="text-muted">Tên hiển thị</dt>
-          <dd className="font-semibold">{user.displayName}</dd>
+          <dd className="min-w-0 truncate text-right font-semibold">{user.displayName}</dd>
         </div>
-        <div className="flex justify-between">
+        <div className="flex items-baseline justify-between gap-4">
           <dt className="text-muted">Vai trò</dt>
           <dd className="font-semibold">
             {user.role === "admin" ? "Quản trị" : "Tác giả / Thành viên"}

@@ -100,7 +100,7 @@ export default function ResearchQueue({ requests }: { requests: ResearchRequest[
 
       <form
         onSubmit={submit}
-        className="mb-8 space-y-3 rounded-2xl border border-border bg-surface p-5"
+        className="mb-8 space-y-3 rounded-2xl border border-border bg-surface p-4 sm:p-5"
       >
         <div>
           <label className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-muted">
@@ -143,7 +143,7 @@ export default function ResearchQueue({ requests }: { requests: ResearchRequest[
         <button
           type="submit"
           disabled={pending || !topic.trim()}
-          className="rounded-xl bg-accent px-5 py-2.5 text-sm font-bold text-white transition hover:opacity-90 disabled:opacity-50"
+          className="w-full rounded-xl bg-accent px-5 py-2.5 text-sm font-bold text-white transition hover:opacity-90 disabled:opacity-50 sm:w-auto"
         >
           {pending ? "Đang gửi..." : "Gửi đề tài"}
         </button>
@@ -214,7 +214,7 @@ export default function ResearchQueue({ requests }: { requests: ResearchRequest[
                     </p>
                   )}
                 </div>
-                <div className="flex shrink-0 flex-wrap items-center gap-2">
+                <div className="flex w-full shrink-0 flex-wrap items-center gap-2 [&>*]:flex-1 sm:w-auto sm:[&>*]:flex-none">
                   {r.articleIds && r.articleIds.length > 0 ? (
                     <a
                       href={`/admin/articles/${r.articleIds[r.articleIds.length - 1]}`}

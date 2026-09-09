@@ -73,7 +73,7 @@ export default function RichTextEditor({
     editorProps: {
       attributes: {
         class:
-          "prose-editor min-h-[420px] w-full px-4 py-3 text-[15px] leading-relaxed outline-none",
+          "prose-editor min-h-[320px] w-full px-3 py-3 text-[15px] leading-relaxed outline-none sm:min-h-[420px] sm:px-4",
       },
     },
     onUpdate: ({ editor }) => onChange(editor.getHTML()),
