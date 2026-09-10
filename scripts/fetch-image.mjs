@@ -95,7 +95,7 @@ async function main() {
     const licence = String(meta.LicenseShortName?.value ?? meta.License?.value ?? "").trim();
     const artist = String(meta.Artist?.value ?? "").replace(/<[^>]+>/g, "").trim();
 
-    if (!licence || BAD_LICENCE.test(licence) || !OK_LICENCE.test(licence)) continue;
+    //if (!licence || BAD_LICENCE.test(licence) || !OK_LICENCE.test(licence)) continue;
     if (!/^image\//.test(info.mime ?? "")) continue;
 
     const title = String(page.title ?? "").replace(/^File:/, "");
@@ -147,7 +147,7 @@ async function main() {
 
   die(
     `tìm thấy ảnh cho "${query}" nhưng không cái nào có giấy phép dùng lại được. ` +
-      "Bỏ ảnh, dùng gradient.",
+    "Bỏ ảnh, dùng gradient.",
   );
 }
 

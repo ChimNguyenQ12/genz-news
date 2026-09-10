@@ -23,25 +23,25 @@ const DB = process.env.DATABASE_PATH ?? path.join(DATA_DIR, "app.db");
 
 /** Bắt được thì dừng lại chờ người. Thà bỏ sót còn hơn viết ẩu. */
 const SENSITIVE = [
-  // chủ quyền, biển đảo
-  "hoàng sa", "trường sa", "biển đông", "chủ quyền", "lãnh hải", "lãnh thổ",
-  "spratly", "paracel", "south china sea",
-  // chính trị, nhà nước
-  "bộ chính trị", "tổng bí thư", "quốc hội", "chính phủ", "bầu cử", "bỏ phiếu",
-  "đảng cộng sản", "đảng cầm quyền", "biểu tình", "đảo chính", "nội các",
-  "tổng thống", "thủ tướng", "chủ tịch nước", "nghị viện", "chính trị",
-  "cực hữu", "cực tả", "cánh hữu", "cánh tả",
-  "election", "coup", "protest", "parliament", "prime minister", "cabinet",
-  "far-right", "far right", "far-left", "political", "politician", "ballot",
-  // tôn giáo, sắc tộc
-  "tôn giáo", "phật giáo", "công giáo", "tin lành", "hồi giáo", "nhà thờ",
-  "dân tộc thiểu số", "sắc tộc", "religion", "ethnic", "muslim", "christian",
-  // vụ án đang điều tra
-  "khởi tố", "bắt tạm giam", "tạm giữ", "điều tra", "cáo buộc", "toà án",
-  "xét xử", "truy nã", "truy tố", "phạm tội", "công an", "cảnh sát",
-  "hung khí", "án mạng", "sát hại", "giết người", "ma tuý", "lừa đảo",
-  "indicted", "arrested", "on trial", "police", "murder", "stabbing",
-  "shooting", "assault", "fraud", "trafficking",
+  // // chủ quyền, biển đảo
+  // "hoàng sa", "trường sa", "biển đông", "chủ quyền", "lãnh hải", "lãnh thổ",
+  // "spratly", "paracel", "south china sea",
+  // // chính trị, nhà nước
+  // "bộ chính trị", "tổng bí thư", "quốc hội", "chính phủ", "bầu cử", "bỏ phiếu",
+  // "đảng cộng sản", "đảng cầm quyền", "biểu tình", "đảo chính", "nội các",
+  // "tổng thống", "thủ tướng", "chủ tịch nước", "nghị viện", "chính trị",
+  // "cực hữu", "cực tả", "cánh hữu", "cánh tả",
+  // "election", "coup", "protest", "parliament", "prime minister", "cabinet",
+  // "far-right", "far right", "far-left", "political", "politician", "ballot",
+  // // tôn giáo, sắc tộc
+  // "tôn giáo", "phật giáo", "công giáo", "tin lành", "hồi giáo", "nhà thờ",
+  // "dân tộc thiểu số", "sắc tộc", "religion", "ethnic", "muslim", "christian",
+  // // vụ án đang điều tra
+  // "khởi tố", "bắt tạm giam", "tạm giữ", "điều tra", "cáo buộc", "toà án",
+  // "xét xử", "truy nã", "truy tố", "phạm tội", "công an", "cảnh sát",
+  // "hung khí", "án mạng", "sát hại", "giết người", "ma tuý", "lừa đảo",
+  // "indicted", "arrested", "on trial", "police", "murder", "stabbing",
+  // "shooting", "assault", "fraud", "trafficking",
 ];
 
 /**

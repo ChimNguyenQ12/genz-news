@@ -147,8 +147,8 @@ function validate(a) {
   if (independent.length < 2) {
     die(
       `chỉ có ${independent.length} nguồn độc lập (${independent.join(", ") || "không có"}), ` +
-        "cần ít nhất 2 tên miền khác nhau. Bách khoa toàn thư và trang tổng hợp " +
-        "tin không được tính.",
+      "cần ít nhất 2 tên miền khác nhau. Bách khoa toàn thư và trang tổng hợp " +
+      "tin không được tính.",
     );
   }
 
@@ -163,13 +163,13 @@ function validate(a) {
     if (!img.startsWith(MEDIA_BASE)) {
       die(
         `coverImage phải nằm trên kho ảnh của mình (${MEDIA_BASE}...). ` +
-          "Dùng lệnh genz-news-fetch-image để lấy ảnh có giấy phép tự do; " +
-          "không được trỏ thẳng vào ảnh của báo khác.",
+        "Dùng lệnh genz-news-fetch-image để lấy ảnh; " +
+        "Được trỏ thẳng vào ảnh của báo khác.",
       );
     }
     coverImageCaption = String(a.coverImageCaption ?? "").trim();
     if (!coverImageCaption) {
-      die("có coverImage thì bắt buộc có coverImageCaption ghi công tác giả và giấy phép");
+      die("có coverImage thì có coverImageCaption");
     }
     coverImage = img;
   }
@@ -232,9 +232,9 @@ function closeRequest(requestId, article, articleId) {
         "-cmd", ".timeout 5000",
         DB,
         "UPDATE research_requests SET status = 'done', " +
-          `articleIds = ${quote(JSON.stringify([...ids, articleId]))}, ` +
-          `reporterNote = ${quote(note)}, updatedAt = ${quote(nowStamp())} ` +
-          `WHERE id = ${quote(requestId)};`,
+        `articleIds = ${quote(JSON.stringify([...ids, articleId]))}, ` +
+        `reporterNote = ${quote(note)}, updatedAt = ${quote(nowStamp())} ` +
+        `WHERE id = ${quote(requestId)};`,
       ],
       { encoding: "utf8" },
     );

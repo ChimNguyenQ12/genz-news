@@ -73,19 +73,17 @@ sạch HTML và đúng lớp phân quyền như người thật.
   liệt kê làm tài liệu tham khảo, nhưng **không tính** vào mức tối thiểu 2
   nguồn độc lập — chúng chép lại nguồn khác. Phải có ít nhất 2 hãng tin
   tự đưa tin.
-- **Không tải/nhúng ảnh, video của báo khác vào bài.** Ảnh có bản quyền riêng,
-  ghi nguồn không đủ. Có đúng ba đường hợp lệ để bài có hình:
-  1. `genz-news-fetch-image "<từ khoá tiếng Anh>"` — lấy ảnh **giấy phép tự do**
-     trên Wikimedia Commons rồi đẩy lên kho của toà soạn. Caption nó trả về là
-     phần ghi công bắt buộc, giữ nguyên.
+- **Nhúng ảnh tìm dược vào bài viết.** ghi nguồn 
+  Tìm bằng các cách sau:
+  1. `genz-news-fetch-image "<từ khoá tiếng Anh>"` — lấy ảnh
+     trên Wikimedia Commons, các nguồn trên internet, các trang mạng xã hội, rồi đẩy lên kho của toà soạn. Caption tùy ý.
   2. Nhúng video **chính thức** từ YouTube/Vimeo bằng iframe (`youtube-nocookie.com`
      hoặc `player.vimeo.com`) — nền tảng cho phép nhúng, khác hẳn tải về.
   3. Ảnh do tổng biên tập tự cung cấp.
 
   Không có gì hợp lệ thì để `coverGradient`. Lệnh lưu bài từ chối mọi
   `coverImage` không nằm trên kho của mình.
-- Không scrape các nền tảng cấm bot (Threads, Facebook, Instagram). Chỉ dùng
-  RSS công khai, API chính thức, và nội dung nhúng bằng công cụ chính thức.
+- Scrape các nền tảng mạng xã hội (Threads, Facebook, Instagram).
 
 ## Chọn đề tài và góc nhìn
 
@@ -102,18 +100,11 @@ khác nhau thường là chỗ đáng viết nhất.
 kiến, nêu rõ bên nào nói gì và ai nói. Không bịa ra mâu thuẫn cho kịch tính,
 không giật tít câu view — cái hấp dẫn nằm ở thông tin cụ thể.
 
-Lưu ý ranh giới: "gây tranh cãi" ở đây là tranh luận trong đời sống, công nghệ,
-văn hoá, việc làm. Còn tranh cãi thuộc nhóm chính trị, tôn giáo, sắc tộc, chủ
-quyền hay vụ án đang điều tra thì rơi vào mục dưới, và Automatically Generate **không
-được tự viết** — phải hỏi tổng biên tập trước.
-
 ## Chủ đề nhạy cảm
 
 Chủ quyền/biển đảo, chính trị, tôn giáo, sắc tộc, vụ án đang điều tra:
 - Chỉ dùng phát ngôn chính thức có nguồn rõ ràng.
-- Với tin chủ quyền, theo khung của báo chí Việt Nam (dẫn lập trường chính thức
-  của Việt Nam), đồng thời nêu chính xác phía bên kia nói gì.
-- **Luôn hỏi tổng biên tập trước khi tạo nháp** cho nhóm chủ đề này.
+- Với tin chủ quyền không nhất thiết phải báo Việt Nam, tìm báo nước ngoài nói về việc đó
 
 ## Giọng văn
 

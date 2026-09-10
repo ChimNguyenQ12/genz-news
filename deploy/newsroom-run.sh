@@ -108,26 +108,7 @@ write_one() {
     db "UPDATE research_requests SET status='pending', updatedAt='$now' WHERE id='$req_id';"
   }
 
-  # Đề tài nhạy cảm mà vẫn tới được đây nghĩa là tổng biên tập tự bấm nút —
-  # người cần hỏi đã trả lời. Không chặn, nhưng nhắc AI theo luật riêng.
-  sensitive_note=""
-  case "$task_json" in
-    *'"sensitive":"'*)
-      sensitive_note="
-CẢNH BÁO: đề tài này thuộc nhóm NHẠY CẢM (chủ quyền, chính trị, tôn giáo, sắc
-tộc, hoặc vụ án đang điều tra). Tổng biên tập đã tự chọn nó nên bạn được viết,
-nhưng phải theo mục 'Chủ đề nhạy cảm' trong CLAUDE.md:
-- Chỉ dùng phát ngôn chính thức, có nguồn rõ ràng. Không suy diễn, không bình luận.
-- Tin chủ quyền: theo khung của báo chí Việt Nam, đồng thời nêu chính xác phía
-  bên kia nói gì.
-- Vụ án đang điều tra: dùng đúng chữ 'bị cáo buộc', 'đang điều tra'; không kết
-  luận thay cơ quan chức năng; không nêu danh tính người chưa bị kết án.
-- Chỗ nào chưa rõ thì ghi thẳng là chưa rõ.
-"
-      log "đề tài nhạy cảm — tổng biên tập tự chọn, viết kèm ràng buộc riêng"
-      ;;
-  esac
-
+  
   # Lệnh lưu bài cần biết đóng mục nào trong hàng đợi. Ghi vào tệp môi trường
   # thay vì truyền qua prompt — Claude không cần thấy, và không sửa được.
   sed -i '/^NEWSROOM_REQUEST_ID=/d' "$ENV_FILE"
@@ -151,8 +132,8 @@ Làm theo đúng quy trình trong CLAUDE.md của repo này:
    Wikipedia và các trang tổng hợp tin KHÔNG tính vào mức tối thiểu 2 nguồn.
 2. Kiểm chứng: mọi con số, tên riêng, ngày tháng phải khớp giữa các nguồn.
    Không khớp thì bỏ chi tiết đó, đừng đoán.
-3. Viết lại hoàn toàn bằng lời của mình. Không dịch nguyên văn, không paraphrase
-   sát bản gốc.
+3. Viết lại hoàn toàn bằng lời của mình. Không dịch nguyên văn, nhưng các câu trích dẫn,
+    câu chuyện, lời nói của nhân vật, lời khai... phải được giữ lại nguyên gốc
 3b. GÓC NHÌN GEN Z — đây là phần quan trọng nhất, đừng bỏ:
    - Bạn đọc là người 18–27 tuổi ở Việt Nam. Trả lời cho được: chuyện này dính
      gì tới họ? Ảnh hưởng tới việc học, việc làm, tiền bạc, hay thứ họ dùng
@@ -179,11 +160,10 @@ Làm theo đúng quy trình trong CLAUDE.md của repo này:
 
         genz-news-fetch-image "high speed rail vietnam"
 
-      Nó tìm ảnh có GIẤY PHÉP TỰ DO trên Wikimedia Commons, đẩy lên kho của
+      Nó tìm ảnh trên Wikimedia Commons, các nguồn khác, đẩy lên kho của
       toà soạn và in ra {url, caption}. Đưa url vào coverImage và caption vào
-      coverImageCaption, giữ nguyên caption vì đó là phần ghi công bắt buộc.
-      Không tìm được ảnh phù hợp thì BỎ QUA, bài dùng gradient — đừng bao giờ
-      trỏ coverImage vào ảnh của báo khác, lệnh lưu sẽ từ chối.
+      coverImageCaption, giữ nguyên caption.
+      Không tìm được ảnh phù hợp thì BỎ QUA
 
    b) Video. Nếu có video CHÍNH THỨC trên YouTube (kênh của hãng tin, cơ quan,
       doanh nghiệp liên quan) thì nhúng vào thân bài:
@@ -191,7 +171,7 @@ Làm theo đúng quy trình trong CLAUDE.md của repo này:
         <div data-youtube-video><iframe src="https://www.youtube-nocookie.com/embed/VIDEO_ID" allowfullscreen></iframe></div>
 
       Chỉ nhúng video bạn đã thực sự mở và xác nhận đúng nội dung. Không bịa
-      VIDEO_ID. Không nhúng video của kênh reaction/tổng hợp lại.
+      VIDEO_ID.
 
 6. Ghi JSON bài viết ra tệp /tmp/bai-$req_id.json rồi lưu bằng lệnh:
 
