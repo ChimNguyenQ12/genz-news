@@ -92,7 +92,7 @@ export default function RichTextEditor({
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        setUploadError(data.error ?? "Tải lên thất bại");
+        setUploadError(data.error ?? "Upload failed.");
         return;
       }
 
@@ -109,7 +109,7 @@ export default function RichTextEditor({
   if (!editor) {
     return (
       <div className="rounded-xl border border-border bg-surface p-4 text-sm text-muted">
-        Đang tải trình soạn thảo...
+        Loading the editor...
       </div>
     );
   }
@@ -122,14 +122,14 @@ export default function RichTextEditor({
         <ToolbarButton
           onClick={() => editor.chain().focus().undo().run()}
           disabled={!editor.can().undo()}
-          title="Hoàn tác (Ctrl+Z)"
+          title="Undo (Ctrl+Z)"
         >
           ↶
         </ToolbarButton>
         <ToolbarButton
           onClick={() => editor.chain().focus().redo().run()}
           disabled={!editor.can().redo()}
-          title="Làm lại (Ctrl+Y)"
+          title="Redo (Ctrl+Y)"
         >
           ↷
         </ToolbarButton>
@@ -139,28 +139,28 @@ export default function RichTextEditor({
         <ToolbarButton
           onClick={() => editor.chain().focus().toggleBold().run()}
           active={editor.isActive("bold")}
-          title="In đậm (Ctrl+B)"
+          title="Bold (Ctrl+B)"
         >
           <strong>B</strong>
         </ToolbarButton>
         <ToolbarButton
           onClick={() => editor.chain().focus().toggleItalic().run()}
           active={editor.isActive("italic")}
-          title="In nghiêng (Ctrl+I)"
+          title="Italic (Ctrl+I)"
         >
           <em>I</em>
         </ToolbarButton>
         <ToolbarButton
           onClick={() => editor.chain().focus().toggleUnderline().run()}
           active={editor.isActive("underline")}
-          title="Gạch chân (Ctrl+U)"
+          title="Underline (Ctrl+U)"
         >
           <u>U</u>
         </ToolbarButton>
         <ToolbarButton
           onClick={() => editor.chain().focus().toggleStrike().run()}
           active={editor.isActive("strike")}
-          title="Gạch ngang"
+          title="Strikethrough"
         >
           <s>S</s>
         </ToolbarButton>
@@ -170,21 +170,21 @@ export default function RichTextEditor({
         <ToolbarButton
           onClick={() => editor.chain().focus().setParagraph().run()}
           active={editor.isActive("paragraph")}
-          title="Đoạn văn thường"
+          title="Paragraph"
         >
           ¶
         </ToolbarButton>
         <ToolbarButton
           onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
           active={editor.isActive("heading", { level: 2 })}
-          title="Tiêu đề lớn"
+          title="Heading"
         >
           H2
         </ToolbarButton>
         <ToolbarButton
           onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
           active={editor.isActive("heading", { level: 3 })}
-          title="Tiêu đề nhỏ"
+          title="Subheading"
         >
           H3
         </ToolbarButton>
@@ -194,21 +194,21 @@ export default function RichTextEditor({
         <ToolbarButton
           onClick={() => editor.chain().focus().toggleBulletList().run()}
           active={editor.isActive("bulletList")}
-          title="Danh sách chấm"
+          title="Bulleted list"
         >
           •
         </ToolbarButton>
         <ToolbarButton
           onClick={() => editor.chain().focus().toggleOrderedList().run()}
           active={editor.isActive("orderedList")}
-          title="Danh sách số"
+          title="Numbered list"
         >
           1.
         </ToolbarButton>
         <ToolbarButton
           onClick={() => editor.chain().focus().toggleBlockquote().run()}
           active={editor.isActive("blockquote")}
-          title="Trích dẫn"
+          title="Quote"
         >
           ❝
         </ToolbarButton>
@@ -218,21 +218,21 @@ export default function RichTextEditor({
         <ToolbarButton
           onClick={() => editor.chain().focus().setTextAlign("left").run()}
           active={editor.isActive({ textAlign: "left" })}
-          title="Căn trái"
+          title="Align left"
         >
           ⇤
         </ToolbarButton>
         <ToolbarButton
           onClick={() => editor.chain().focus().setTextAlign("center").run()}
           active={editor.isActive({ textAlign: "center" })}
-          title="Căn giữa"
+          title="Align centre"
         >
           ⇔
         </ToolbarButton>
         <ToolbarButton
           onClick={() => editor.chain().focus().setTextAlign("right").run()}
           active={editor.isActive({ textAlign: "right" })}
-          title="Căn phải"
+          title="Align right"
         >
           ⇥
         </ToolbarButton>
@@ -242,7 +242,7 @@ export default function RichTextEditor({
         <ToolbarButton
           onClick={() => {
             const previous = editor.getAttributes("link").href ?? "";
-            const url = prompt("Địa chỉ liên kết:", previous);
+            const url = prompt("Link URL:", previous);
             if (url === null) return;
             if (url === "") {
               editor.chain().focus().unsetLink().run();
@@ -251,14 +251,14 @@ export default function RichTextEditor({
             editor.chain().focus().setLink({ href: url }).run();
           }}
           active={editor.isActive("link")}
-          title="Chèn liên kết"
+          title="Insert link"
         >
           🔗
         </ToolbarButton>
 
         <ToolbarButton
           onClick={() => fileInput.current?.click()}
-          title="Tải ảnh hoặc video lên"
+          title="Upload an image or video"
           disabled={uploading}
         >
           {uploading ? "..." : "🖼"}
@@ -266,18 +266,18 @@ export default function RichTextEditor({
 
         <ToolbarButton
           onClick={() => {
-            const url = prompt("Dán link YouTube:");
+            const url = prompt("Paste a YouTube link:");
             if (!url) return;
             editor.commands.setYoutubeVideo({ src: url, width: 640, height: 360 });
           }}
-          title="Nhúng video YouTube"
+          title="Embed a YouTube video"
         >
           ▶
         </ToolbarButton>
 
         <ToolbarButton
           onClick={() => editor.chain().focus().setHorizontalRule().run()}
-          title="Đường kẻ ngang"
+          title="Horizontal rule"
         >
           —
         </ToolbarButton>
@@ -302,7 +302,7 @@ export default function RichTextEditor({
       )}
       {uploading && (
         <p className="border-b border-border bg-surface-2 px-4 py-2 text-xs text-muted">
-          Đang tải file lên...
+          Uploading...
         </p>
       )}
 

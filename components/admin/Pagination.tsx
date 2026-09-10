@@ -40,7 +40,7 @@ export default function Pagination({
         disabled={page <= 1}
         className={`${box} hover:border-accent hover:text-accent`}
       >
-        ← Trước
+        ← Prev
       </button>
 
       {numbers.map((n, i) =>
@@ -68,7 +68,7 @@ export default function Pagination({
         disabled={page >= totalPages}
         className={`${box} hover:border-accent hover:text-accent`}
       >
-        Sau →
+        Next →
       </button>
     </div>
   );

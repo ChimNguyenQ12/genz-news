@@ -188,6 +188,9 @@ Làm theo đúng quy trình trong CLAUDE.md của repo này:
    tới không. Hai phía thường có góc nhìn và số liệu khác nhau — chỗ khác nhau
    đó chính là phần đáng viết.
    Wikipedia và các trang tổng hợp tin KHÔNG tính vào mức tối thiểu 2 nguồn.
+   Hai nguồn là MỨC SÀN, không phải mức trần: tìm bao nhiêu tuỳ đề tài, đọc
+   thêm nguồn nào thấy cần thì đọc, không có giới hạn số lần tìm kiếm. Bài
+   càng nhiều nguồn đối chiếu càng chắc.
 2. Kiểm chứng: mọi con số, tên riêng, ngày tháng phải khớp giữa các nguồn.
    Không khớp thì bỏ chi tiết đó, đừng đoán.
 3. Viết lại hoàn toàn bằng lời của mình. Không dịch nguyên văn, nhưng các câu
@@ -237,38 +240,57 @@ Làm theo đúng quy trình trong CLAUDE.md của repo này:
    dung của chính phần đó, đừng dùng đi dùng lại mấy cái nhãn chung chung.
    Được dùng <blockquote> cho trích dẫn trực tiếp 1–3 câu, kèm tên và chức danh.
 
-5. ẢNH VÀ VIDEO — bài có hình đọc hơn hẳn, đừng bỏ bước này.
+5. ẢNH VÀ VIDEO — cố lấy cho bằng được, nhưng ĐÚNG mới lấy.
 
-   a) Ảnh bìa. Chạy lệnh sau với từ khoá TIẾNG ANH mô tả chủ đề:
+   LUẬT SỐ MỘT: ảnh sai còn tệ hơn không có ảnh. Người đọc mặc định ảnh trong
+   bài là ảnh của chính vụ việc. Một bài về vụ nam sinh ở Thanh Hoá từng bị
+   gắn tấm ảnh hành lang một trường tiểu học Nhật Bản — đó là làm người đọc
+   hiểu sai, không phải minh hoạ.
 
-        genz-news-fetch-image "high speed rail vietnam"
-
-      Lệnh tự tìm ảnh dùng lại được, tải về, đẩy lên kho ảnh của toà soạn rồi
-      in ra JSON {url, caption}. Đưa url vào coverImage, caption vào
-      coverImageCaption và GIỮ NGUYÊN caption — đó là phần ghi công tác giả.
-      Thử 2–3 cụm từ khoá khác nhau trước khi bỏ cuộc. Không có ảnh nào hợp
-      thì bỏ trống, bài sẽ dùng nền gradient.
-
-   b) Ảnh trong thân bài — 1 đến 3 tấm, đặt xen giữa các đoạn, không dồn một
-      chỗ. Mỗi tấm lấy bằng chính lệnh trên với từ khoá riêng cho từng ý:
-
-        genz-news-fetch-image "hanoi metro station crowd"
-
-      rồi chèn vào thân bài đúng dạng này, dùng url và caption lệnh trả về:
-
-        <figure><img src="URL_LỆNH_TRẢ_VỀ" alt="mô tả ngắn"><figcaption>CAPTION_LỆNH_TRẢ_VỀ</figcaption></figure>
-
-      BẮT BUỘC: mọi <img> trong bài phải là url do lệnh này trả về, và phải có
-      <figcaption> đi kèm. Trỏ thẳng vào ảnh của báo khác là vi phạm bản quyền;
-      lệnh lưu bài sẽ từ chối cả bài vì lỗi đó.
-
-   c) Video. Nếu có video CHÍNH THỨC trên YouTube (kênh của hãng tin, cơ quan,
-      doanh nghiệp liên quan) thì nhúng vào thân bài:
+   a) Video chính thức — THỬ CÁI NÀY TRƯỚC. Đây là cách hợp pháp duy nhất để
+      đưa hình ảnh THẬT của vụ việc lên bài: nhúng video từ kênh YouTube
+      chính thức của hãng tin (VTV, VnExpress, Tuổi Trẻ, Reuters, AP...), của
+      cơ quan nhà nước hoặc doanh nghiệp liên quan. Nền tảng cho phép nhúng.
 
         <div data-youtube-video><iframe src="https://www.youtube-nocookie.com/embed/VIDEO_ID" allowfullscreen></iframe></div>
 
-      Chỉ nhúng video bạn đã thực sự mở và xác nhận đúng nội dung. Không bịa
-      VIDEO_ID.
+      Chỉ nhúng video bạn đã thực sự mở và xác nhận đúng nội dung, đúng vụ
+      việc. Không bịa VIDEO_ID.
+
+   b) Ảnh. Chạy lệnh sau, từ khoá TIẾNG ANH và phải là TÊN RIÊNG của thứ có
+      thật trong bài — địa danh, tổ chức, doanh nghiệp, sản phẩm, công trình,
+      nhân vật của công chúng:
+
+        genz-news-fetch-image "Thanh Hoa province Vietnam"
+        genz-news-fetch-image --count=2 "Grab motorbike Vietnam"
+        genz-news-fetch-image --html "Hanoi metro Cat Linh"
+
+      TUYỆT ĐỐI KHÔNG tìm bằng từ tả cảnh chung chung: "school hallway",
+      "mental health", "hospital room", "students in classroom", "sad teenager".
+      Kiểu đó chỉ ra ảnh vu vơ của một nước khác, một vụ khác. Lệnh cũng đã
+      chặn sẵn: khớp mỗi từ tả cảnh là bị loại.
+
+      Lệnh in ra {url, caption}. Đưa url vào coverImage, caption vào
+      coverImageCaption và GIỮ NGUYÊN caption — đó là phần ghi công tác giả.
+      Ảnh trong thân bài chèn đúng dạng này:
+
+        <figure><img src="URL_LỆNH_TRẢ_VỀ" alt="mô tả ngắn"><figcaption>CAPTION_LỆNH_TRẢ_VỀ</figcaption></figure>
+
+   c) Nói thật trong caption. Ảnh lấy từ kho ảnh tự do gần như không bao giờ
+      là ảnh chụp chính vụ việc. Nếu tấm ảnh chỉ là bối cảnh (địa danh nơi xảy
+      ra chuyện, trụ sở doanh nghiệp, sản phẩm được nhắc tới), thêm hai chữ
+      "Ảnh minh hoạ:" vào ĐẦU caption, giữ nguyên phần ghi công phía sau:
+
+        <figcaption>Ảnh minh hoạ: Ảnh: X — CC BY-SA 4.0, qua Wikimedia Commons (...)</figcaption>
+
+   d) Không tìm được gì đúng thì THÔI, bỏ trống ảnh, bài sẽ dùng nền gradient.
+      Thử 2–3 tên riêng khác nhau rồi mới bỏ cuộc. Đừng hạ tiêu chuẩn xuống
+      một tấm ảnh "cùng chủ đề" cho có.
+
+      Và KHÔNG được lấy ảnh trực tiếp từ báo chí (VnExpress, Tuổi Trẻ,
+      Reuters, AFP...): ảnh của họ có bản quyền, chép về là vi phạm. Muốn có
+      ảnh thật của vụ việc thì hoặc nhúng video chính thức ở bước (a), hoặc
+      để tổng biên tập tự gắn ảnh đã mua/được cấp phép.
 
 6. Ghi JSON bài viết ra tệp /tmp/bai-$req_id.json rồi lưu bằng lệnh:
 

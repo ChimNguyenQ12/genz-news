@@ -21,7 +21,7 @@ export default function ChangePasswordForm() {
     setMessage("");
 
     if (newPassword !== confirm) {
-      setError("Hai lần nhập mật khẩu mới không khớp");
+      setError("The two new passwords do not match.");
       return;
     }
 
@@ -34,14 +34,14 @@ export default function ChangePasswordForm() {
     setPending(false);
 
     if (res.ok) {
-      setMessage("Đã đổi mật khẩu.");
+      setMessage("Password changed.");
       setCurrentPassword("");
       setNewPassword("");
       setConfirm("");
       router.refresh();
     } else {
       const data = await res.json().catch(() => ({}));
-      setError(data.error ?? "Đổi mật khẩu thất bại");
+      setError(data.error ?? "Could not change the password.");
     }
   }
 
@@ -51,7 +51,7 @@ export default function ChangePasswordForm() {
         type="password"
         value={currentPassword}
         onChange={(e) => setCurrentPassword(e.target.value)}
-        placeholder="Mật khẩu hiện tại"
+        placeholder="Current password"
         autoComplete="current-password"
         className={inputCls}
       />
@@ -59,7 +59,7 @@ export default function ChangePasswordForm() {
         type="password"
         value={newPassword}
         onChange={(e) => setNewPassword(e.target.value)}
-        placeholder="Mật khẩu mới (tối thiểu 8 ký tự)"
+        placeholder="New password (at least 8 characters)"
         autoComplete="new-password"
         className={inputCls}
       />
@@ -67,7 +67,7 @@ export default function ChangePasswordForm() {
         type="password"
         value={confirm}
         onChange={(e) => setConfirm(e.target.value)}
-        placeholder="Nhập lại mật khẩu mới"
+        placeholder="Repeat the new password"
         autoComplete="new-password"
         className={inputCls}
       />
@@ -80,7 +80,7 @@ export default function ChangePasswordForm() {
         disabled={pending || !currentPassword || !newPassword}
         className="w-full rounded-xl bg-accent px-5 py-2.5 text-sm font-bold text-white transition hover:opacity-90 disabled:opacity-50 sm:w-auto"
       >
-        {pending ? "Đang đổi..." : "Đổi mật khẩu"}
+        {pending ? "Saving..." : "Change password"}
       </button>
     </form>
   );

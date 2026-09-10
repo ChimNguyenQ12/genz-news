@@ -4,13 +4,16 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { RequestPage, RequestStatus, ResearchRequest } from "@/lib/queue";
 import type { NewsroomRunStatus } from "@/lib/newsroom";
+import type { NewsroomSettings } from "@/lib/settings";
 import Pagination from "@/components/admin/Pagination";
+import Modal from "@/components/admin/Modal";
+import NewsroomSwitch from "@/components/admin/NewsroomSwitch";
 
 const STATUS_LABEL: Record<RequestStatus, string> = {
-  pending: "Chờ xử lý",
-  in_progress: "Đang viết",
-  done: "Đã có nháp",
-  rejected: "Bỏ qua",
+  pending: "Queued",
+  in_progress: "Writing",
+  done: "Drafted",
+  rejected: "Skipped",
 };
 
 const STATUS_STYLE: Record<RequestStatus, string> = {
@@ -30,43 +33,63 @@ const TABS: (RequestStatus | "all")[] = [
 ];
 
 const TAB_LABEL: Record<RequestStatus | "all", string> = {
-  all: "Tất cả",
-  pending: "Chờ xử lý",
-  in_progress: "Đang viết",
-  done: "Đã có nháp",
-  rejected: "Bỏ qua",
+  all: "All",
+  pending: "Queued",
+  in_progress: "Writing",
+  done: "Drafted",
+  rejected: "Skipped",
 };
 
-/** "12 phút trước" — đủ để biết lượt viết đã chạy bao lâu. */
+const fieldClass =
+  "rounded-lg border border-border bg-background px-2.5 py-1.5 text-sm outline-none focus:border-accent";
+
 function minutesSince(iso: string) {
   return Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
 }
 
 function describeElapsed(min: number) {
-  if (min < 1) return "vừa xong";
-  if (min < 60) return `${min} phút`;
+  if (min < 1) return "just now";
+  if (min < 60) return `${min} min`;
   const hours = Math.floor(min / 60);
-  return `${hours} giờ ${min % 60} phút`;
+  return `${hours}h ${min % 60}m`;
+}
+
+interface Query {
+  tab: RequestStatus | "all";
+  page: number;
+  q: string;
+  /** "" = mọi ngày. */
+  date: string;
 }
 
 export default function ResearchQueue({
   initial,
   initialRun,
+  initialSettings,
   staleAfterMin,
 }: {
   initial: RequestPage;
   initialRun: NewsroomRunStatus;
+  initialSettings: NewsroomSettings;
   staleAfterMin: number;
 }) {
   const router = useRouter();
+
   const [topic, setTopic] = useState("");
   const [urls, setUrls] = useState("");
   const [notes, setNotes] = useState("");
   const [sending, setSending] = useState(false);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [settings, setSettings] = useState(initialSettings);
 
-  const [tab, setTab] = useState<RequestStatus | "all">("all");
-  const [page, setPage] = useState(1);
-  const [q, setQ] = useState("");
+  // Ngày mặc định do máy chủ quyết định (ngày gần nhất còn đề tài) — màn hình
+  // không đoán được ngày nào có việc mà không hỏi thêm một lượt.
+  const [query, setQuery] = useState<Query>({
+    tab: "all",
+    page: 1,
+    q: "",
+    date: initial.date,
+  });
   const [data, setData] = useState<RequestPage>(initial);
   const [run, setRun] = useState<NewsroomRunStatus>(initialRun);
   const [loading, setLoading] = useState(false);
@@ -75,65 +98,65 @@ export default function ResearchQueue({
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
 
-  // Đồng hồ cho các mục đang viết: mỗi phút vẽ lại một lần để con số "đã chạy
+  // Đồng hồ cho các mục đang viết: vẽ lại theo nhịp hỏi lại để con số "đã chạy
   // bao lâu" không đứng im cho tới lúc tải lại trang.
   const [, setTick] = useState(0);
   const requestSeq = useRef(0);
   const firstRender = useRef(true);
 
-  const load = useCallback(
-    async (
-      next: { tab: RequestStatus | "all"; page: number; q: string },
-      opts?: { quiet?: boolean },
-    ) => {
-      const seq = ++requestSeq.current;
-      if (!opts?.quiet) setLoading(true);
-      const params = new URLSearchParams({ status: next.tab, page: String(next.page) });
-      if (next.q.trim()) params.set("q", next.q.trim());
-      try {
-        const res = await fetch(`/api/admin/requests?${params}`);
-        if (!res.ok) throw new Error("tải hỏng");
-        const body: RequestPage & { run?: NewsroomRunStatus } = await res.json();
-        if (seq !== requestSeq.current) return;
-        setData(body);
-        if (body.run) setRun(body.run);
-        setError("");
-      } catch {
-        if (seq === requestSeq.current) setError("Không tải được hàng đợi");
-      } finally {
-        if (seq === requestSeq.current) setLoading(false);
-      }
-    },
-    [],
-  );
+  const load = useCallback(async (next: Query, opts?: { quiet?: boolean }) => {
+    const seq = ++requestSeq.current;
+    if (!opts?.quiet) setLoading(true);
+    const params = new URLSearchParams({
+      status: next.tab,
+      page: String(next.page),
+      // Luôn gửi date, kể cả rỗng: bỏ hẳn tham số thì máy chủ hiểu là "lấy
+      // ngày mới nhất", mà rỗng lại có nghĩa "mọi ngày".
+      date: next.date,
+    });
+    if (next.q.trim()) params.set("q", next.q.trim());
+    try {
+      const res = await fetch(`/api/admin/requests?${params}`);
+      if (!res.ok) throw new Error("load failed");
+      const body: RequestPage & { run?: NewsroomRunStatus } = await res.json();
+      if (seq !== requestSeq.current) return;
+      setData(body);
+      if (body.run) setRun(body.run);
+      setError("");
+    } catch {
+      if (seq === requestSeq.current) setError("Could not load the queue.");
+    } finally {
+      if (seq === requestSeq.current) setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     if (firstRender.current) {
       firstRender.current = false;
       return;
     }
-    const timer = setTimeout(() => void load({ tab, page, q }), q ? 300 : 0);
+    const timer = setTimeout(() => void load(query), query.q ? 300 : 0);
     return () => clearTimeout(timer);
-  }, [tab, page, q, load]);
+  }, [query, load]);
 
   const working = data.counts.in_progress > 0 || run.running;
 
   // Còn bài đang viết thì tự hỏi lại: một lượt mất 8–10 phút và kết thúc ở
-  // phía máy chủ, không có gì báo về màn hình. 20 giây một lần là đủ nhanh để
-  // thấy bài xong, đủ chậm để không quấy cơ sở dữ liệu.
+  // phía máy chủ, không có gì báo về màn hình.
   useEffect(() => {
     if (!working) return;
     const timer = setInterval(() => {
       setTick((t) => t + 1);
-      void load({ tab, page, q }, { quiet: true });
+      void load(query, { quiet: true });
     }, 20000);
     return () => clearInterval(timer);
-  }, [working, tab, page, q, load]);
+  }, [working, query, load]);
 
-  const reload = useCallback(
-    () => load({ tab, page, q }, { quiet: true }),
-    [tab, page, q, load],
-  );
+  const reload = useCallback(() => load(query, { quiet: true }), [query, load]);
+
+  function update(patch: Partial<Query>) {
+    setQuery((current) => ({ ...current, page: 1, ...patch }));
+  }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -148,11 +171,16 @@ export default function ResearchQueue({
     setUrls("");
     setNotes("");
     setSending(false);
-    await reload();
+    setModalOpen(false);
+    // Đề tài vừa đặt mang ngày hôm nay, nên nhảy về hôm nay để thấy nó ngay —
+    // nếu đang đứng ở một ngày cũ thì nó nằm ngoài bộ lọc.
+    const today = new Date(Date.now() + 7 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    setNotice("Topic added to the queue.");
+    setQuery((current) => ({ ...current, page: 1, date: today }));
   }
 
   async function remove(id: string) {
-    if (!confirm("Xoá đề tài này?")) return;
+    if (!confirm("Delete this topic?")) return;
     await fetch(`/api/admin/requests/${id}`, { method: "DELETE" });
     await reload();
   }
@@ -169,18 +197,18 @@ export default function ResearchQueue({
     setBusy(null);
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
-      setError(body.error ?? "Giao bài thất bại");
+      setError(body.error ?? "Could not assign the topic.");
       await reload();
       return;
     }
     const body = await res.json();
     // Nhờ AI thì không có bài ngay — nó cần vài phút để tìm nguồn và viết.
     //
-    // Đề tài tự nhảy sang tab "Đang viết", nhưng màn hình thì Ở YÊN chỗ cũ:
+    // Đề tài tự chuyển sang tab "Writing", nhưng màn hình thì Ở YÊN chỗ cũ:
     // giao xong thường là giao tiếp mấy đề tài nữa, mà bị đẩy sang tab khác
     // sau mỗi lần bấm thì phải bấm quay lại rồi dò chỗ cũ từ đầu.
     if (body.queued) {
-      setNotice(body.message ?? "Đã giao cho AI.");
+      setNotice(body.message ?? "Assigned to the AI reporter.");
       await reload();
       return;
     }
@@ -189,7 +217,7 @@ export default function ResearchQueue({
 
   /** Gỡ một lượt viết đã treo, trả đề tài về hàng đợi. */
   async function requeue(id: string) {
-    if (!confirm("Trả đề tài này về hàng đợi để giao lại?")) return;
+    if (!confirm("Put this topic back in the queue so it can be assigned again?")) return;
     setBusy(id);
     setError("");
     const res = await fetch(`/api/admin/requests/${id}`, {
@@ -200,10 +228,10 @@ export default function ResearchQueue({
     setBusy(null);
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
-      setError(body.error ?? "Không trả về hàng đợi được");
+      setError(body.error ?? "Could not requeue the topic.");
       return;
     }
-    setNotice("Đã trả đề tài về hàng đợi.");
+    setNotice("Topic is back in the queue.");
     await reload();
   }
 
@@ -211,93 +239,46 @@ export default function ResearchQueue({
 
   return (
     <div>
-      <div className="mb-6">
-        <h1 className="font-display text-2xl font-black">Đặt đề tài</h1>
-        <div className="mt-2 max-w-2xl space-y-2 text-sm text-muted">
-          <p>
-            <strong className="text-foreground">Create Post:</strong> bấm{" "}
-            <strong className="text-foreground">Create Post</strong> ở đề tài bất kỳ.
-            AI sẽ tự tìm nguồn trên web (cả báo Việt lẫn quốc tế), đối chiếu số liệu
-            giữa các nguồn, rồi tổng hợp thành bài hoàn chỉnh 800–1400 từ. Mất vài
-            phút; theo dõi ở tab <strong className="text-foreground">Đang viết</strong>,
-            xong bài sẽ nằm ở mục <strong className="text-foreground">chờ duyệt</strong>{" "}
-            để bạn đọc và quyết định đăng hay không.
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="font-display text-2xl font-black">Research queue</h1>
+          <p className="mt-1 text-sm text-muted">
+            Topics waiting to be written. The AI finds its own sources, cross-checks
+            them, and leaves the finished article for your review.
           </p>
-          <p>
-            <strong className="text-foreground">Tự viết:</strong> bấm{" "}
-            <strong className="text-foreground">Nháp trống</strong> nếu bạn muốn tự
-            viết — hệ thống chỉ dựng sẵn khung và đưa các link vào mục nguồn.
-          </p>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setModalOpen(true)}
+            className="rounded-xl border border-border px-3 py-2 text-sm font-semibold transition hover:border-accent hover:text-accent"
+          >
+            <span
+              className={`mr-1.5 inline-block size-2 rounded-full align-middle ${
+                settings.enabled ? "bg-emerald-500" : "bg-neutral-400"
+              }`}
+            />
+            Auto {settings.enabled ? "on" : "off"}
+          </button>
+          <button
+            onClick={() => setModalOpen(true)}
+            className="rounded-xl bg-accent px-4 py-2 text-sm font-bold text-white transition hover:opacity-90"
+          >
+            + New topic
+          </button>
         </div>
       </div>
 
-      <form
-        onSubmit={submit}
-        className="mb-8 space-y-3 rounded-2xl border border-border bg-surface p-4 sm:p-5"
-      >
-        <div>
-          <label className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-muted">
-            Chủ đề / từ khoá
-          </label>
-          <input
-            value={topic}
-            onChange={(e) => setTopic(e.target.value)}
-            placeholder="VD: xu hướng AI trong tuyển dụng 2026"
-            className="w-full rounded-xl border border-border bg-background px-4 py-2.5 text-sm outline-none focus:border-accent"
-          />
-        </div>
-
-        <div>
-          <label className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-muted">
-            Link nguồn gợi ý{" "}
-            <span className="font-normal normal-case">(không bắt buộc)</span>
-          </label>
-          <textarea
-            value={urls}
-            onChange={(e) => setUrls(e.target.value)}
-            rows={2}
-            placeholder="Mỗi link một dòng"
-            className="w-full resize-none rounded-xl border border-border bg-background px-4 py-2.5 text-sm outline-none focus:border-accent"
-          />
-        </div>
-
-        <div>
-          <label className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-muted">
-            Ghi chú cho AI
-          </label>
-          <textarea
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            rows={2}
-            placeholder="Góc nhìn muốn khai thác, chuyên mục, độ dài..."
-            className="w-full resize-none rounded-xl border border-border bg-background px-4 py-2.5 text-sm outline-none focus:border-accent"
-          />
-        </div>
-
-        <button
-          type="submit"
-          disabled={sending || !topic.trim()}
-          className="w-full rounded-xl bg-accent px-5 py-2.5 text-sm font-bold text-white transition hover:opacity-90 disabled:opacity-50 sm:w-auto"
-        >
-          {sending ? "Đang gửi..." : "Gửi đề tài"}
-        </button>
-      </form>
-
-      <h2 className="mb-3 font-display text-lg font-black">Hàng đợi</h2>
-
       <RunBanner run={run} />
 
-      <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center">
-        <div className="no-scrollbar flex w-full gap-1 overflow-x-auto rounded-xl border border-border bg-surface p-1 sm:w-auto">
+      <div className="mb-3 flex flex-col gap-2 lg:flex-row lg:items-center">
+        <div className="no-scrollbar flex w-full gap-1 overflow-x-auto rounded-xl border border-border bg-surface p-1 lg:w-auto">
           {TABS.map((key) => (
             <button
               key={key}
-              onClick={() => {
-                setTab(key);
-                setPage(1);
-              }}
+              onClick={() => update({ tab: key })}
               className={`shrink-0 rounded-lg px-3 py-1.5 text-sm font-semibold transition ${
-                tab === key
+                query.tab === key
                   ? "bg-accent text-white"
                   : "text-foreground/70 hover:bg-surface-2"
               }`}
@@ -310,18 +291,39 @@ export default function ResearchQueue({
           ))}
         </div>
 
-        <input
-          value={q}
-          onChange={(e) => {
-            setQ(e.target.value);
-            setPage(1);
-          }}
-          placeholder="Tìm đề tài..."
-          className="w-full rounded-lg border border-border bg-background px-2.5 py-1.5 text-sm outline-none focus:border-accent sm:w-56"
-        />
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            value={query.q}
+            onChange={(e) => update({ q: e.target.value })}
+            placeholder="Search topics..."
+            className={`${fieldClass} w-full sm:w-52`}
+          />
+          <input
+            type="date"
+            value={query.date}
+            max={data.latestDate || undefined}
+            onChange={(e) => update({ date: e.target.value })}
+            className={fieldClass}
+          />
+          {query.date ? (
+            <button
+              onClick={() => update({ date: "" })}
+              className="rounded-lg border border-border px-3 py-1.5 text-xs font-semibold hover:border-accent hover:text-accent"
+            >
+              All dates
+            </button>
+          ) : (
+            <button
+              onClick={() => update({ date: data.latestDate })}
+              className="rounded-lg border border-border px-3 py-1.5 text-xs font-semibold hover:border-accent hover:text-accent"
+            >
+              Latest day
+            </button>
+          )}
+        </div>
 
-        <span className="text-xs text-muted sm:ml-auto">
-          {loading ? "Đang tải..." : `${data.total} đề tài`}
+        <span className="text-xs text-muted lg:ml-auto">
+          {loading ? "Loading..." : `${data.total} topics`}
         </span>
       </div>
 
@@ -342,15 +344,17 @@ export default function ResearchQueue({
       <Pagination
         page={data.page}
         totalPages={totalPages}
-        onChange={setPage}
+        onChange={(page) => setQuery((current) => ({ ...current, page }))}
         className="mb-3"
       />
 
       {data.items.length === 0 ? (
         <p className="rounded-2xl border border-border bg-surface p-8 text-center text-sm text-muted">
-          {tab === "in_progress"
-            ? "Không có đề tài nào đang được viết."
-            : "Chưa có đề tài nào trong mục này."}
+          {query.tab === "in_progress"
+            ? "Nothing is being written right now."
+            : query.date
+              ? "No topics on this date. Try another day, or “All dates”."
+              : "No topics in this tab yet."}
         </p>
       ) : (
         <div className={`space-y-2 transition-opacity ${loading ? "opacity-50" : ""}`}>
@@ -369,7 +373,80 @@ export default function ResearchQueue({
         </div>
       )}
 
-      <Pagination page={data.page} totalPages={totalPages} onChange={setPage} />
+      <Pagination
+        page={data.page}
+        totalPages={totalPages}
+        onChange={(page) => setQuery((current) => ({ ...current, page }))}
+      />
+
+      <Modal
+        open={modalOpen}
+        title="New topic & automation"
+        onClose={() => setModalOpen(false)}
+      >
+        <form onSubmit={submit} className="space-y-3">
+          <div>
+            <label className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-muted">
+              Topic or keyword
+            </label>
+            <input
+              value={topic}
+              onChange={(e) => setTopic(e.target.value)}
+              autoFocus
+              placeholder="e.g. AI in Vietnamese hiring, 2026"
+              className="w-full rounded-xl border border-border bg-background px-4 py-2.5 text-sm outline-none focus:border-accent"
+            />
+          </div>
+
+          <div>
+            <label className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-muted">
+              Suggested source links{" "}
+              <span className="font-normal normal-case">(optional)</span>
+            </label>
+            <textarea
+              value={urls}
+              onChange={(e) => setUrls(e.target.value)}
+              rows={2}
+              placeholder="One link per line"
+              className="w-full resize-none rounded-xl border border-border bg-background px-4 py-2.5 text-sm outline-none focus:border-accent"
+            />
+          </div>
+
+          <div>
+            <label className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-muted">
+              Notes for the AI
+            </label>
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              rows={2}
+              placeholder="Angle to take, section, length..."
+              className="w-full resize-none rounded-xl border border-border bg-background px-4 py-2.5 text-sm outline-none focus:border-accent"
+            />
+          </div>
+
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => setModalOpen(false)}
+              className="rounded-xl border border-border px-4 py-2.5 text-sm font-semibold hover:border-accent hover:text-accent"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={sending || !topic.trim()}
+              className="rounded-xl bg-accent px-5 py-2.5 text-sm font-bold text-white transition hover:opacity-90 disabled:opacity-50"
+            >
+              {sending ? "Adding..." : "Add to queue"}
+            </button>
+          </div>
+        </form>
+
+        <div className="mt-5 border-t border-border pt-5">
+          <NewsroomSwitch initial={settings} onChanged={setSettings} />
+        </div>
+      </Modal>
     </div>
   );
 }
@@ -426,16 +503,16 @@ function RequestRow({
             </span>
             {working && r.assignedAt && (
               <span className="text-xs text-muted">
-                {waitingTurn ? "đã chờ" : "đã chạy"} {describeElapsed(elapsed)}
+                {waitingTurn ? "waiting" : "running"} {describeElapsed(elapsed)}
               </span>
             )}
             {retried && (
               <span className="rounded-full bg-red-500/10 px-2 py-0.5 text-[11px] font-bold text-red-600 dark:text-red-400">
-                lượt trước hỏng · đã giao {r.attempts} lần
+                last run failed · assigned {r.attempts}×
               </span>
             )}
             <span className="text-xs text-muted">
-              {new Date(r.createdAt).toLocaleString("vi-VN")}
+              {new Date(r.createdAt).toLocaleString("en-GB")}
             </span>
           </div>
 
@@ -463,29 +540,27 @@ function RequestRow({
             <div className="mt-2 rounded-lg bg-blue-500/10 p-2 text-xs text-blue-700 dark:text-blue-300">
               {orphaned ? (
                 <>
-                  Máy chủ báo không có lượt viết nào đang chạy cho đề tài này — lượt
-                  vừa rồi đã chết giữa chừng. Bấm <strong>Trả về hàng đợi</strong> để
-                  giao lại.
+                  The server reports no run in progress — the last one died partway.
+                  Hit <strong>Requeue</strong> to assign it again.
                 </>
               ) : stale ? (
                 <>
-                  Đã quá {staleAfterMin} phút mà chưa xong — nhiều khả năng lượt viết
-                  đã chết giữa chừng. Bấm <strong>Trả về hàng đợi</strong> để giao lại.
+                  Over {staleAfterMin} minutes and still not finished — the run most
+                  likely died. Hit <strong>Requeue</strong> to assign it again.
                 </>
               ) : waitingTurn ? (
                 <>
-                  Đang xếp hàng chờ tới lượt — máy viết mỗi lúc một bài, hiện đang
-                  làm đề tài <strong>{run.topic}</strong>.
+                  Waiting its turn — the machine writes one article at a time and is
+                  currently on <strong>{run.topic}</strong>.
                 </>
               ) : writingNow ? (
                 <>
-                  AI đang tìm nguồn và viết đề tài này. Một bài mất 8–10 phút; xong
-                  sẽ tự nhảy sang mục chờ duyệt.
+                  The AI is researching and writing this one. Takes 8–10 minutes; it
+                  moves to review when done.
                 </>
               ) : (
                 <>
-                  Đã giao cho máy. Một bài mất 8–10 phút; xong sẽ tự nhảy sang mục
-                  chờ duyệt.
+                  Assigned. Takes 8–10 minutes; it moves to review when done.
                 </>
               )}
             </div>
@@ -493,7 +568,7 @@ function RequestRow({
 
           {r.reporterNote && (
             <p className="mt-2 rounded-lg bg-surface-2 p-2 text-xs text-muted">
-              <strong>Phóng viên:</strong> {r.reporterNote}
+              <strong>Reporter:</strong> {r.reporterNote}
             </p>
           )}
         </div>
@@ -504,7 +579,7 @@ function RequestRow({
               href={`/admin/articles/${r.articleIds![r.articleIds!.length - 1]}`}
               className="rounded-lg border border-border px-3 py-1.5 text-xs font-semibold hover:border-accent hover:text-accent"
             >
-              Mở bài nháp →
+              Open draft →
             </a>
           )}
 
@@ -512,14 +587,14 @@ function RequestRow({
             <button
               onClick={() => onRequeue(r.id)}
               disabled={busy}
-              title="Gỡ lượt viết bị treo, đưa đề tài trở lại hàng đợi"
+              title="Clear a stuck run and put the topic back in the queue"
               className={`rounded-lg border px-3 py-1.5 text-xs font-semibold disabled:opacity-50 ${
                 stale
                   ? "border-red-500/50 text-red-500 hover:border-red-500"
                   : "border-border hover:border-accent hover:text-accent"
               }`}
             >
-              Trả về hàng đợi
+              Requeue
             </button>
           )}
 
@@ -528,18 +603,18 @@ function RequestRow({
               <button
                 onClick={() => onConvert(r.id, "ai")}
                 disabled={busy}
-                title="AI tìm nguồn, đối chiếu rồi tổng hợp thành bài hoàn chỉnh"
+                title="The AI finds sources, cross-checks them and writes the full article"
                 className="rounded-lg bg-accent px-3 py-1.5 text-xs font-bold text-white transition hover:opacity-90 disabled:opacity-50"
               >
-                {busy ? "Đang giao..." : retried ? "Giao lại" : "Create Post"}
+                {busy ? "Assigning..." : retried ? "Assign again" : "Create post"}
               </button>
               <button
                 onClick={() => onConvert(r.id, "manual")}
                 disabled={busy}
-                title="Chỉ dựng bản nháp trống kèm sẵn link nguồn, để tự viết"
+                title="Just create an empty draft with the source links, to write yourself"
                 className="rounded-lg border border-border px-3 py-1.5 text-xs font-semibold hover:border-accent hover:text-accent disabled:opacity-50"
               >
-                Nháp trống
+                Empty draft
               </button>
             </>
           )}
@@ -548,7 +623,7 @@ function RequestRow({
             onClick={() => onRemove(r.id)}
             className="rounded-lg border border-border px-3 py-1.5 text-xs font-semibold text-red-500 hover:border-red-500"
           >
-            Xoá
+            Delete
           </button>
         </div>
       </div>
@@ -568,9 +643,9 @@ function RunBanner({ run }: { run: NewsroomRunStatus }) {
   if (!run.known) {
     return (
       <p className="mb-3 rounded-xl border border-border bg-surface px-4 py-2.5 text-xs text-muted">
-        Chưa có dữ liệu nhịp tim từ máy chủ — cần deploy bản
-        <code className="mx-1">newsroom-run.sh</code> mới thì mục này mới báo được
-        máy có đang viết hay không.
+        No heartbeat from the server yet — deploy the current
+        <code className="mx-1">newsroom-run.sh</code> and this panel will show whether
+        the machine is writing.
       </p>
     );
   }
@@ -580,9 +655,9 @@ function RunBanner({ run }: { run: NewsroomRunStatus }) {
     return (
       <div className="mb-3 rounded-xl border border-blue-500/40 bg-blue-500/10 px-4 py-2.5 text-sm text-blue-700 dark:text-blue-300">
         <span className="mr-2 inline-block size-2 animate-pulse rounded-full bg-current align-middle" />
-        <strong>Máy đang viết</strong>
+        <strong>Writing now</strong>
         {run.topic ? `: ${run.topic}` : ""}
-        {elapsed ? ` — đã chạy ${elapsed}` : ""}
+        {elapsed ? ` — running ${elapsed}` : ""}
       </div>
     );
   }
@@ -590,9 +665,9 @@ function RunBanner({ run }: { run: NewsroomRunStatus }) {
   if (run.stalled) {
     return (
       <div className="mb-3 rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-2.5 text-sm text-red-600 dark:text-red-400">
-        <strong>Lượt viết đã chết giữa chừng.</strong> Máy chủ còn ghi là đang chạy
-        {run.topic ? ` đề tài "${run.topic}"` : ""} nhưng nhịp tim đã ngừng. Trả đề
-        tài về hàng đợi rồi giao lại.
+        <strong>A run died partway.</strong> The server still claims it is writing
+        {run.topic ? ` “${run.topic}”` : ""} but the heartbeat stopped. Requeue the
+        topic and assign it again.
       </div>
     );
   }
@@ -607,12 +682,12 @@ function RunBanner({ run }: { run: NewsroomRunStatus }) {
       }`}
     >
       <strong className={failed ? "" : "text-foreground"}>
-        Máy đang rảnh, không có lượt viết nào chạy.
+        Idle — no run in progress.
       </strong>{" "}
       {run.finishedAt && (
-        <>Lượt gần nhất xong lúc {new Date(run.finishedAt).toLocaleString("vi-VN")}. </>
+        <>Last run finished {new Date(run.finishedAt).toLocaleString("en-GB")}. </>
       )}
-      {failed && run.lastError && <>Lỗi: {run.lastError}</>}
+      {failed && run.lastError && <>Error: {run.lastError}</>}
     </div>
   );
 }

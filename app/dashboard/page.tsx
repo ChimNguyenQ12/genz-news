@@ -16,15 +16,17 @@ export default async function DashboardPage() {
   return (
     <div>
       <div className="mb-6">
-        <h1 className="font-display text-2xl font-black">Bài viết của tôi</h1>
+        <h1 className="font-display text-2xl font-black">My articles</h1>
         <p className="mt-1 text-sm text-muted">
-          {page.counts.published} đã đăng · {page.counts.pending} đợi duyệt ·{" "}
-          {page.counts.draft} nháp
+          {page.counts.published} published · {page.counts.pending} in review ·{" "}
+          {page.counts.draft} drafts
         </p>
       </div>
 
       <div className="mb-5 rounded-2xl border border-border bg-surface p-4 text-sm text-muted">
-        Viết xong <strong className="text-foreground">Gửi duyệt</strong> tui duyệt cho. Bạn có thể rút về nháp để chỉnh sửa bất cứ lúc nào trước khi bài được duyệt.
+        When a piece is ready, hit <strong className="text-foreground">Submit</strong>
+        and I&apos;ll review it. You can pull it back to draft and keep editing any time
+        before it is approved.
       </div>
 
       <ArticleList initial={page} role={user.role} baseRoute="/dashboard" />

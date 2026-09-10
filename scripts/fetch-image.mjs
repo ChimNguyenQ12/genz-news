@@ -55,15 +55,54 @@ const bare = (str) =>
     .toLowerCase();
 
 /**
- * Ảnh phải thật sự liên quan. Yêu cầu tiêu đề chứa ít nhất một từ có nghĩa
- * (từ 4 chữ trở lên) của truy vấn — hai kho đều xếp hạng theo độ liên quan
- * nhưng vẫn hay trả về thứ chỉ trùng một phần.
+ * Từ tả CẢNH CHUNG CHUNG, không tả một đối tượng cụ thể nào.
+ *
+ * Khớp được mỗi những từ này thì gần như chắc chắn là ảnh minh hoạ vu vơ. Một
+ * bài về vụ nam sinh ở Thanh Hoá từng nhận về tấm "Jinego ES hallway to
+ * kitchen" — hành lang một trường tiểu học Nhật Bản — chỉ vì truy vấn có chữ
+ * "hallway". Ảnh thời sự sai còn tệ hơn không có ảnh: người đọc mặc định ảnh
+ * trong bài là ảnh chụp chính vụ việc.
+ */
+const GENERIC_SCENE = new Set([
+  "school", "classroom", "class", "student", "students", "pupil", "teacher",
+  "university", "college", "campus", "exam", "education", "lesson",
+  "hallway", "corridor", "building", "room", "house", "home", "office", "desk",
+  "hospital", "clinic", "doctor", "nurse", "patient", "medical", "health",
+  "mental", "awareness", "therapy", "counselling", "counseling",
+  "police", "officer", "court", "judge", "law", "justice", "crime", "prison",
+  "street", "road", "traffic", "city", "town", "village", "district",
+  "people", "person", "man", "woman", "boy", "girl", "child", "children",
+  "family", "crowd", "group", "worker", "workers", "staff", "meeting",
+  "computer", "laptop", "phone", "mobile", "screen", "internet", "online",
+  "money", "cash", "bank", "market", "shop", "store", "business", "economy",
+  "food", "restaurant", "kitchen", "car", "bus", "train", "bike", "vehicle",
+  "technology", "science", "research", "study", "report", "news", "media",
+  "government", "official", "policy", "protest", "rally", "sign", "symbol",
+  "generic", "stock", "illustration", "concept", "abstract", "background",
+]);
+
+const tokens = (str) =>
+  [...new Set(bare(str).split(/[^a-z0-9]+/).filter((w) => w.length >= 3))];
+
+/**
+ * Ảnh phải thật sự liên quan tới ĐỐI TƯỢNG của bài, không chỉ tới loại cảnh.
+ *
+ * Hai điều kiện, phải đạt cả hai:
+ *   1. khớp ít nhất 60% số từ trong truy vấn — khớp một từ trong ba là ăn may;
+ *   2. trong số từ khớp phải có ít nhất một từ KHÔNG chung chung, tức một cái
+ *      tên: địa danh, tổ chức, sản phẩm, nhân vật.
+ *
+ * Nhờ điều kiện 2 mà "school hallway" không còn lấy được bất kỳ hành lang
+ * trường học nào trên đời, còn "hanoi metro" thì vẫn lấy đúng ảnh metro Hà Nội.
  */
 function relevant(title, query) {
-  const words = bare(query).split(/[^a-z0-9]+/).filter((w) => w.length >= 4);
-  if (!words.length) return true;
-  const t = bare(title);
-  return words.some((w) => t.includes(w));
+  const wanted = tokens(query);
+  if (!wanted.length) return true;
+
+  const haystack = bare(title);
+  const matched = wanted.filter((w) => haystack.includes(w));
+  if (matched.length / wanted.length < 0.6) return false;
+  return matched.some((w) => !GENERIC_SCENE.has(w));
 }
 
 const tidy = (t) => String(t).replace(/\s+/g, " ").trim();

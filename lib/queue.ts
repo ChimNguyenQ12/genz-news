@@ -87,6 +87,11 @@ export interface RequestPageOptions {
   status?: RequestStatus | "all";
   /** Tìm trong chủ đề và ghi chú. */
   q?: string;
+  /**
+   * Lọc theo ngày đặt đề tài, dạng YYYY-MM-DD. "latest" = ngày gần nhất còn
+   * đề tài, để màn hình mở lên là thấy việc mới nhất; "" hoặc bỏ trống = mọi ngày.
+   */
+  date?: string;
   page?: number;
   perPage?: number;
 }
@@ -98,16 +103,38 @@ export interface RequestPage {
   perPage: number;
   /** Số mục theo từng trạng thái — dùng cho nhãn trên các tab. */
   counts: Record<RequestStatus | "all", number>;
+  /** Ngày đang lọc sau khi đã quy đổi "latest" thành ngày cụ thể. */
+  date: string;
+  /** Ngày gần nhất còn đề tài — để ô chọn ngày biết đâu là mốc mới nhất. */
+  latestDate: string;
 }
 
 export const REQUESTS_PER_PAGE = 10;
 
 /**
+ * Giờ Việt Nam. Máy chủ chạy theo UTC, nên nếu cắt ngày theo UTC thì đề tài
+ * đặt lúc 2 giờ sáng ở Việt Nam sẽ rơi vào "hôm qua" — đúng cái ngày mà người
+ * dùng không bấm vào. Cắt theo +07:00 mới khớp với ngày trên lịch của họ.
+ */
+const VN_OFFSET = "+07:00";
+
+/** Mốc đầu và cuối của một ngày Việt Nam, quy về thời điểm tuyệt đối. */
+function vietnamDayRange(date: string) {
+  const start = new Date(`${date}T00:00:00.000${VN_OFFSET}`);
+  const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
+  return { gte: start, lt: end };
+}
+
+/** Ngày trên lịch Việt Nam của một mốc thời gian, dạng YYYY-MM-DD. */
+function vietnamDateOf(when: Date) {
+  return new Date(when.getTime() + 7 * 60 * 60 * 1000).toISOString().slice(0, 10);
+}
+
+/**
  * Một trang của hàng đợi kèm số đếm cho mọi tab.
  *
- * Đếm luôn chạy trên TOÀN BỘ bảng chứ không phải trên trang đang xem: các tab
- * phải hiện cả khi đang lọc ở tab khác, nếu không tổng biên tập tưởng là mất
- * việc trong khi nó chỉ nằm ở tab bên cạnh.
+ * Số đếm bỏ qua bộ lọc trạng thái nhưng GIỮ bộ lọc ngày và từ khoá, để con số
+ * trên tab luôn mô tả đúng thứ đang bày ra dưới đó.
  */
 export async function listRequestsPage(
   options: RequestPageOptions = {},
@@ -116,16 +143,29 @@ export async function listRequestsPage(
   const page = Math.max(options.page ?? 1, 1);
   const q = options.q?.trim();
 
+  const newest = await prisma.researchRequest.findFirst({
+    orderBy: { createdAt: "desc" },
+    select: { createdAt: true },
+  });
+  const latestDate = newest ? vietnamDateOf(newest.createdAt) : "";
+
+  // "latest" được quy đổi ở đây chứ không ở màn hình: màn hình không biết
+  // ngày nào còn đề tài mà không hỏi thêm một lượt nữa.
+  const date =
+    options.date === "latest"
+      ? latestDate
+      : /^\d{4}-\d{2}-\d{2}$/.test(options.date ?? "")
+        ? (options.date as string)
+        : "";
+
+  const filters = {
+    ...(q ? { OR: [{ topic: { contains: q } }, { notes: { contains: q } }] } : {}),
+    ...(date ? { createdAt: vietnamDayRange(date) } : {}),
+  };
+
   const where = {
+    ...filters,
     ...(options.status && options.status !== "all" ? { status: options.status } : {}),
-    ...(q
-      ? {
-          OR: [
-            { topic: { contains: q } },
-            { notes: { contains: q } },
-          ],
-        }
-      : {}),
   };
 
   const [rows, total, grouped] = await Promise.all([
@@ -137,7 +177,11 @@ export async function listRequestsPage(
       take: perPage,
     }),
     prisma.researchRequest.count({ where }),
-    prisma.researchRequest.groupBy({ by: ["status"], _count: { _all: true } }),
+    prisma.researchRequest.groupBy({
+      by: ["status"],
+      where: filters,
+      _count: { _all: true },
+    }),
   ]);
 
   const counts: Record<RequestStatus | "all", number> = {
@@ -153,7 +197,7 @@ export async function listRequestsPage(
     counts.all += g._count._all;
   }
 
-  return { items: rows.map(toRequest), total, page, perPage, counts };
+  return { items: rows.map(toRequest), total, page, perPage, counts, date, latestDate };
 }
 
 export async function getRequest(id: string): Promise<ResearchRequest | undefined> {

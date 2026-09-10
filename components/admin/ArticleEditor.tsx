@@ -10,10 +10,10 @@ import BackToTopButton from "@/components/BackToTopButton";
 import RichTextEditor from "./RichTextEditor";
 
 const STATUS_LABEL: Record<Article["status"], string> = {
-  draft: "Bản nháp",
-  pending: "Đợi duyệt",
-  published: "Đang hiển thị",
-  rejected: "Bị trả lại",
+  draft: "Draft",
+  pending: "In review",
+  published: "Live",
+  rejected: "Sent back",
 };
 
 const STATUS_STYLE: Record<Article["status"], string> = {
@@ -73,7 +73,7 @@ export default function ArticleEditor({
     setCoverUploading(false);
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
-      setCoverError(data.error ?? "Tải lên thất bại");
+      setCoverError(data.error ?? "Upload failed.");
       return;
     }
     const { url } = await res.json();
@@ -131,18 +131,18 @@ export default function ArticleEditor({
       setSavedSnapshot(JSON.stringify(payload()));
       setMessage(
         status === "published"
-          ? "Đã đăng bài."
+          ? "Article published."
           : status === "pending"
-            ? "Đã gửi, đợi duyệt."
+            ? "Submitted for review."
             : status === "draft"
-              ? "Đã đưa về nháp."
-              : "Đã lưu thay đổi.",
+              ? "Moved back to draft."
+              : "Changes saved.",
       );
       if (status === "pending") router.push(base);
       else router.refresh();
     } else {
       const data = await res.json().catch(() => ({}));
-      setMessage(data.error ?? "Lưu thất bại");
+      setMessage(data.error ?? "Save failed.");
     }
   }
 
@@ -150,7 +150,7 @@ export default function ArticleEditor({
     <div>
       <div className="sticky top-0 z-30 -mx-3 mb-5 flex flex-wrap items-center justify-between gap-3 border-b border-border bg-background/95 px-3 py-3 backdrop-blur sm:static sm:mx-0 sm:mb-6 sm:border-0 sm:bg-transparent sm:p-0">
         <Link href={base} className="text-sm font-semibold text-muted hover:text-accent">
-          ← Danh sách bài
+          ← All articles
         </Link>
         <div className="grid w-full grid-cols-2 items-center gap-2 sm:flex sm:w-auto sm:flex-wrap">
           {message && !isDirty && (
@@ -166,7 +166,7 @@ export default function ArticleEditor({
 
           {isDirty && (
             <span className="rounded-full bg-amber-500/10 px-3 py-1 text-xs font-bold text-amber-600 dark:text-amber-400">
-              ● Chưa lưu
+              ● Unsaved
             </span>
           )}
 
@@ -175,12 +175,12 @@ export default function ArticleEditor({
             disabled={saving || !isDirty}
             title={
               isDirty
-                ? "Lưu thay đổi, giữ nguyên trạng thái đăng/nháp"
-                : "Không có thay đổi nào để lưu"
+                ? "Save changes, keep the current published/draft state"
+                : "Nothing to save"
             }
             className="w-full rounded-xl border border-border px-3 py-2 text-sm font-bold transition hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-40 sm:w-auto sm:px-4"
           >
-            {saving ? "Đang lưu..." : isDirty ? "Lưu thay đổi" : "Đã lưu"}
+            {saving ? "Saving..." : isDirty ? "Save changes" : "Saved"}
           </button>
 
           {isAdmin ? (
@@ -190,7 +190,7 @@ export default function ArticleEditor({
                 disabled={saving}
                 className="w-full rounded-xl border border-border px-3 py-2 text-sm font-bold transition hover:border-amber-500 hover:text-amber-500 disabled:opacity-50 sm:w-auto sm:px-4"
               >
-                Gỡ xuống
+                Unpublish
               </button>
             ) : (
               <button
@@ -198,17 +198,17 @@ export default function ArticleEditor({
                 disabled={saving}
                 className="w-full rounded-xl bg-emerald-600 px-3 py-2 text-sm font-bold text-white transition hover:opacity-90 disabled:opacity-50 sm:w-auto sm:px-4"
               >
-                Đăng bài
+                Publish
               </button>
             )
           ) : (
             <button
               onClick={() => save("pending")}
               disabled={saving}
-              title="Gửi bài đi duyệt"
+              title="Send this article for review"
               className="w-full rounded-xl bg-amber-600 px-3 py-2 text-sm font-bold text-white transition hover:opacity-90 disabled:opacity-50 sm:w-auto sm:px-4"
             >
-              Gửi duyệt
+              Submit
             </button>
           )}
         </div>
@@ -216,23 +216,23 @@ export default function ArticleEditor({
 
       {article.status === "rejected" && article.reviewNote && (
         <div className="mb-5 rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-600 dark:text-red-400">
-          <strong>Bị trả lại:</strong> {article.reviewNote}
+          <strong>Sent back:</strong> {article.reviewNote}
           <p className="mt-1 text-red-600/80 dark:text-red-400/80">
-            Sửa xong bấm “Gửi duyệt” lại.
+            Fix it up, then hit “Submit” again.
           </p>
         </div>
       )}
 
       {article.status === "pending" && !isAdmin && (
         <div className="mb-5 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-700 dark:text-amber-400">
-          Bài đang đợi duyệt nên không sửa được. Muốn sửa thì quay lại danh sách và
-          bấm <strong>Rút về nháp</strong>.
+          This article is in review and locked. To edit it, go back to the list and
+          hit <strong>Back to draft</strong>.
         </div>
       )}
 
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="space-y-4 lg:col-span-2">
-          <Field label="Tiêu đề">
+          <Field label="Headline">
             <textarea
               value={title}
               onChange={(e) => setTitle(e.target.value)}
@@ -241,7 +241,7 @@ export default function ArticleEditor({
             />
           </Field>
 
-          <Field label="Tóm tắt (dek)" hint="Một câu nêu điểm mới nhất, không lặp lại tít">
+          <Field label="Dek" hint="One sentence with the freshest point — do not repeat the headline">
             <textarea
               value={dek}
               onChange={(e) => setDek(e.target.value)}
@@ -252,7 +252,7 @@ export default function ArticleEditor({
 
           <Field
             label="Nội dung"
-            hint={`${mediaCount} ảnh/video · ~${wordCount} từ · đọc ~${suggestedTime} phút`}
+            hint={`${mediaCount} media · ~${wordCount} words · ~${suggestedTime} min read`}
           >
             <RichTextEditor value={bodyHtml} onChange={setBodyHtml} />
             {suggestedTime !== readingTimeMin && (
@@ -261,12 +261,12 @@ export default function ArticleEditor({
                 onClick={() => setReadingTimeMin(suggestedTime)}
                 className="mt-2 text-xs font-semibold text-accent hover:underline"
               >
-                Cập nhật thời gian đọc thành {suggestedTime} phút
+                Set reading time to {suggestedTime} min
               </button>
             )}
           </Field>
 
-          <Field label="Nguồn tham khảo" hint="Bắt buộc với bài tổng hợp — tối thiểu 2 nguồn">
+          <Field label="Sources" hint="Required for a round-up — at least 2 independent outlets">
             <div className="space-y-2">
               {sources.map((s, i) => (
                 <div key={i} className="flex flex-col gap-2 sm:flex-row">
@@ -277,7 +277,7 @@ export default function ArticleEditor({
                       next[i] = { ...next[i], name: e.target.value };
                       setSources(next);
                     }}
-                    placeholder="Tên nguồn"
+                    placeholder="Outlet name"
                     className="w-full rounded-xl border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-accent sm:w-40 sm:shrink-0"
                   />
                   <input
@@ -302,14 +302,14 @@ export default function ArticleEditor({
                 onClick={() => setSources([...sources, { name: "", url: "" }])}
                 className="rounded-xl border border-dashed border-border px-3 py-2 text-sm font-semibold text-muted hover:border-accent hover:text-accent"
               >
-                + Thêm nguồn
+                + Add source
               </button>
             </div>
           </Field>
         </div>
 
         <div className="space-y-4">
-          <Field label="Chuyên mục">
+          <Field label="Section">
             <select
               value={category}
               onChange={(e) => setCategory(e.target.value as CategorySlug)}
@@ -325,7 +325,7 @@ export default function ArticleEditor({
 
           {isAdmin && (
             <>
-              <Field label="Đường dẫn (slug)">
+              <Field label="Slug">
                 <input
                   value={slug}
                   onChange={(e) => setSlug(e.target.value)}
@@ -333,7 +333,7 @@ export default function ArticleEditor({
                 />
               </Field>
 
-              <Field label="Tác giả">
+              <Field label="Author">
                 <input
                   value={author}
                   onChange={(e) => setAuthor(e.target.value)}
@@ -344,7 +344,7 @@ export default function ArticleEditor({
           )}
 
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Ngày đăng">
+            <Field label="Publish date">
               <input
                 type="date"
                 value={publishedAt}
@@ -352,7 +352,7 @@ export default function ArticleEditor({
                 className="w-full rounded-xl border border-border bg-surface px-3 py-2.5 text-sm outline-none focus:border-accent"
               />
             </Field>
-            <Field label="Phút đọc">
+            <Field label="Read time (min)">
               <input
                 type="number"
                 min={1}
@@ -363,7 +363,7 @@ export default function ArticleEditor({
             </Field>
           </div>
 
-          <Field label="Tags" hint="Ngăn cách bằng dấu phẩy">
+          <Field label="Tags" hint="Separate with commas">
             <input
               value={tags}
               onChange={(e) => setTags(e.target.value)}
@@ -371,7 +371,7 @@ export default function ArticleEditor({
             />
           </Field>
 
-          <Field label="Ảnh bìa" hint="Để trống sẽ dùng gradient">
+          <Field label="Cover image" hint="Leave empty to use a gradient">
             {coverImage ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
@@ -395,7 +395,7 @@ export default function ArticleEditor({
                 disabled={coverUploading}
                 className="flex-1 rounded-xl bg-accent px-3 py-2 text-xs font-bold text-white transition hover:opacity-90 disabled:opacity-50"
               >
-                {coverUploading ? "Đang tải..." : "Tải ảnh lên"}
+                {coverUploading ? "Uploading..." : "Upload image"}
               </button>
               {coverImage && (
                 <button
@@ -406,7 +406,7 @@ export default function ArticleEditor({
                   }}
                   className="rounded-xl border border-border px-3 py-2 text-xs font-semibold text-red-500 hover:border-red-500"
                 >
-                  Bỏ ảnh
+                  Remove
                 </button>
               )}
             </div>
@@ -429,7 +429,7 @@ export default function ArticleEditor({
             <input
               value={coverImage}
               onChange={(e) => setCoverImage(e.target.value)}
-              placeholder="hoặc dán link ảnh"
+              placeholder="or paste an image URL"
               className="mt-2 w-full rounded-xl border border-border bg-surface px-3 py-2 text-xs outline-none focus:border-accent"
             />
 
@@ -437,7 +437,7 @@ export default function ArticleEditor({
               <input
                 value={coverCaption}
                 onChange={(e) => setCoverCaption(e.target.value)}
-                placeholder="Chú thích ảnh"
+                placeholder="Image caption and credit"
                 className="mt-2 w-full rounded-xl border border-border bg-surface px-3 py-2 text-xs outline-none focus:border-accent"
               />
             )}
@@ -459,7 +459,7 @@ export default function ArticleEditor({
           </Field>
 
           {isAdmin && (
-            <Field label="Hiển thị">
+            <Field label="Placement">
               <label className="flex items-center gap-2 text-sm">
                 <input
                   type="checkbox"
@@ -467,7 +467,7 @@ export default function ArticleEditor({
                   onChange={(e) => setFeatured(e.target.checked)}
                   className="size-4 accent-violet-600"
                 />
-                Bài nổi bật (hero trang chủ)
+                Featured (home page hero)
               </label>
               <label className="mt-2 flex items-center gap-2 text-sm">
                 <input
@@ -476,7 +476,7 @@ export default function ArticleEditor({
                   onChange={(e) => setTrending(e.target.checked)}
                   className="size-4 accent-violet-600"
                 />
-                Đưa vào mục &quot;Đang nóng&quot;
+                Show in &quot;Trending&quot;
               </label>
             </Field>
           )}

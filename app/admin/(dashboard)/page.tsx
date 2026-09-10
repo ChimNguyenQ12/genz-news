@@ -17,14 +17,14 @@ export default async function AdminHome() {
   return (
     <div>
       <div className="mb-6">
-        <h1 className="font-display text-2xl font-black">Quản lý bài viết</h1>
+        <h1 className="font-display text-2xl font-black">Articles</h1>
         <p className="mt-1 text-sm text-muted">
           {page.counts.pending > 0 && (
             <strong className="text-amber-600 dark:text-amber-400">
-              {page.counts.pending} bài đợi duyệt ·{" "}
+              {page.counts.pending} awaiting review ·{" "}
             </strong>
           )}
-          {page.counts.published} đã đăng · {page.counts.draft} nháp
+          {page.counts.published} published · {page.counts.draft} drafts
         </p>
       </div>
 

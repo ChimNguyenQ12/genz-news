@@ -31,6 +31,10 @@ export async function GET(request: Request) {
     listRequestsPage({
       status: status && VALID_STATUS.has(status) ? (status as RequestStatus) : "all",
       q: params.get("q") ?? undefined,
+      // Không truyền date thì mặc định là ngày gần nhất còn đề tài: mở màn
+      // hình lên là thấy việc mới nhất, không phải cuộn qua hàng trăm mục cũ.
+      // Muốn xem tất cả thì gửi date= (rỗng).
+      date: params.has("date") ? (params.get("date") ?? "") : "latest",
       page: Number(params.get("page")) || 1,
       perPage: Number(params.get("perPage")) || undefined,
     }),

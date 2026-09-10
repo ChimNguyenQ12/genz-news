@@ -11,20 +11,20 @@ export default async function AccountPage() {
 
   return (
     <div className="max-w-md">
-      <h1 className="font-display text-2xl font-black">Tài khoản</h1>
+      <h1 className="font-display text-2xl font-black">Profile</h1>
       <dl className="mt-4 space-y-1 rounded-2xl border border-border bg-surface p-4 text-sm">
         <div className="flex items-baseline justify-between gap-4">
-          <dt className="text-muted">Tên đăng nhập</dt>
+          <dt className="text-muted">Username</dt>
           <dd className="min-w-0 truncate text-right font-semibold">{user.username}</dd>
         </div>
         <div className="flex items-baseline justify-between gap-4">
-          <dt className="text-muted">Tên hiển thị</dt>
+          <dt className="text-muted">Display name</dt>
           <dd className="min-w-0 truncate text-right font-semibold">{user.displayName}</dd>
         </div>
         <div className="flex items-baseline justify-between gap-4">
           <dt className="text-muted">Vai trò</dt>
           <dd className="font-semibold">
-            {user.role === "admin" ? "Quản trị" : "Tài khoản"}
+            {user.role === "admin" ? "Administrator" : "Contributor"}
           </dd>
         </div>
       </dl>

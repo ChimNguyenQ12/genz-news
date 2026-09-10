@@ -10,8 +10,8 @@ export default function DashboardNav({ user }: { user: PublicUser }) {
   const isAdmin = user.role === "admin";
 
   const links = [
-    { href: "/dashboard", label: "Bài của tôi" },
-    { href: "/dashboard/tai-khoan", label: "Tài khoản" },
+    { href: "/dashboard", label: "My articles" },
+    { href: "/dashboard/tai-khoan", label: "Profile" },
   ];
 
   async function logout() {
@@ -69,7 +69,7 @@ export default function DashboardNav({ user }: { user: PublicUser }) {
             target="_blank"
             className="hidden rounded-lg px-3 py-1.5 text-sm font-semibold text-foreground/70 hover:bg-surface-2 lg:block"
           >
-            Xem trang ↗
+            View site ↗
           </Link>
           <ThemeToggle />
           <span className="hidden text-sm text-muted sm:block">
@@ -79,7 +79,7 @@ export default function DashboardNav({ user }: { user: PublicUser }) {
             onClick={logout}
             className="rounded-lg border border-border px-2.5 py-1.5 text-xs font-semibold transition hover:border-accent hover:text-accent sm:px-3 sm:text-sm"
           >
-            Thoát
+            Sign out
           </button>
         </div>
       </div>

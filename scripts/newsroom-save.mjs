@@ -172,8 +172,10 @@ function validate(a) {
       );
     }
   }
-  if (imgTags.length > 6) {
-    die(`bài có ${imgTags.length} ảnh trong thân bài, tối đa 6.`);
+  // Trần rộng tay: chỉ để chặn trường hợp hỏng hóc sinh ra hàng trăm thẻ img,
+  // không phải để hạn chế số ảnh minh hoạ của một bài.
+  if (imgTags.length > 12) {
+    die(`bài có ${imgTags.length} ảnh trong thân bài, quá nhiều (trần 12).`);
   }
   const captions = (body.match(/<figcaption[\s>]/gi) ?? []).length;
   if (imgTags.length > captions) {

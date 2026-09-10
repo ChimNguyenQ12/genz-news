@@ -73,27 +73,41 @@ sạch HTML và đúng lớp phân quyền như người thật.
   liệt kê làm tài liệu tham khảo, nhưng **không tính** vào mức tối thiểu 2
   nguồn độc lập — chúng chép lại nguồn khác. Phải có ít nhất 2 hãng tin
   tự đưa tin.
-- **Nhúng ảnh vào bài, và ghi nguồn ảnh.** Một bài tổng hợp nên có ảnh bìa và
-  **1–3 ảnh xen giữa các đoạn** — đặt rải ra, đừng dồn một chỗ.
+- **Ảnh và video: đúng vụ việc, hoặc không có.** Người đọc mặc định ảnh trong
+  bài là ảnh chụp chính chuyện đang kể. Một tấm ảnh "cùng chủ đề" nhưng khác
+  vụ, khác nước là làm người đọc hiểu sai — tệ hơn hẳn một cái nền gradient.
 
-  1. `genz-news-fetch-image "<từ khoá tiếng Anh>"` — tìm ảnh dùng lại được trên
-     Wikimedia Commons và Openverse (gom ảnh CC từ Flickr, bảo tàng, thư viện
-     ảnh), tải về rồi đẩy lên kho của toà soạn. In ra `{url, caption}`.
-     Thêm `--count=3` để lấy nhiều tấm một lượt, `--html` để in sẵn thẻ
-     `<figure>` dán thẳng vào bài.
-  2. Ảnh trong thân bài viết đúng dạng, caption giữ nguyên phần lệnh trả về:
+  1. **Video chính thức trước tiên.** Nhúng từ kênh YouTube/Vimeo chính thức
+     của hãng tin, cơ quan hoặc doanh nghiệp liên quan (`youtube-nocookie.com`,
+     `player.vimeo.com`). Nền tảng cho phép nhúng, khác hẳn tải về — và đây là
+     cách hợp pháp duy nhất để đưa hình ảnh THẬT của vụ việc lên bài.
+  2. **Ảnh: tìm bằng TÊN RIÊNG.** `genz-news-fetch-image "<tên riêng tiếng Anh>"`
+     — địa danh, tổ chức, doanh nghiệp, sản phẩm, công trình, nhân vật công
+     chúng. Lệnh lấy ảnh dùng lại được trên Wikimedia Commons và Openverse rồi
+     đẩy lên kho của toà soạn, in ra `{url, caption}`. `--count=3` lấy nhiều
+     tấm, `--html` in sẵn thẻ `<figure>`.
+
+     Không tìm bằng từ tả cảnh chung chung ("school hallway", "mental health",
+     "sad teenager"). Lệnh chặn sẵn: ảnh chỉ khớp mấy từ tả cảnh là bị loại.
+  3. Ảnh trong thân bài viết đúng dạng, caption giữ nguyên phần lệnh trả về:
 
      ```html
      <figure><img src="<url lệnh trả về>" alt="mô tả ngắn"><figcaption><caption lệnh trả về></figcaption></figure>
      ```
+  4. **Ảnh bối cảnh phải nói rõ là bối cảnh.** Ảnh kho tự do gần như không bao
+     giờ chụp đúng vụ việc. Nếu nó chỉ là địa danh nơi xảy ra chuyện, trụ sở
+     doanh nghiệp hay sản phẩm được nhắc tới, thêm `Ảnh minh hoạ:` vào đầu
+     caption và giữ nguyên phần ghi công phía sau.
+  5. Ảnh do tổng biên tập tự cung cấp (đã mua hoặc được cấp phép) thì dùng thoải mái.
 
-  3. Nhúng video **chính thức** từ YouTube/Vimeo bằng iframe (`youtube-nocookie.com`
-     hoặc `player.vimeo.com`) — nền tảng cho phép nhúng, khác hẳn tải về.
-  4. Ảnh do tổng biên tập tự cung cấp.
+  **Không lấy ảnh của báo chí.** VnExpress, Tuổi Trẻ, Reuters, AFP... giữ bản
+  quyền ảnh của họ; ghi nguồn không thay được giấy phép. Muốn có ảnh thật của
+  vụ việc: nhúng video chính thức, hoặc tổng biên tập tự gắn ảnh có bản quyền
+  hợp lệ, hoặc mua gói ảnh của hãng thông tấn.
 
-  Không có gì hợp lệ thì để `coverGradient`. Lệnh lưu bài từ chối **mọi** ảnh
-  không nằm trên kho của mình — cả ảnh bìa lẫn ảnh trong thân bài — và từ chối
-  ảnh trong bài không có `<figcaption>` ghi công.
+  Không có gì hợp lệ thì để `coverGradient` — bỏ trống là một lựa chọn đúng.
+  Lệnh lưu bài từ chối **mọi** ảnh không nằm trên kho của mình (cả ảnh bìa lẫn
+  ảnh trong thân bài) và từ chối ảnh trong bài không có `<figcaption>` ghi công.
 - Scrape các nền tảng mạng xã hội (Threads, Facebook, Instagram).
 
 ## Chọn đề tài và góc nhìn

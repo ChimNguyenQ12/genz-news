@@ -11,10 +11,10 @@ import { categoryStyles } from "@/lib/categoryStyles";
 import Pagination from "@/components/admin/Pagination";
 
 const STATUS_LABEL: Record<ArticleStatus, string> = {
-  draft: "Nháp",
-  pending: "Đợi duyệt",
-  published: "Đã đăng",
-  rejected: "Bị trả lại",
+  draft: "Draft",
+  pending: "In review",
+  published: "Published",
+  rejected: "Sent back",
 };
 
 const STATUS_STYLE: Record<ArticleStatus, string> = {
@@ -103,7 +103,7 @@ export default function ArticleList({
 
     try {
       const res = await fetch(`/api/articles?${params}`);
-      if (!res.ok) throw new Error("tải hỏng");
+      if (!res.ok) throw new Error("load failed");
       const page: ArticlePage = await res.json();
       // Bỏ kết quả về muộn: bấm nhanh qua vài tab thì câu trả lời của tab cũ
       // không được phép ghi đè tab đang xem.
@@ -111,7 +111,7 @@ export default function ArticleList({
       setData(page);
       setError("");
     } catch {
-      if (seq === requestSeq.current) setError("Không tải được danh sách bài");
+      if (seq === requestSeq.current) setError("Could not load the article list.");
     } finally {
       if (seq === requestSeq.current) setLoading(false);
     }
@@ -145,7 +145,7 @@ export default function ArticleList({
     setBusy(null);
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
-      setError(body.error ?? "Thao tác thất bại");
+      setError(body.error ?? "That action failed.");
       return;
     }
     await reload();
@@ -154,20 +154,20 @@ export default function ArticleList({
   }
 
   async function reject(article: ArticleSummary) {
-    const note = prompt("Lý do trả bài (tác giả sẽ thấy góp ý này):");
+    const note = prompt("Why are you sending it back? The author will see this note:");
     if (note === null) return;
     await patch(article, { status: "rejected", reviewNote: note });
   }
 
   async function remove(article: ArticleSummary) {
-    if (!confirm(`Xoá vĩnh viễn bài "${article.title}"?`)) return;
+    if (!confirm(`Permanently delete "${article.title}"?`)) return;
     setBusy(article.id);
     setError("");
     const res = await fetch(`/api/articles/${article.id}`, { method: "DELETE" });
     setBusy(null);
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
-      setError(body.error ?? "Xoá thất bại");
+      setError(body.error ?? "Delete failed.");
       return;
     }
     await reload();
@@ -180,12 +180,12 @@ export default function ArticleList({
     const res = await fetch("/api/articles", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title: "Bài viết mới", category: "the-gioi", body: [] }),
+      body: JSON.stringify({ title: "Untitled article", category: "the-gioi", body: [] }),
     });
     const created = await res.json();
     setBusy(null);
     if (created.article) router.push(`${base}/articles/${created.article.id}`);
-    else setError(created.error ?? "Không tạo được bài");
+    else setError(created.error ?? "Could not create the article.");
   }
 
   const totalPages = Math.max(1, Math.ceil(data.total / data.perPage));
@@ -210,7 +210,7 @@ export default function ArticleList({
                   : "text-foreground/70 hover:bg-surface-2"
               }`}
             >
-              {key === "all" ? "Tất cả" : STATUS_LABEL[key]} ({data.counts[key]})
+              {key === "all" ? "All" : STATUS_LABEL[key]} ({data.counts[key]})
             </button>
           ))}
         </div>
@@ -220,7 +220,7 @@ export default function ArticleList({
           disabled={busy === "new"}
           className="w-full rounded-xl bg-accent px-4 py-2 text-sm font-bold text-white transition hover:opacity-90 disabled:opacity-50 sm:w-auto"
         >
-          + Viết bài mới
+          + New article
         </button>
       </div>
 
@@ -228,7 +228,7 @@ export default function ArticleList({
         <input
           value={filters.q}
           onChange={(e) => update({ q: e.target.value })}
-          placeholder="Tìm tít hoặc dek..."
+          placeholder="Search headline or dek..."
           className={`${fieldClass} min-w-0 flex-1 sm:w-56 sm:flex-none`}
         />
 
@@ -237,7 +237,7 @@ export default function ArticleList({
           onChange={(e) => update({ category: e.target.value })}
           className={fieldClass}
         >
-          <option value="all">Mọi chuyên mục</option>
+          <option value="all">All sections</option>
           {categories.map((c) => (
             <option key={c.slug} value={c.slug}>
               {c.name}
@@ -251,7 +251,7 @@ export default function ArticleList({
             onChange={(e) => update({ author: e.target.value })}
             className={fieldClass}
           >
-            <option value="all">Mọi tác giả</option>
+            <option value="all">All authors</option>
             {data.authors.map((a) => (
               <option key={a} value={a}>
                 {a}
@@ -261,7 +261,7 @@ export default function ArticleList({
         )}
 
         <label className="flex items-center gap-1.5 text-xs text-muted">
-          Từ
+          From
           <input
             type="date"
             value={filters.from}
@@ -270,7 +270,7 @@ export default function ArticleList({
           />
         </label>
         <label className="flex items-center gap-1.5 text-xs text-muted">
-          đến
+          to
           <input
             type="date"
             value={filters.to}
@@ -284,12 +284,12 @@ export default function ArticleList({
             onClick={() => setFilters({ ...EMPTY_FILTERS, status: filters.status })}
             className="rounded-lg border border-border px-3 py-1.5 text-xs font-semibold hover:border-accent hover:text-accent"
           >
-            Xoá lọc
+            Clear filters
           </button>
         )}
 
         <span className="ml-auto text-xs text-muted">
-          {loading ? "Đang tải..." : `${firstRow}–${lastRow} / ${data.total} bài`}
+          {loading ? "Loading..." : `${firstRow}–${lastRow} of ${data.total}`}
         </span>
       </div>
 
@@ -311,8 +311,8 @@ export default function ArticleList({
       {data.items.length === 0 ? (
         <p className="rounded-2xl border border-border bg-surface p-8 text-center text-sm text-muted">
           {narrowed
-            ? "Không có bài nào khớp bộ lọc. Thử bỏ bớt điều kiện."
-            : "Không có bài nào trong mục này."}
+            ? "No articles match these filters. Try removing some."
+            : "No articles in this tab yet."}
         </p>
       ) : (
         <div className={`space-y-2 transition-opacity ${loading ? "opacity-50" : ""}`}>
@@ -369,12 +369,12 @@ export default function ArticleList({
                   )}
 
                   <p className="text-xs text-muted">
-                    {a.author} · {a.publishedAt} · {a.sourceCount} nguồn
+                    {a.author} · {a.publishedAt} · {a.sourceCount} sources
                   </p>
 
                   {a.status === "rejected" && a.reviewNote && (
                     <p className="mt-1.5 rounded-lg bg-red-500/10 p-2 text-xs text-red-600 dark:text-red-400">
-                      <strong>Góp ý:</strong> {a.reviewNote}
+                      <strong>Editor:</strong> {a.reviewNote}
                     </p>
                   )}
                 </div>
@@ -386,7 +386,7 @@ export default function ArticleList({
                       target="_blank"
                       className="rounded-lg border border-border px-3 py-1.5 text-xs font-semibold hover:border-accent hover:text-accent"
                     >
-                      Xem ↗
+                      View ↗
                     </Link>
                   )}
 
@@ -395,7 +395,7 @@ export default function ArticleList({
                       href={`${base}/articles/${a.id}`}
                       className="rounded-lg border border-border px-3 py-1.5 text-xs font-semibold hover:border-accent hover:text-accent"
                     >
-                      Sửa
+                      Edit
                     </Link>
                   )}
 
@@ -406,7 +406,7 @@ export default function ArticleList({
                       disabled={isBusy}
                       className="rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-bold text-white transition hover:opacity-90 disabled:opacity-50"
                     >
-                      Gửi duyệt
+                      Submit
                     </button>
                   )}
                   {!isAdmin && a.status === "pending" && (
@@ -415,7 +415,7 @@ export default function ArticleList({
                       disabled={isBusy}
                       className="rounded-lg border border-border px-3 py-1.5 text-xs font-semibold hover:border-accent disabled:opacity-50"
                     >
-                      Rút về nháp
+                      Back to draft
                     </button>
                   )}
 
@@ -426,7 +426,7 @@ export default function ArticleList({
                       disabled={isBusy}
                       className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white transition hover:opacity-90 disabled:opacity-50"
                     >
-                      Đăng
+                      Publish
                     </button>
                   )}
                   {isAdmin && a.status === "pending" && (
@@ -435,7 +435,7 @@ export default function ArticleList({
                       disabled={isBusy}
                       className="rounded-lg border border-border px-3 py-1.5 text-xs font-semibold text-red-500 hover:border-red-500 disabled:opacity-50"
                     >
-                      Trả lại
+                      Send back
                     </button>
                   )}
                   {isAdmin && a.status === "published" && (
@@ -444,7 +444,7 @@ export default function ArticleList({
                       disabled={isBusy}
                       className="rounded-lg border border-border px-3 py-1.5 text-xs font-semibold hover:border-amber-500 hover:text-amber-500 disabled:opacity-50"
                     >
-                      Gỡ xuống
+                      Unpublish
                     </button>
                   )}
 
@@ -454,7 +454,7 @@ export default function ArticleList({
                       disabled={isBusy}
                       className="rounded-lg border border-border px-3 py-1.5 text-xs font-semibold text-red-500 hover:border-red-500 disabled:opacity-50"
                     >
-                      Xoá
+                      Delete
                     </button>
                   )}
                 </div>
