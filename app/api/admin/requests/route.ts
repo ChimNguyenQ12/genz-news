@@ -1,12 +1,43 @@
 import { NextResponse } from "next/server";
 import { requireRole } from "@/lib/auth";
-import { createRequest, listRequests } from "@/lib/queue";
+import {
+  createRequest,
+  listRequestsPage,
+  STALE_AFTER_MIN,
+  type RequestStatus,
+} from "@/lib/queue";
+import { readRunStatus } from "@/lib/newsroom";
 
-export async function GET() {
+const VALID_STATUS = new Set<string>(["pending", "in_progress", "done", "rejected"]);
+
+/**
+ * Một trang của hàng đợi đề tài.
+ *
+ * Tham số: status (kèm "all"), q, page, perPage. Kèm sẵn số đếm cho mọi tab để
+ * màn hình không phải gọi thêm lần nữa chỉ để biết tab nào có bao nhiêu mục.
+ */
+export async function GET(request: Request) {
   if (!(await requireRole("admin"))) {
     return NextResponse.json({ error: "Chưa đăng nhập" }, { status: 401 });
   }
-  return NextResponse.json({ requests: await listRequests() });
+
+  const params = new URL(request.url).searchParams;
+  const status = params.get("status");
+
+  // Nhịp tim đi kèm luôn trong câu trả lời: màn hình đang hỏi lại mỗi 20 giây
+  // để theo dõi bài đang viết, thêm một lượt gọi nữa chỉ để hỏi "máy có chạy
+  // không" là thừa.
+  const [page, run] = await Promise.all([
+    listRequestsPage({
+      status: status && VALID_STATUS.has(status) ? (status as RequestStatus) : "all",
+      q: params.get("q") ?? undefined,
+      page: Number(params.get("page")) || 1,
+      perPage: Number(params.get("perPage")) || undefined,
+    }),
+    readRunStatus(),
+  ]);
+
+  return NextResponse.json({ ...page, staleAfterMin: STALE_AFTER_MIN, run });
 }
 
 export async function POST(request: Request) {

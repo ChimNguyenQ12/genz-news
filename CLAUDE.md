@@ -73,16 +73,27 @@ sạch HTML và đúng lớp phân quyền như người thật.
   liệt kê làm tài liệu tham khảo, nhưng **không tính** vào mức tối thiểu 2
   nguồn độc lập — chúng chép lại nguồn khác. Phải có ít nhất 2 hãng tin
   tự đưa tin.
-- **Nhúng ảnh tìm dược vào bài viết.** ghi nguồn 
-  Tìm bằng các cách sau:
-  1. `genz-news-fetch-image "<từ khoá tiếng Anh>"` — lấy ảnh
-     trên Wikimedia Commons, các nguồn trên internet, các trang mạng xã hội, rồi đẩy lên kho của toà soạn. Caption tùy ý.
-  2. Nhúng video **chính thức** từ YouTube/Vimeo bằng iframe (`youtube-nocookie.com`
-     hoặc `player.vimeo.com`) — nền tảng cho phép nhúng, khác hẳn tải về.
-  3. Ảnh do tổng biên tập tự cung cấp.
+- **Nhúng ảnh vào bài, và ghi nguồn ảnh.** Một bài tổng hợp nên có ảnh bìa và
+  **1–3 ảnh xen giữa các đoạn** — đặt rải ra, đừng dồn một chỗ.
 
-  Không có gì hợp lệ thì để `coverGradient`. Lệnh lưu bài từ chối mọi
-  `coverImage` không nằm trên kho của mình.
+  1. `genz-news-fetch-image "<từ khoá tiếng Anh>"` — tìm ảnh dùng lại được trên
+     Wikimedia Commons và Openverse (gom ảnh CC từ Flickr, bảo tàng, thư viện
+     ảnh), tải về rồi đẩy lên kho của toà soạn. In ra `{url, caption}`.
+     Thêm `--count=3` để lấy nhiều tấm một lượt, `--html` để in sẵn thẻ
+     `<figure>` dán thẳng vào bài.
+  2. Ảnh trong thân bài viết đúng dạng, caption giữ nguyên phần lệnh trả về:
+
+     ```html
+     <figure><img src="<url lệnh trả về>" alt="mô tả ngắn"><figcaption><caption lệnh trả về></figcaption></figure>
+     ```
+
+  3. Nhúng video **chính thức** từ YouTube/Vimeo bằng iframe (`youtube-nocookie.com`
+     hoặc `player.vimeo.com`) — nền tảng cho phép nhúng, khác hẳn tải về.
+  4. Ảnh do tổng biên tập tự cung cấp.
+
+  Không có gì hợp lệ thì để `coverGradient`. Lệnh lưu bài từ chối **mọi** ảnh
+  không nằm trên kho của mình — cả ảnh bìa lẫn ảnh trong thân bài — và từ chối
+  ảnh trong bài không có `<figcaption>` ghi công.
 - Scrape các nền tảng mạng xã hội (Threads, Facebook, Instagram).
 
 ## Chọn đề tài và góc nhìn
@@ -123,15 +134,37 @@ Bài phải **gộp nhiều nguồn thành một mạch kể**, không phải t�
 gắn thêm link. Mỗi nguồn đóng góp một mẩu; việc của mình là ghép chúng lại và
 chỉ ra chỗ chúng bổ sung hay mâu thuẫn nhau.
 
-Khung thường dùng (không cứng nhắc, nhưng thiếu phần nào phải có lý do):
+**Không có khung cố định, và đừng bịa ra khung.** Bài nào cũng mở bằng "chuyện
+gì vừa xảy ra" rồi đóng bằng "sắp tới thì sao" thì đọc mười bài như một — mà
+phần đóng đó thường là chỗ người viết nặn ra dự đoán cho đủ khung. Dáng bài đi
+theo chính câu chuyện. Vài dáng hay dùng:
 
-1. **Chuyện gì vừa xảy ra** — dữ kiện cụ thể: ai, ở đâu, khi nào, con số.
-2. **Dính gì tới bạn đọc 18–27 tuổi** — đặt ngay đoạn đầu hoặc đoạn hai.
-3. **Bối cảnh** — chuyện này nối tiếp cái gì trước đó, vì sao bây giờ mới nổi.
-4. **Các bên nói gì** — dẫn phát ngôn thật, ghi rõ ai nói và nói ở đâu.
-5. **Chỗ các nguồn không khớp** — nếu báo A nói một đằng báo B nói một nẻo, viết
-   thẳng ra là chưa thống nhất, đừng chọn bừa một bên.
-6. **Sắp tới thì sao** — mốc thời gian, quyết định đang chờ, thứ cần theo dõi.
+- **Tường thuật** — chuyện diễn ra theo thứ tự thời gian, từ lúc bắt đầu tới nay.
+- **Giải thích** — một câu hỏi lớn, tách ra trả lời từng phần.
+- **Đối chiếu** — báo trong nước nói một đằng, báo quốc tế nói một nẻo; bài đi
+  theo đúng chỗ vênh nhau đó.
+- **Chân dung / trường hợp cụ thể** — bám một người, một doanh nghiệp, một địa
+  phương rồi mở ra bức tranh chung.
+- **Con số** — một dữ liệu vừa công bố, bóc xem nó thật sự nói gì.
+- **Hỏi–đáp** — đề tài mà bạn đọc chủ yếu cần biết "vậy tôi phải làm gì".
+
+Ràng buộc thật sự chỉ có bấy nhiêu, dáng nào cũng phải giữ:
+
+1. **Dữ kiện cụ thể** — ai, ở đâu, khi nào, con số — và phải có sớm.
+2. **Dính gì tới bạn đọc 18–27 tuổi** — đặt ở đoạn đầu hoặc đoạn hai. Nếu đề
+   tài thật sự không dính gì tới họ, đừng nặn ra một mối liên hệ giả.
+3. **Nguồn nào nói gì phải ghi rõ tên nguồn.**
+4. **Chỗ các nguồn không khớp** — viết thẳng là chưa thống nhất, đừng chọn bừa.
+
+Phần "sắp tới thì sao" **chỉ viết khi có mốc thật**: phiên toà, kỳ họp, ngày mở
+bán, quyết định đang chờ — thứ đã được nguồn nói tới. Không có thì bỏ hẳn, kết
+bài bằng dữ kiện cũng được.
+
+**Bình luận là tuỳ bài, không bắt buộc.** Tin thời sự thuần thì thuật cho chuẩn
+là đủ. Chỉ đưa nhận định khi nó dựa trên phát ngôn có nguồn của chuyên gia hay
+người trong cuộc — và khi đó ghi rõ ai nhận định. Không viết ý kiến cá nhân của
+người viết như thể đó là sự thật, không đoán động cơ của ai, không dự báo bừa.
+Đa dạng nằm ở cách kể, không nằm ở chỗ thêm ý riêng.
 
 Vài điều cụ thể làm bài dày lên mà không loãng:
 
@@ -140,6 +173,8 @@ Vài điều cụ thể làm bài dày lên mà không loãng:
   đọc tra Google giữa chừng.
 - **Trích dẫn trực tiếp 1–3 câu** từ người trong cuộc, đặt trong `<blockquote>`,
   kèm tên và chức danh. Trích ngắn, có dẫn nguồn — không chép cả đoạn.
+- **Tít `<h2>` đặt theo nội dung của chính phần đó**, đừng dùng đi dùng lại mấy
+  cái nhãn chung chung giống nhau giữa các bài.
 - Đừng độn chữ. Thà 900 từ chắc còn hơn 1400 từ loãng. Mỗi đoạn phải mang thêm
   một thông tin mới.
 

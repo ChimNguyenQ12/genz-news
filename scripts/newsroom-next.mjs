@@ -138,9 +138,19 @@ ${row.notes ?? ""}`);
       continue;
     }
 
+    // Đóng dấu thời điểm giao việc và đếm số lần thử. Màn hình /admin/research
+    // dựa vào assignedAt để đo "đã chạy bao lâu", và dựa vào attempts để phân
+    // biệt đề tài chưa ai đụng tới với đề tài đã hỏng một lượt rồi quay lại
+    // hàng đợi — hai thứ trước đây trông giống hệt nhau.
     sql(
       "UPDATE research_requests SET " +
-      `status = 'in_progress', updatedAt = ${quote(nowStamp())} ` +
+      `status = 'in_progress', assignedAt = ${quote(nowStamp())}, ` +
+      // Nút "Create Post" đã đếm một lần khi giao việc, nên chỉ đếm thêm khi
+      // đề tài được nhặt từ hàng đợi (status cũ là 'pending'). Vế phải của SET
+      // đọc giá trị CŨ của hàng, nên phép so sánh này an toàn.
+      "attempts = attempts + (CASE WHEN status = 'pending' THEN 1 ELSE 0 END), " +
+      "lastError = NULL, " +
+      `updatedAt = ${quote(nowStamp())} ` +
       `WHERE id = ${quote(row.id)};`,
       { json: false },
     );

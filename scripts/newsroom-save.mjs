@@ -152,6 +152,37 @@ function validate(a) {
     );
   }
 
+  // Ảnh TRONG THÂN BÀI cũng phải nằm trên kho của mình, đúng như ảnh bìa.
+  // Trước đây chỉ kiểm ảnh bìa, nên một tấm <img> trỏ thẳng vào báo khác nằm
+  // giữa bài vẫn lọt — vừa là hotlink ảnh có bản quyền, vừa vỡ khi bên kia đổi
+  // đường dẫn. Kèm theo là bắt buộc có figcaption: ghi công là điều kiện của
+  // gần như mọi giấy phép CC.
+  // Bắt cả thẻ <img> rồi mới bóc src ra: HTML cho phép viết src không có dấu
+  // nháy, nên biểu thức đòi dấu nháy sẽ bỏ lọt <img src=https://bao/anh.jpg>.
+  // Thẻ không có src cũng bị chặn — không đọc được thì không cho qua.
+  const imgTags = body.match(/<img[\s>][^>]*>/gi) ?? [];
+  for (const tag of imgTags) {
+    const found = tag.match(/\ssrc\s*=\s*("([^"]*)"|'([^']*)'|([^\s">]+))/i);
+    const src = found ? found[2] ?? found[3] ?? found[4] ?? "" : "";
+    if (!src.startsWith(MEDIA_BASE)) {
+      die(
+        "ảnh trong bài trỏ ra ngoài kho của mình: " +
+        (src.slice(0, 120) || "(thẻ img không có src)") +
+        ". Lấy ảnh bằng lệnh genz-news-fetch-image rồi dùng url nó trả về.",
+      );
+    }
+  }
+  if (imgTags.length > 6) {
+    die(`bài có ${imgTags.length} ảnh trong thân bài, tối đa 6.`);
+  }
+  const captions = (body.match(/<figcaption[\s>]/gi) ?? []).length;
+  if (imgTags.length > captions) {
+    die(
+      `có ${imgTags.length} ảnh trong bài nhưng chỉ ${captions} figcaption. ` +
+      "Mỗi ảnh phải nằm trong <figure> kèm <figcaption> ghi công tác giả và giấy phép.",
+    );
+  }
+
   // Ảnh chỉ được nhận nếu đã đi qua đường tải lên của chính mình. URL trỏ
   // thẳng vào báo khác là hotlink ảnh có bản quyền — chặn thẳng.
   // Đường hợp lệ duy nhất: genz-news-fetch-image, nó chỉ lấy ảnh có giấy phép

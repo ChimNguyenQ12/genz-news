@@ -2,7 +2,7 @@ import fs from "fs/promises";
 import path from "path";
 import { NextResponse } from "next/server";
 import { requireRole } from "@/lib/auth";
-import { listRequests, updateRequest } from "@/lib/queue";
+import { getRequest, markAssigned, updateRequest } from "@/lib/queue";
 import { createArticle } from "@/lib/store";
 
 /** Lấy tên hãng tin từ URL để làm nhãn nguồn, VD "www.bbc.com" → "bbc.com". */
@@ -43,7 +43,7 @@ export async function POST(
   }
 
   const { id } = await params;
-  const topic = (await listRequests()).find((r) => r.id === id);
+  const topic = await getRequest(id);
   if (!topic) {
     return NextResponse.json({ error: "Không tìm thấy đề tài" }, { status: 404 });
   }
@@ -67,19 +67,21 @@ export async function POST(
     await fs.mkdir(INBOX, { recursive: true });
     await fs.writeFile(path.join(INBOX, id), "", "utf8");
 
-    await updateRequest(id, {
-      status: "in_progress",
-      reporterNote:
-        "Đã giao cho Automatically Generate lúc " +
+    // markAssigned đóng dấu thời gian và tăng số lần thử. Nhờ dấu thời gian
+    // đó mà tab "Đang viết" đo được đã chạy bao lâu, và biết lượt nào treo.
+    const assigned = await markAssigned(
+      id,
+      "Đã giao cho Automatically Generate lúc " +
         new Date().toISOString() +
         ". Bài sẽ xuất hiện ở mục chờ duyệt khi viết xong.",
-    });
+    );
 
     return NextResponse.json({
       queued: true,
+      request: assigned,
       message:
         "Đã giao cho AI. Bài cần vài phút để tìm nguồn và tổng hợp, " +
-        "xong sẽ nằm ở mục chờ duyệt.",
+        "xong sẽ nằm ở mục chờ duyệt. Theo dõi ở tab \"Đang viết\".",
     });
   }
 

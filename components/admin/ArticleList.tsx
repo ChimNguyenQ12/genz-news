@@ -2,11 +2,13 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
-import type { Article, ArticleStatus } from "@/lib/types";
+import { useCallback, useEffect, useRef, useState } from "react";
+import type { ArticlePage, ArticleSummary } from "@/lib/store";
+import type { ArticleStatus } from "@/lib/types";
 import type { Role } from "@/lib/users";
-import { getCategory } from "@/lib/data";
+import { categories, getCategory } from "@/lib/data";
 import { categoryStyles } from "@/lib/categoryStyles";
+import Pagination from "@/components/admin/Pagination";
 
 const STATUS_LABEL: Record<ArticleStatus, string> = {
   draft: "Nháp",
@@ -22,6 +24,13 @@ const STATUS_STYLE: Record<ArticleStatus, string> = {
   rejected: "bg-red-500/10 text-red-600 dark:text-red-400",
 };
 
+/**
+ * Mọi tab đều hiện, kể cả khi đang có 0 bài.
+ *
+ * Bản trước ẩn tab rỗng cho gọn, nhưng như thế thì lúc mục "Đợi duyệt" trống,
+ * cái tab cũng biến mất — không phân biệt được "không có bài nào đang chờ" với
+ * "màn hình quên mất mục chờ duyệt". Số 0 cũng là một thông tin.
+ */
 const FILTERS: (ArticleStatus | "all")[] = [
   "all",
   "pending",
@@ -30,27 +39,102 @@ const FILTERS: (ArticleStatus | "all")[] = [
   "rejected",
 ];
 
+interface Filters {
+  status: ArticleStatus | "all";
+  category: string;
+  author: string;
+  from: string;
+  to: string;
+  q: string;
+  page: number;
+}
+
+const EMPTY_FILTERS: Filters = {
+  status: "all",
+  category: "all",
+  author: "all",
+  from: "",
+  to: "",
+  q: "",
+  page: 1,
+};
+
+const fieldClass =
+  "rounded-lg border border-border bg-background px-2.5 py-1.5 text-sm outline-none focus:border-accent";
+
 export default function ArticleList({
-  articles,
+  initial,
   role,
   baseRoute,
 }: {
-  articles: Article[];
+  initial: ArticlePage;
   role: Role;
   baseRoute?: string;
 }) {
   const router = useRouter();
   const isAdmin = role === "admin";
   const base = baseRoute ?? (isAdmin ? "/admin" : "/dashboard");
-  const [filter, setFilter] = useState<ArticleStatus | "all">(
-    isAdmin && articles.some((a) => a.status === "pending") ? "pending" : "all",
-  );
+
+  const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
+  const [data, setData] = useState<ArticlePage>(initial);
+  const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState("");
 
-  const visible = articles.filter((a) => filter === "all" || a.status === filter);
+  // Trang đầu đã được máy chủ dựng sẵn nên lần hiện đầu tiên không gọi API.
+  // Chỉ khi đổi bộ lọc mới hỏi lại — và khi đó payload cũng chỉ là một trang
+  // bản rút gọn, không phải cả kho bài kèm thân bài như trước.
+  const firstRender = useRef(true);
+  const requestSeq = useRef(0);
 
-  async function patch(article: Article, payload: Record<string, unknown>) {
+  const load = useCallback(async (next: Filters, opts?: { quiet?: boolean }) => {
+    const seq = ++requestSeq.current;
+    if (!opts?.quiet) setLoading(true);
+
+    const params = new URLSearchParams({
+      status: next.status,
+      category: next.category,
+      author: next.author,
+      page: String(next.page),
+    });
+    if (next.from) params.set("from", next.from);
+    if (next.to) params.set("to", next.to);
+    if (next.q.trim()) params.set("q", next.q.trim());
+
+    try {
+      const res = await fetch(`/api/articles?${params}`);
+      if (!res.ok) throw new Error("tải hỏng");
+      const page: ArticlePage = await res.json();
+      // Bỏ kết quả về muộn: bấm nhanh qua vài tab thì câu trả lời của tab cũ
+      // không được phép ghi đè tab đang xem.
+      if (seq !== requestSeq.current) return;
+      setData(page);
+      setError("");
+    } catch {
+      if (seq === requestSeq.current) setError("Không tải được danh sách bài");
+    } finally {
+      if (seq === requestSeq.current) setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (firstRender.current) {
+      firstRender.current = false;
+      return;
+    }
+    // Gõ trong ô tìm kiếm thì đợi một nhịp, đừng bắn mỗi phím một yêu cầu.
+    const timer = setTimeout(() => void load(filters), filters.q ? 300 : 0);
+    return () => clearTimeout(timer);
+  }, [filters, load]);
+
+  /** Đổi bộ lọc thì về trang 1 — trang 7 của bộ lọc cũ thường trống ở bộ mới. */
+  function update(patch: Partial<Filters>) {
+    setFilters((f) => ({ ...f, page: 1, ...patch }));
+  }
+
+  const reload = useCallback(() => load(filters, { quiet: true }), [filters, load]);
+
+  async function patch(article: ArticleSummary, payload: Record<string, unknown>) {
     setBusy(article.id);
     setError("");
     const res = await fetch(`/api/articles/${article.id}`, {
@@ -60,30 +144,33 @@ export default function ArticleList({
     });
     setBusy(null);
     if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
-      setError(data.error ?? "Thao tác thất bại");
+      const body = await res.json().catch(() => ({}));
+      setError(body.error ?? "Thao tác thất bại");
       return;
     }
+    await reload();
+    // Trang công khai đọc từ máy chủ, nên vẫn cần bảo Next dựng lại nó.
     router.refresh();
   }
 
-  async function reject(article: Article) {
+  async function reject(article: ArticleSummary) {
     const note = prompt("Lý do trả bài (tác giả sẽ thấy góp ý này):");
     if (note === null) return;
     await patch(article, { status: "rejected", reviewNote: note });
   }
 
-  async function remove(article: Article) {
+  async function remove(article: ArticleSummary) {
     if (!confirm(`Xoá vĩnh viễn bài "${article.title}"?`)) return;
     setBusy(article.id);
     setError("");
     const res = await fetch(`/api/articles/${article.id}`, { method: "DELETE" });
     setBusy(null);
     if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
-      setError(data.error ?? "Xoá thất bại");
+      const body = await res.json().catch(() => ({}));
+      setError(body.error ?? "Xoá thất bại");
       return;
     }
+    await reload();
     router.refresh();
   }
 
@@ -95,36 +182,37 @@ export default function ArticleList({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ title: "Bài viết mới", category: "the-gioi", body: [] }),
     });
-    const data = await res.json();
+    const created = await res.json();
     setBusy(null);
-    if (data.article) router.push(`${base}/articles/${data.article.id}`);
-    else setError(data.error ?? "Không tạo được bài");
+    if (created.article) router.push(`${base}/articles/${created.article.id}`);
+    else setError(created.error ?? "Không tạo được bài");
   }
+
+  const totalPages = Math.max(1, Math.ceil(data.total / data.perPage));
+  const firstRow = data.total === 0 ? 0 : (data.page - 1) * data.perPage + 1;
+  const lastRow = Math.min(data.page * data.perPage, data.total);
+  const narrowed =
+    filters.category !== "all" ||
+    filters.author !== "all" ||
+    Boolean(filters.from || filters.to || filters.q.trim());
 
   return (
     <div>
-      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="no-scrollbar flex w-full gap-1 overflow-x-auto rounded-xl border border-border bg-surface p-1 sm:w-auto">
-          {FILTERS.map((key) => {
-            const count =
-              key === "all"
-                ? articles.length
-                : articles.filter((a) => a.status === key).length;
-            if (key !== "all" && count === 0 && filter !== key) return null;
-            return (
-              <button
-                key={key}
-                onClick={() => setFilter(key)}
-                className={`shrink-0 rounded-lg px-3 py-1.5 text-sm font-semibold transition ${
-                  filter === key
-                    ? "bg-accent text-white"
-                    : "text-foreground/70 hover:bg-surface-2"
-                }`}
-              >
-                {key === "all" ? "Tất cả" : STATUS_LABEL[key]} ({count})
-              </button>
-            );
-          })}
+          {FILTERS.map((key) => (
+            <button
+              key={key}
+              onClick={() => update({ status: key })}
+              className={`shrink-0 rounded-lg px-3 py-1.5 text-sm font-semibold transition ${
+                filters.status === key
+                  ? "bg-accent text-white"
+                  : "text-foreground/70 hover:bg-surface-2"
+              }`}
+            >
+              {key === "all" ? "Tất cả" : STATUS_LABEL[key]} ({data.counts[key]})
+            </button>
+          ))}
         </div>
 
         <button
@@ -136,19 +224,90 @@ export default function ArticleList({
         </button>
       </div>
 
+      <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-border bg-surface p-2">
+        <input
+          value={filters.q}
+          onChange={(e) => update({ q: e.target.value })}
+          placeholder="Tìm tít hoặc dek..."
+          className={`${fieldClass} min-w-0 flex-1 sm:w-56 sm:flex-none`}
+        />
+
+        <select
+          value={filters.category}
+          onChange={(e) => update({ category: e.target.value })}
+          className={fieldClass}
+        >
+          <option value="all">Mọi chuyên mục</option>
+          {categories.map((c) => (
+            <option key={c.slug} value={c.slug}>
+              {c.name}
+            </option>
+          ))}
+        </select>
+
+        {isAdmin && (
+          <select
+            value={filters.author}
+            onChange={(e) => update({ author: e.target.value })}
+            className={fieldClass}
+          >
+            <option value="all">Mọi tác giả</option>
+            {data.authors.map((a) => (
+              <option key={a} value={a}>
+                {a}
+              </option>
+            ))}
+          </select>
+        )}
+
+        <label className="flex items-center gap-1.5 text-xs text-muted">
+          Từ
+          <input
+            type="date"
+            value={filters.from}
+            onChange={(e) => update({ from: e.target.value })}
+            className={fieldClass}
+          />
+        </label>
+        <label className="flex items-center gap-1.5 text-xs text-muted">
+          đến
+          <input
+            type="date"
+            value={filters.to}
+            onChange={(e) => update({ to: e.target.value })}
+            className={fieldClass}
+          />
+        </label>
+
+        {narrowed && (
+          <button
+            onClick={() => setFilters({ ...EMPTY_FILTERS, status: filters.status })}
+            className="rounded-lg border border-border px-3 py-1.5 text-xs font-semibold hover:border-accent hover:text-accent"
+          >
+            Xoá lọc
+          </button>
+        )}
+
+        <span className="ml-auto text-xs text-muted">
+          {loading ? "Đang tải..." : `${firstRow}–${lastRow} / ${data.total} bài`}
+        </span>
+      </div>
+
       {error && (
         <p className="mb-3 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-2 text-sm text-red-600 dark:text-red-400">
           {error}
         </p>
       )}
 
-      {visible.length === 0 ? (
+      {data.items.length === 0 ? (
         <p className="rounded-2xl border border-border bg-surface p-8 text-center text-sm text-muted">
-          Không có bài nào trong mục này.
+          {narrowed
+            ? "Không có bài nào khớp bộ lọc. Thử bỏ bớt điều kiện."
+            : "Không có bài nào trong mục này."}
         </p>
       ) : (
-        <div className="space-y-2">
-          {visible.map((a) => {
+        <div className={`space-y-2 transition-opacity ${loading ? "opacity-50" : ""}`}>
+          {data.items.map((a) => {
             const category = getCategory(a.category);
             const style = categoryStyles[a.category];
             const isBusy = busy === a.id;
@@ -201,7 +360,7 @@ export default function ArticleList({
                   )}
 
                   <p className="text-xs text-muted">
-                    {a.author} · {a.publishedAt} · {a.sources.length} nguồn
+                    {a.author} · {a.publishedAt} · {a.sourceCount} nguồn
                   </p>
 
                   {a.status === "rejected" && a.reviewNote && (
@@ -295,6 +454,12 @@ export default function ArticleList({
           })}
         </div>
       )}
+
+      <Pagination
+        page={data.page}
+        totalPages={totalPages}
+        onChange={(page) => setFilters((f) => ({ ...f, page }))}
+      />
     </div>
   );
 }

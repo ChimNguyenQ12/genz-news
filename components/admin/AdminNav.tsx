@@ -5,6 +5,13 @@ import { usePathname } from "next/navigation";
 import ThemeToggle from "@/components/ThemeToggle";
 import type { PublicUser } from "@/lib/users";
 
+/**
+ * Thanh điều hướng của khu quản trị.
+ *
+ * Các link đều bật `prefetch`: mọi trang ở đây là `force-dynamic`, mà Next
+ * không tự tải trước loại trang đó. Không có prefetch thì mỗi lần bấm tab là
+ * một vòng đi-về đầy đủ tới máy chủ mới thấy gì, nên bấm xong cứ như bị đơ.
+ */
 export default function AdminNav({ user }: { user: PublicUser }) {
   const pathname = usePathname();
   const isAdmin = user.role === "admin";
@@ -41,6 +48,7 @@ export default function AdminNav({ user }: { user: PublicUser }) {
                 <Link
                   key={l.href}
                   href={l.href}
+                  prefetch
                   className={`shrink-0 rounded-lg px-3 py-1.5 text-sm font-semibold transition ${active
                       ? "bg-accent/10 text-accent"
                       : "text-foreground/70 hover:bg-surface-2"
@@ -78,6 +86,7 @@ export default function AdminNav({ user }: { user: PublicUser }) {
             <Link
               key={l.href}
               href={l.href}
+              prefetch
               className={`shrink-0 rounded-lg px-3 py-1.5 text-sm font-semibold transition ${
                 active ? "bg-accent/10 text-accent" : "text-foreground/70 hover:bg-surface-2"
               }`}

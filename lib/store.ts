@@ -91,6 +91,206 @@ export async function listArticles(options?: {
   return rows.map(toArticle);
 }
 
+/**
+ * Bản rút gọn của bài viết cho các màn hình danh sách.
+ *
+ * Khác biệt duy nhất mà lại là điểm mấu chốt: KHÔNG kèm `body`. Một bài tổng
+ * hợp nặng 8–14KB HTML; danh sách 200 bài là gần 2MB thân bài phải đọc từ đĩa,
+ * serialize rồi đẩy xuống trình duyệt để hiển thị đúng cái tít. Đó là lý do
+ * chính khiến các tab trong /admin chuyển chậm.
+ */
+export interface ArticleSummary {
+  id: string;
+  slug: string;
+  title: string;
+  dek: string;
+  category: CategorySlug;
+  tags: string[];
+  coverGradient: [string, string];
+  coverImage?: string;
+  author: string;
+  authorId?: string;
+  publishedAt: string;
+  readingTimeMin: number;
+  featured: boolean;
+  trending: boolean;
+  status: ArticleStatus;
+  language: ArticleLanguage;
+  submittedAt?: string;
+  reviewNote?: string;
+  /** Số nguồn tham khảo — danh sách chỉ cần con số, không cần từng link. */
+  sourceCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Đúng những cột mà danh sách cần. Cố tình bỏ `body`. */
+const SUMMARY_SELECT = {
+  id: true,
+  slug: true,
+  title: true,
+  dek: true,
+  category: true,
+  tags: true,
+  coverGradient: true,
+  coverImage: true,
+  author: true,
+  authorId: true,
+  publishedAt: true,
+  readingTimeMin: true,
+  featured: true,
+  trending: true,
+  status: true,
+  language: true,
+  submittedAt: true,
+  reviewNote: true,
+  createdAt: true,
+  updatedAt: true,
+  _count: { select: { sources: true } },
+} as const;
+
+type SummaryRow = Awaited<
+  ReturnType<typeof prisma.article.findFirstOrThrow<{ select: typeof SUMMARY_SELECT }>>
+>;
+
+function toSummary(row: SummaryRow): ArticleSummary {
+  return {
+    id: row.id,
+    slug: row.slug,
+    title: row.title,
+    dek: row.dek,
+    category: row.category as CategorySlug,
+    tags: parseList(row.tags),
+    coverGradient: parseGradient(row.coverGradient),
+    coverImage: row.coverImage ?? undefined,
+    author: row.author,
+    authorId: row.authorId ?? undefined,
+    publishedAt: row.publishedAt,
+    readingTimeMin: row.readingTimeMin,
+    featured: row.featured,
+    trending: row.trending,
+    status: row.status as ArticleStatus,
+    language: (row.language === "en" ? "en" : "vi") as ArticleLanguage,
+    submittedAt: row.submittedAt?.toISOString(),
+    reviewNote: row.reviewNote ?? undefined,
+    sourceCount: row._count.sources,
+    createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
+  };
+}
+
+export interface ArticleQuery {
+  status?: ArticleStatus | "all";
+  category?: string;
+  /** Lọc theo tài khoản đã tạo bài. */
+  authorId?: string;
+  /** Lọc theo tên tác giả hiển thị — bài cũ có thể không còn authorId. */
+  author?: string;
+  /** Ngày đăng, dạng YYYY-MM-DD, tính cả hai đầu. */
+  from?: string;
+  to?: string;
+  /** Tìm trong tít và dek. */
+  q?: string;
+  page?: number;
+  perPage?: number;
+}
+
+export interface ArticlePage {
+  items: ArticleSummary[];
+  total: number;
+  page: number;
+  perPage: number;
+  /** Số bài theo từng trạng thái, tính trên bộ lọc hiện tại TRỪ trạng thái. */
+  counts: Record<ArticleStatus | "all", number>;
+  /** Danh sách tác giả để đổ vào ô lọc. */
+  authors: string[];
+}
+
+export const ARTICLES_PER_PAGE = 20;
+
+/** Điều kiện lọc dùng chung cho cả truy vấn danh sách lẫn các phép đếm. */
+function articleWhere(query: ArticleQuery, includeStatus: boolean) {
+  const q = query.q?.trim();
+  return {
+    ...(includeStatus && query.status && query.status !== "all"
+      ? { status: query.status }
+      : {}),
+    ...(query.category && query.category !== "all" ? { category: query.category } : {}),
+    ...(query.authorId ? { authorId: query.authorId } : {}),
+    ...(query.author && query.author !== "all" ? { author: query.author } : {}),
+    // publishedAt là chuỗi YYYY-MM-DD nên so sánh chuỗi cũng chính là so sánh
+    // theo thời gian — dạng ISO được thiết kế đúng để làm được việc đó.
+    ...(query.from || query.to
+      ? {
+          publishedAt: {
+            ...(query.from ? { gte: query.from } : {}),
+            ...(query.to ? { lte: query.to } : {}),
+          },
+        }
+      : {}),
+    ...(q ? { OR: [{ title: { contains: q } }, { dek: { contains: q } }] } : {}),
+  };
+}
+
+/**
+ * Một trang danh sách bài kèm số đếm cho mọi tab trạng thái.
+ *
+ * Số đếm bỏ qua bộ lọc trạng thái nhưng GIỮ các bộ lọc còn lại: đứng ở tab
+ * "Đã đăng" vẫn phải thấy tab "Chờ duyệt" có bao nhiêu bài, nếu không thì bài
+ * đang chờ trông như đã biến mất.
+ */
+export async function listArticlesPage(query: ArticleQuery = {}): Promise<ArticlePage> {
+  const perPage = Math.min(Math.max(query.perPage ?? ARTICLES_PER_PAGE, 1), 100);
+  const page = Math.max(query.page ?? 1, 1);
+
+  const where = articleWhere(query, true);
+  const whereNoStatus = articleWhere(query, false);
+
+  const [rows, total, grouped, authorRows] = await Promise.all([
+    prisma.article.findMany({
+      where,
+      select: SUMMARY_SELECT,
+      orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
+      skip: (page - 1) * perPage,
+      take: perPage,
+    }),
+    prisma.article.count({ where }),
+    prisma.article.groupBy({
+      by: ["status"],
+      where: whereNoStatus,
+      _count: { _all: true },
+    }),
+    prisma.article.findMany({
+      where: query.authorId ? { authorId: query.authorId } : {},
+      distinct: ["author"],
+      select: { author: true },
+      orderBy: { author: "asc" },
+    }),
+  ]);
+
+  const counts: Record<ArticleStatus | "all", number> = {
+    all: 0,
+    draft: 0,
+    pending: 0,
+    published: 0,
+    rejected: 0,
+  };
+  for (const g of grouped) {
+    const key = g.status as ArticleStatus;
+    if (key in counts) counts[key] = g._count._all;
+    counts.all += g._count._all;
+  }
+
+  return {
+    items: rows.map(toSummary),
+    total,
+    page,
+    perPage,
+    counts,
+    authors: authorRows.map((a) => a.author).filter(Boolean),
+  };
+}
+
 export async function getArticleById(id: string): Promise<Article | undefined> {
   const row = await prisma.article.findUnique({
     where: { id },

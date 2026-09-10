@@ -1,22 +1,51 @@
 import { NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
-import { createArticle, listArticles, slugify } from "@/lib/store";
-import type { Article, CategorySlug } from "@/lib/types";
+import { createArticle, listArticlesPage, slugify } from "@/lib/store";
+import type { Article, ArticleStatus, CategorySlug } from "@/lib/types";
 import { categories } from "@/lib/data";
 import { normalizeArticleHtml } from "@/lib/html";
 
 const VALID_CATEGORIES = new Set(categories.map((c) => c.slug));
+const VALID_STATUS = new Set<string>(["draft", "pending", "published", "rejected"]);
 
-export async function GET() {
+/** Ngày lọc chỉ nhận dạng YYYY-MM-DD; thứ khác thì coi như không lọc. */
+function asDate(value: string | null) {
+  return value && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : undefined;
+}
+
+/**
+ * Danh sách bài cho các màn hình quản lý.
+ *
+ * Trả về BẢN RÚT GỌN (không kèm thân bài) và chỉ đúng một trang. Trước đây API
+ * trả toàn bộ bài kèm HTML thân bài, nên mỗi lần mở tab /admin là một lần tải
+ * vài trăm KB chỉ để hiện danh sách tít.
+ *
+ * Tham số: status, category, author, from, to, q, page, perPage.
+ */
+export async function GET(request: Request) {
   const user = await getSessionUser();
   if (!user) return NextResponse.json({ error: "Chưa đăng nhập" }, { status: 401 });
 
-  const all = await listArticles();
-  // Tài khoản thường chỉ thấy bài của chính mình.
-  const visible =
-    user.role === "admin" ? all : all.filter((a) => a.authorId === user.id);
+  const params = new URL(request.url).searchParams;
+  const status = params.get("status");
+  const category = params.get("category");
+  const author = params.get("author");
 
-  return NextResponse.json({ articles: visible, role: user.role });
+  const page = await listArticlesPage({
+    status: status && VALID_STATUS.has(status) ? (status as ArticleStatus) : "all",
+    category: category && VALID_CATEGORIES.has(category as CategorySlug) ? category : "all",
+    author: author && author !== "all" ? author : undefined,
+    from: asDate(params.get("from")),
+    to: asDate(params.get("to")),
+    q: params.get("q") ?? undefined,
+    page: Number(params.get("page")) || 1,
+    perPage: Number(params.get("perPage")) || undefined,
+    // Tài khoản thường chỉ thấy bài của chính mình. Lọc ở tầng cơ sở dữ liệu
+    // chứ không lọc sau khi đã lấy về — lọc sau thì phân trang sẽ sai số.
+    ...(user.role === "admin" ? {} : { authorId: user.id }),
+  });
+
+  return NextResponse.json({ ...page, role: user.role });
 }
 
 export async function POST(request: Request) {

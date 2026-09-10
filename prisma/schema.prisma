@@ -131,9 +131,19 @@ model ResearchRequest {
   /// Mảng JSON id các bài đã tạo từ đề tài này.
   articleIds String @default("[]")
 
+  /// Thời điểm giao việc cho máy viết ở lượt gần nhất. Dùng để hiển thị tiến
+  /// độ ở tab "Đang viết" và để phát hiện lượt treo (giao lâu mà không xong).
+  assignedAt DateTime?
+  /// Số lần đã giao. attempts > 0 mà status = 'pending' nghĩa là lượt trước
+  /// hỏng và đề tài đã được trả về hàng đợi — khác hẳn đề tài chưa ai đụng tới.
+  attempts Int @default(0)
+  /// Vì sao lượt gần nhất hỏng. Rỗng nếu chưa từng hỏng.
+  lastError String?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([status, createdAt])
+  @@index([assignedAt])
   @@map("research_requests")
 }

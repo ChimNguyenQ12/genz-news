@@ -1,10 +1,14 @@
 #!/usr/bin/env bash
-# Tìm ảnh có giấy phép tự do trên Wikimedia Commons rồi đẩy lên S3 của mình.
+# Tìm ảnh dùng lại được trên Wikimedia Commons và Openverse rồi đẩy lên S3
+# của mình.
 #
 #   genz-news-fetch-image "đường sắt cao tốc Việt Nam"
+#   genz-news-fetch-image --count=3 "hanoi metro"   # nhiều ảnh, in ra mảng
+#   genz-news-fetch-image --html "hanoi metro"      # in sẵn thẻ <figure>
 #
 # In ra JSON {url, caption}. Dùng url làm coverImage, caption làm
-# coverImageCaption — ghi công tác giả và giấy phép là bắt buộc.
+# coverImageCaption — ghi công tác giả và giấy phép là bắt buộc. Ảnh chèn giữa
+# bài cũng lấy bằng lệnh này; lệnh lưu bài từ chối mọi ảnh lấy từ chỗ khác.
 set -uo pipefail
 
 REPO="${REPO:-/srv/genz-news/repo}"
