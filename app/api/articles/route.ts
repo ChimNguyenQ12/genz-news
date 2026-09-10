@@ -77,6 +77,13 @@ export async function POST(request: Request) {
     coverGradient: Array.isArray(body.coverGradient)
       ? ([String(body.coverGradient[0]), String(body.coverGradient[1])] as [string, string])
       : ["#7C3AED", "#22D3EE"],
+    // Ảnh bìa PHẢI được nhận ngay ở bước tạo bài. Trước đây hai trường này bị
+    // bỏ quên ở đây (chỉ PUT mới đọc), nên bài do máy viết mất sạch ảnh bìa —
+    // nó tìm được ảnh, gửi lên đúng, rồi API lặng lẽ vứt đi.
+    coverImage: body.coverImage ? String(body.coverImage) : undefined,
+    coverImageCaption: body.coverImageCaption
+      ? String(body.coverImageCaption)
+      : undefined,
     author: String(body.author ?? user.displayName),
     authorId: user.id,
     publishedAt: String(body.publishedAt ?? new Date().toISOString().slice(0, 10)),
