@@ -10,10 +10,13 @@ export default function Pagination({
   page,
   totalPages,
   onChange,
+  className = "mt-4",
 }: {
   page: number;
   totalPages: number;
   onChange: (page: number) => void;
+  /** Danh sách bày phân trang ở cả trên lẫn dưới nên khoảng cách phải đổi được. */
+  className?: string;
 }) {
   if (totalPages <= 1) return null;
 
@@ -31,7 +34,7 @@ export default function Pagination({
     "min-w-9 rounded-lg border border-border px-2.5 py-1.5 text-xs font-semibold transition disabled:opacity-40";
 
   return (
-    <div className="mt-4 flex flex-wrap items-center justify-center gap-1.5">
+    <div className={`flex flex-wrap items-center justify-center gap-1.5 ${className}`}>
       <button
         onClick={() => onChange(page - 1)}
         disabled={page <= 1}

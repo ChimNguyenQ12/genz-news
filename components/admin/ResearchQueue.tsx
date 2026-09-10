@@ -175,11 +175,13 @@ export default function ResearchQueue({
     }
     const body = await res.json();
     // Nhờ AI thì không có bài ngay — nó cần vài phút để tìm nguồn và viết.
+    //
+    // Đề tài tự nhảy sang tab "Đang viết", nhưng màn hình thì Ở YÊN chỗ cũ:
+    // giao xong thường là giao tiếp mấy đề tài nữa, mà bị đẩy sang tab khác
+    // sau mỗi lần bấm thì phải bấm quay lại rồi dò chỗ cũ từ đầu.
     if (body.queued) {
       setNotice(body.message ?? "Đã giao cho AI.");
-      setTab("in_progress");
-      setPage(1);
-      await load({ tab: "in_progress", page: 1, q });
+      await reload();
       return;
     }
     router.push(`/admin/articles/${body.article.id}`);
@@ -334,6 +336,15 @@ export default function ResearchQueue({
           {notice}
         </p>
       )}
+
+      {/* Hàng đợi có gần trăm đề tài. Phân trang ở cả trên lẫn dưới để nhảy
+          trang mà không phải cuộn hết danh sách mới thấy nút. */}
+      <Pagination
+        page={data.page}
+        totalPages={totalPages}
+        onChange={setPage}
+        className="mb-3"
+      />
 
       {data.items.length === 0 ? (
         <p className="rounded-2xl border border-border bg-surface p-8 text-center text-sm text-muted">

@@ -299,6 +299,15 @@ export default function ArticleList({
         </p>
       )}
 
+      {/* Phân trang bày ở cả trên lẫn dưới: danh sách 20 bài dài hơn một màn
+          hình, nhảy trang mà phải cuộn xuống đáy mới thấy nút thì rất mệt. */}
+      <Pagination
+        page={data.page}
+        totalPages={totalPages}
+        onChange={(page) => setFilters((f) => ({ ...f, page }))}
+        className="mb-3"
+      />
+
       {data.items.length === 0 ? (
         <p className="rounded-2xl border border-border bg-surface p-8 text-center text-sm text-muted">
           {narrowed
