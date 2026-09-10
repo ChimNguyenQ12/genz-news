@@ -393,11 +393,14 @@ function RequestRow({
 }) {
   const working = r.status === "in_progress";
   const elapsed = working && r.assignedAt ? minutesSince(r.assignedAt) : 0;
-  // Hai đường đo độc lập: đồng hồ (đã quá lâu) và nhịp tim của máy chủ (không
-  // thấy tiến trình nào chạy). Nhịp tim đáng tin hơn nên nó được xét trước —
-  // nhưng chỉ khi máy chủ có ghi nhịp tim, tức đã deploy bản script mới.
-  const orphaned =
-    working && run.known && !run.running && run.requestId !== r.id;
+  // Máy chỉ viết được MỘT bài một lúc (các lượt tranh nhau một cái khoá), nên
+  // "in_progress" thật ra gộp hai tình huống rất khác nhau. Nhịp tim tách được:
+  //   - đúng đề tài đang chạy  → đang viết thật
+  //   - máy đang chạy đề tài khác → mục này mới xếp hàng, chưa bắt đầu
+  //   - máy không chạy gì cả  → lượt viết đã chết, mục kẹt lại
+  const writingNow = working && run.known && run.running && run.requestId === r.id;
+  const waitingTurn = working && run.known && run.running && run.requestId !== r.id;
+  const orphaned = working && run.known && !run.running;
   const stale = working && (orphaned || elapsed >= staleAfterMin);
   const done = (r.articleIds?.length ?? 0) > 0;
   // Đã giao rồi mà lại nằm ở "chờ xử lý" nghĩa là lượt trước hỏng — khác hẳn
@@ -423,7 +426,7 @@ function RequestRow({
             </span>
             {working && r.assignedAt && (
               <span className="text-xs text-muted">
-                đã chạy {describeElapsed(elapsed)}
+                {waitingTurn ? "đã chờ" : "đã chạy"} {describeElapsed(elapsed)}
               </span>
             )}
             {retried && (
@@ -469,10 +472,20 @@ function RequestRow({
                   Đã quá {staleAfterMin} phút mà chưa xong — nhiều khả năng lượt viết
                   đã chết giữa chừng. Bấm <strong>Trả về hàng đợi</strong> để giao lại.
                 </>
+              ) : waitingTurn ? (
+                <>
+                  Đang xếp hàng chờ tới lượt — máy viết mỗi lúc một bài, hiện đang
+                  làm đề tài <strong>{run.topic}</strong>.
+                </>
+              ) : writingNow ? (
+                <>
+                  AI đang tìm nguồn và viết đề tài này. Một bài mất 8–10 phút; xong
+                  sẽ tự nhảy sang mục chờ duyệt.
+                </>
               ) : (
                 <>
-                  AI đang tìm nguồn và viết. Một bài mất 8–10 phút; xong sẽ tự nhảy
-                  sang mục chờ duyệt.
+                  Đã giao cho máy. Một bài mất 8–10 phút; xong sẽ tự nhảy sang mục
+                  chờ duyệt.
                 </>
               )}
             </div>
