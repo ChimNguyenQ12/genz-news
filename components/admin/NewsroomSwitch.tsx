@@ -110,6 +110,39 @@ export default function NewsroomSwitch({
         </p>
       </div>
 
+      <div className="mt-4 flex items-start justify-between gap-4 border-t border-border pt-4">
+        <div className="min-w-0">
+          <h3 className="font-display text-sm font-black">Photos from source articles</h3>
+          <p className="mt-1 text-sm text-muted">
+            Use the photo each source article publishes for sharing (its og:image), so
+            the picture matches the actual event. Credit and a link back to the
+            original are added automatically.
+          </p>
+          <p className="mt-1 text-xs text-muted">
+            These are the outlet&apos;s copyrighted press photos. Turn this off to use
+            only freely-licensed archive photos.
+          </p>
+        </div>
+
+        <button
+          type="button"
+          role="switch"
+          aria-checked={settings.pressImages}
+          aria-label="Use photos from source articles"
+          disabled={saving}
+          onClick={() => save({ ...settings, pressImages: !settings.pressImages })}
+          className={`relative h-8 w-14 shrink-0 rounded-full transition disabled:opacity-50 ${
+            settings.pressImages ? "bg-accent" : "bg-neutral-400/40"
+          }`}
+        >
+          <span
+            className={`absolute top-1 h-6 w-6 rounded-full bg-white shadow transition-all ${
+              settings.pressImages ? "left-7" : "left-1"
+            }`}
+          />
+        </button>
+      </div>
+
       {error && (
         <p className="mt-3 rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-600 dark:text-red-400">
           {error}

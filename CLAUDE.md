@@ -77,35 +77,34 @@ sạch HTML và đúng lớp phân quyền như người thật.
   bài là ảnh chụp chính chuyện đang kể. Một tấm ảnh "cùng chủ đề" nhưng khác
   vụ, khác nước là làm người đọc hiểu sai — tệ hơn hẳn một cái nền gradient.
 
-  1. **Video chính thức trước tiên.** Nhúng từ kênh YouTube/Vimeo chính thức
-     của hãng tin, cơ quan hoặc doanh nghiệp liên quan (`youtube-nocookie.com`,
-     `player.vimeo.com`). Nền tảng cho phép nhúng, khác hẳn tải về — và đây là
-     cách hợp pháp duy nhất để đưa hình ảnh THẬT của vụ việc lên bài.
-  2. **Ảnh: tìm bằng TÊN RIÊNG.** `genz-news-fetch-image "<tên riêng tiếng Anh>"`
-     — địa danh, tổ chức, doanh nghiệp, sản phẩm, công trình, nhân vật công
-     chúng. Lệnh lấy ảnh dùng lại được trên Wikimedia Commons và Openverse rồi
-     đẩy lên kho của toà soạn, in ra `{url, caption}`. `--count=3` lấy nhiều
-     tấm, `--html` in sẵn thẻ `<figure>`.
+  Thứ tự ưu tiên:
 
-     Không tìm bằng từ tả cảnh chung chung ("school hallway", "mental health",
-     "sad teenager"). Lệnh chặn sẵn: ảnh chỉ khớp mấy từ tả cảnh là bị loại.
-  3. Ảnh trong thân bài viết đúng dạng, caption giữ nguyên phần lệnh trả về:
+  1. **Ảnh của chính bài báo nguồn.** `genz-news-fetch-image --from-article="<url>"`
+     đọc thẻ `og:image` của bài đó — đúng tấm hiện ra khi chia sẻ link — rồi
+     đẩy lên kho của toà soạn. Đây là ảnh của đúng vụ việc.
 
-     ```html
-     <figure><img src="<url lệnh trả về>" alt="mô tả ngắn"><figcaption><caption lệnh trả về></figcaption></figure>
-     ```
-  4. **Ảnh bối cảnh phải nói rõ là bối cảnh.** Ảnh kho tự do gần như không bao
-     giờ chụp đúng vụ việc. Nếu nó chỉ là địa danh nơi xảy ra chuyện, trụ sở
-     doanh nghiệp hay sản phẩm được nhắc tới, thêm `Ảnh minh hoạ:` vào đầu
-     caption và giữ nguyên phần ghi công phía sau.
-  5. Ảnh do tổng biên tập tự cung cấp (đã mua hoặc được cấp phép) thì dùng thoải mái.
+     Đây là **ảnh có bản quyền của hãng tin**, dùng theo quyết định của tổng
+     biên tập; công tắc *Photos from source articles* trong `/admin/research`
+     bật tắt được. Điều kiện không được bỏ: caption ghi **tên báo** và **dẫn
+     link về bài gốc**. Cờ `--html` sinh sẵn thẻ đúng dạng.
+  2. **Video chính thức** trên kênh YouTube/Vimeo của hãng tin, cơ quan hay
+     doanh nghiệp liên quan (`youtube-nocookie.com`, `player.vimeo.com`).
+     Nền tảng cho phép nhúng, và video nằm nguyên chỗ của họ.
+  3. **Ảnh kho tự do, tìm bằng TÊN RIÊNG** — địa danh, tổ chức, doanh nghiệp,
+     sản phẩm, nhân vật công chúng. Lệnh lấy trên Wikipedia, Wikimedia Commons
+     và Openverse. Không tìm bằng từ tả cảnh chung chung ("school hallway",
+     "mental health"): lệnh chặn sẵn, ảnh chỉ khớp mấy từ tả cảnh là bị loại.
+     Ảnh loại này gần như luôn chỉ là bối cảnh, nên caption phải mở đầu bằng
+     `Ảnh minh hoạ:` rồi mới tới phần ghi công.
+  4. Ảnh do tổng biên tập tự cung cấp thì dùng thoải mái.
 
-  **Không lấy ảnh của báo chí.** VnExpress, Tuổi Trẻ, Reuters, AFP... giữ bản
-  quyền ảnh của họ; ghi nguồn không thay được giấy phép. Muốn có ảnh thật của
-  vụ việc: nhúng video chính thức, hoặc tổng biên tập tự gắn ảnh có bản quyền
-  hợp lệ, hoặc mua gói ảnh của hãng thông tấn.
+  Ảnh trong thân bài viết đúng dạng:
 
-  Không có gì hợp lệ thì để `coverGradient` — bỏ trống là một lựa chọn đúng.
+  ```html
+  <figure><img src="<url kho của mình>" alt="mô tả ngắn"><figcaption><ghi công></figcaption></figure>
+  ```
+
+  Không có gì đúng thì để `coverGradient` — bỏ trống là một lựa chọn đúng.
   Lệnh lưu bài từ chối **mọi** ảnh không nằm trên kho của mình (cả ảnh bìa lẫn
   ảnh trong thân bài) và từ chối ảnh trong bài không có `<figcaption>` ghi công.
 - Scrape các nền tảng mạng xã hội (Threads, Facebook, Instagram).

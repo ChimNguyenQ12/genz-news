@@ -24,6 +24,7 @@ export async function PUT(request: Request) {
   const settings = await writeSettings({
     enabled: body.enabled !== false,
     maxArticlesPerRun: Number(body.maxArticlesPerRun),
+    pressImages: body.pressImages !== false,
   });
   return NextResponse.json({ settings });
 }

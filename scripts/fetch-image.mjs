@@ -263,6 +263,87 @@ async function fromWikipedia(query) {
   });
 }
 
+/**
+ * Ảnh của CHÍNH bài báo nguồn, lấy qua thẻ og:image.
+ *
+ * Đây là tấm ảnh mà toà soạn kia tự chỉ định để hiện khi bài được chia sẻ —
+ * cùng tấm mà Facebook, Zalo hay Google hiện trong ô xem trước. Nó luôn đúng
+ * vụ việc, khác hẳn ảnh kho tự do vốn chỉ đúng chủ đề.
+ *
+ * ĐÂY LÀ ẢNH CÓ BẢN QUYỀN CỦA HÃNG TIN. Dùng nó là quyết định của tổng biên
+ * tập, bật/tắt bằng công tắc "Photos from source articles" trong /admin/research.
+ * Bù lại, luôn ghi rõ tên báo và dẫn link về bài gốc trong caption.
+ */
+async function fromArticle(url) {
+  let page;
+  try {
+    page = await fetch(url, {
+      headers: {
+        "User-Agent": UA,
+        // Vài báo trả 406 nếu không khai nhận HTML.
+        Accept: "text/html,application/xhtml+xml",
+      },
+      redirect: "follow",
+    });
+  } catch {
+    return [];
+  }
+  if (!page.ok) return [];
+
+  // Chỉ đọc phần đầu: thẻ meta nằm trong <head>, tải cả trang là phí băng thông.
+  const html = (await page.text()).slice(0, 300_000);
+
+  const meta = (property) => {
+    const patterns = [
+      new RegExp(
+        `<meta[^>]+(?:property|name)=["']${property}["'][^>]+content=["']([^"']+)["']`,
+        "i",
+      ),
+      new RegExp(
+        `<meta[^>]+content=["']([^"']+)["'][^>]+(?:property|name)=["']${property}["']`,
+        "i",
+      ),
+    ];
+    for (const re of patterns) {
+      const hit = html.match(re);
+      if (hit) return hit[1];
+    }
+    return "";
+  };
+
+  const raw = meta("og:image:secure_url") || meta("og:image") || meta("twitter:image");
+  if (!raw) return [];
+
+  let src;
+  try {
+    src = new URL(raw.replace(/&amp;/g, "&"), url).href; // og:image có thể là đường dẫn tương đối
+  } catch {
+    return [];
+  }
+
+  const host = new URL(url).hostname.replace(/^www\./, "");
+  // og:site_name đáng lẽ là tên báo, nhưng vài nơi nhét luôn địa chỉ trang vào
+  // ("https://kenh14.vn"). Ghi công bằng một cái URL thì vừa xấu vừa vô nghĩa.
+  const declared = tidy(meta("og:site_name"));
+  const outlet =
+    declared && !/^https?:\/\//i.test(declared) && !declared.includes("/")
+      ? declared
+      : host;
+
+  return [
+    {
+      src,
+      // Tiêu đề bài gốc để biết ảnh này đi kèm tin nào.
+      title: tidy(meta("og:title")) || host,
+      artist: outlet,
+      licence: "", // ảnh báo chí, không phải giấy phép mở
+      page: url,
+      outlet,
+      fromPress: true,
+    },
+  ];
+}
+
 async function login() {
   const res = await fetch(`${APP_URL}/api/auth/login`, {
     method: "POST",
@@ -277,15 +358,33 @@ async function login() {
   return cookie;
 }
 
+/** Kiểu ảnh suy từ header Content-Type, dùng khi URL không có đuôi rõ ràng. */
+const EXT_OF_TYPE = {
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp",
+};
+
 /** Tải ảnh về rồi đẩy qua đúng đường upload của app. Trả về url kho, hoặc null. */
 async function reupload(candidate, cookie) {
   const src = candidate.src;
-  const ext = (src.split("?")[0].split(".").pop() ?? "").toLowerCase();
-  const contentType = ALLOWED_EXT[ext];
-  if (!contentType) return null;
+  let ext = (src.split("?")[0].split(".").pop() ?? "").toLowerCase();
+  let contentType = ALLOWED_EXT[ext];
 
-  const bin = await fetch(src, { headers: { "User-Agent": UA } });
+  const bin = await fetch(src, {
+    headers: { "User-Agent": UA, Referer: candidate.page ?? src },
+  });
   if (!bin.ok) return null;
+
+  // Ảnh trên báo hay nằm sau CDN cắt cúp, URL không có đuôi tệp nào cả
+  // (".../photo/1234?w=1200"). Khi đó tin vào Content-Type của máy chủ.
+  if (!contentType) {
+    const declared = (bin.headers.get("content-type") ?? "").split(";")[0].trim();
+    ext = EXT_OF_TYPE[declared];
+    contentType = ext ? declared : undefined;
+    if (!contentType) return null;
+  }
+
   const buf = Buffer.from(await bin.arrayBuffer());
   if (buf.length > 9 * 1024 * 1024) return null; // /api/upload chặn ảnh > 10MB
   if (buf.length < 4 * 1024) return null; // ảnh bé tí thường là icon
@@ -304,6 +403,11 @@ async function reupload(candidate, cookie) {
 
 /** Ghi công: bắt buộc với ảnh CC, và cũng là thứ hiện dưới ảnh trong bài. */
 function captionFor(c) {
+  // Ảnh báo chí ghi theo lối nhà báo: tên báo, rồi dẫn link bài gốc. Không có
+  // giấy phép mở để nêu, nên nêu chỗ lấy là tối thiểu phải làm.
+  if (c.fromPress) {
+    return tidy(`Ảnh: ${c.outlet}`);
+  }
   return tidy(
     `Ảnh: ${c.artist || "không rõ tác giả"} — ${c.licence || "xem trang gốc"}, qua ${c.outlet}` +
       (c.title ? ` (${c.title})` : ""),
@@ -322,22 +426,39 @@ async function main() {
   const wantHtml = args.includes("--html");
   const countArg = args.find((a) => a.startsWith("--count="));
   const count = Math.min(Math.max(Number(countArg?.slice(8)) || 1, 1), 5);
+  // Lấy ảnh của chính bài báo nguồn. Nhận nhiều lần để thử lần lượt từng nguồn.
+  const articles = args
+    .filter((a) => a.startsWith("--from-article="))
+    .map((a) => a.slice(15))
+    .filter(Boolean);
   const query = args.filter((a) => !a.startsWith("--")).join(" ").trim();
 
-  if (!query) die('thiếu từ khoá. Ví dụ: genz-news-fetch-image "đường sắt cao tốc"');
+  if (!query && !articles.length) {
+    die('thiếu từ khoá. Ví dụ: genz-news-fetch-image "đường sắt cao tốc"');
+  }
   if (!USER || !PASS) die("thiếu NEWSROOM_USER / NEWSROOM_PASS");
 
-  // Thứ tự ưu tiên chính là thứ tự ghép mảng: Wikipedia trước vì nó trả về ảnh
-  // đại diện của ĐÚNG thực thể được hỏi, còn hai kho kia chỉ xếp hạng theo độ
-  // giống chữ nghĩa nên dễ ra ảnh "cùng chủ đề" mà khác vụ, khác nước.
-  const [wiki, commons, openverse] = await Promise.all([
-    fromWikipedia(query).catch(() => []),
-    fromCommons(query).catch(() => []),
-    fromOpenverse(query).catch(() => []),
-  ]);
+  // Ảnh của chính bài nguồn xếp trước tất cả: nó là ảnh của ĐÚNG vụ việc, còn
+  // ảnh kho tự do giỏi lắm cũng chỉ đúng chủ đề.
+  const press = (
+    await Promise.all(articles.map((u) => fromArticle(u).catch(() => [])))
+  ).flat();
 
-  const candidates = [...wiki, ...commons, ...openverse].filter((c) => {
+  // Đã chỉ đích danh bài nguồn thì khỏi tìm kho ảnh, trừ khi không moi được gì.
+  const needFallback = !press.length;
+  const [wiki, commons, openverse] = needFallback && query
+    ? await Promise.all([
+        fromWikipedia(query).catch(() => []),
+        fromCommons(query).catch(() => []),
+        fromOpenverse(query).catch(() => []),
+      ])
+    : [[], [], []];
+
+  const candidates = [...press, ...wiki, ...commons, ...openverse].filter((c) => {
     if (!c.src) return false;
+    // Ảnh lấy thẳng từ bài nguồn thì khỏi đo độ liên quan: nó chính là ảnh mà
+    // toà soạn kia gắn cho tin này, không thể sát hơn được nữa.
+    if (c.fromPress) return true;
     if (BAD_LICENCE.test(c.licence)) return false;
     if (BAD_KIND.test(c.title)) return false;
     return relevant(c.title, query);
@@ -345,8 +466,11 @@ async function main() {
 
   if (!candidates.length) {
     die(
-      `không tìm được ảnh dùng lại được cho "${query}". ` +
-        "Thử từ khoá tiếng Anh khác, hoặc bỏ ảnh và dùng gradient.",
+      articles.length
+        ? `không lấy được ảnh từ ${articles.join(", ")} (bài không khai og:image, ` +
+            "hoặc báo chặn máy đọc). Thử nguồn khác, hoặc bỏ ảnh và dùng gradient."
+        : `không tìm được ảnh dùng lại được cho "${query}". ` +
+            "Thử từ khoá tiếng Anh khác, hoặc bỏ ảnh và dùng gradient.",
     );
   }
 
@@ -392,19 +516,28 @@ async function main() {
       caption: captionFor(c),
       licence: c.licence || "",
       source: c.page,
+      fromPress: Boolean(c.fromPress),
     });
   }
 
   if (!picked.length) {
-    die(`tìm thấy ảnh cho "${query}" nhưng không tải lên được tấm nào.`);
+    die(
+      `tìm thấy ảnh cho "${query || articles.join(", ")}" nhưng không tải lên được tấm nào.`,
+    );
   }
 
   if (wantHtml) {
-    // Dán thẳng vào thân bài được: đã có figcaption ghi công sẵn.
+    // Dán thẳng vào thân bài được: đã có figcaption ghi công sẵn. Ảnh báo chí
+    // thì caption dẫn luôn link bài gốc — ghi công mà không chỉ được chỗ lấy
+    // thì coi như chưa ghi.
     for (const p of picked) {
+      const credit =
+        p.fromPress && p.source
+          ? `${escapeHtml(p.caption)} (<a href="${escapeHtml(p.source)}">nguồn</a>)`
+          : escapeHtml(p.caption);
       console.log(
-        `<figure><img src="${escapeHtml(p.url)}" alt="${escapeHtml(query)}">` +
-          `<figcaption>${escapeHtml(p.caption)}</figcaption></figure>`,
+        `<figure><img src="${escapeHtml(p.url)}" alt="${escapeHtml(query || p.caption)}">` +
+          `<figcaption>${credit}</figcaption></figure>`,
       );
     }
     return;

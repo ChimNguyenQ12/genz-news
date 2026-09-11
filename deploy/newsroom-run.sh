@@ -63,8 +63,10 @@ SETTINGS="${SETTINGS:-$(dirname "$DATABASE_PATH")/newsroom-settings.json}"
 if [ -r "$SETTINGS" ]; then
   SET_ENABLED="$(node -e 'try{const s=require(process.argv[1]);console.log(s.enabled===false?"0":"1")}catch(e){console.log("1")}' "$SETTINGS" 2>/dev/null)"
   [ -n "$MAX_ARTICLES" ] || MAX_ARTICLES="$(node -e 'try{const s=require(process.argv[1]);const n=Math.floor(Number(s.maxArticlesPerRun));console.log(Number.isFinite(n)&&n>0?Math.min(n,5):"")}catch(e){console.log("")}' "$SETTINGS" 2>/dev/null)"
+  PRESS_IMAGES="$(node -e 'try{const s=require(process.argv[1]);console.log(s.pressImages===false?"0":"1")}catch(e){console.log("1")}' "$SETTINGS" 2>/dev/null)"
 else
   SET_ENABLED=1
+  PRESS_IMAGES=1
 fi
 
 # Tắt công tắc thì cron ngừng viết. Nút "Create Post" ở từng đề tài (có đối số
@@ -103,6 +105,47 @@ trap cleanup EXIT
 # Viết MỘT bài. Đối số 1 (tuỳ chọn) là id đề tài cụ thể.
 # Mã trả về: 0 = đã lưu bài, 1 = hỏng, 2 = hàng đợi rỗng, 3 = bỏ qua (nhạy cảm).
 # ---------------------------------------------------------------------------
+# Đoạn hướng dẫn lấy ảnh, đổi theo công tắc trong /admin/research.
+#
+# Bật: lấy ảnh của chính bài báo nguồn (thẻ og:image) — luôn đúng vụ việc,
+# đổi lại là ảnh có bản quyền của hãng tin, nên bắt buộc ghi tên báo và dẫn
+# link bài gốc. Tắt: chỉ dùng ảnh kho có giấy phép tự do.
+if [ "${PRESS_IMAGES:-1}" = "1" ]; then
+  PRESS_BLOCK="$(cat <<'PRESSEOF'
+   b) ẢNH CỦA CHÍNH BÀI BÁO NGUỒN — ưu tiên số một, vì đây là ảnh của đúng vụ
+      việc chứ không phải ảnh minh hoạ. Với từng nguồn đã dùng, chạy:
+
+        genz-news-fetch-image --from-article="https://tuoitre.vn/bai-that.htm"
+
+      Lệnh đọc thẻ og:image của bài đó — đúng tấm hiện ra khi chia sẻ link —
+      tải về, đẩy lên kho của toà soạn rồi in ra {url, caption, source}.
+      Thử lần lượt 2–3 nguồn cho tới khi được ảnh. Thêm --html để có sẵn thẻ
+      figure kèm link ghi nguồn:
+
+        genz-news-fetch-image --html --from-article="https://..."
+
+      BẮT BUỘC với ảnh loại này: caption ghi TÊN BÁO và dẫn link về bài gốc.
+      Dùng --html là có sẵn; viết tay thì theo đúng dạng:
+
+        <figure><img src="URL_KHO" alt="mô tả ngắn"><figcaption>Ảnh: Tuổi Trẻ (<a href="URL_BÀI_GỐC">nguồn</a>)</figcaption></figure>
+
+      Ảnh bìa cũng lấy y như vậy: url vào coverImage, caption vào
+      coverImageCaption.
+
+      Không nguồn nào cho ảnh thì mới quay sang kho ảnh tự do, tìm bằng TÊN
+      RIÊNG có thật trong bài — địa danh, tổ chức, doanh nghiệp, sản phẩm,
+      công trình, nhân vật của công chúng:
+PRESSEOF
+  )"
+else
+  PRESS_BLOCK="$(cat <<'PRESSEOF'
+   b) Ảnh kho tự do. Chạy lệnh sau, từ khoá TIẾNG ANH và phải là TÊN RIÊNG của
+      thứ có thật trong bài — địa danh, tổ chức, doanh nghiệp, sản phẩm, công
+      trình, nhân vật của công chúng:
+PRESSEOF
+  )"
+fi
+
 write_one() {
   local want="${1:-}" task_json req_id topic sensitive sensitive_note prompt still now reason
 
@@ -247,50 +290,37 @@ Làm theo đúng quy trình trong CLAUDE.md của repo này:
    gắn tấm ảnh hành lang một trường tiểu học Nhật Bản — đó là làm người đọc
    hiểu sai, không phải minh hoạ.
 
-   a) Video chính thức — THỬ CÁI NÀY TRƯỚC. Đây là cách hợp pháp duy nhất để
-      đưa hình ảnh THẬT của vụ việc lên bài: nhúng video từ kênh YouTube
-      chính thức của hãng tin (VTV, VnExpress, Tuổi Trẻ, Reuters, AP...), của
-      cơ quan nhà nước hoặc doanh nghiệp liên quan. Nền tảng cho phép nhúng.
+   a) Video chính thức. Nếu có video trên kênh YouTube chính thức của hãng tin
+      (VTV, VnExpress, Tuổi Trẻ, Reuters, AP...), của cơ quan nhà nước hay
+      doanh nghiệp liên quan thì nhúng vào thân bài:
 
         <div data-youtube-video><iframe src="https://www.youtube-nocookie.com/embed/VIDEO_ID" allowfullscreen></iframe></div>
 
       Chỉ nhúng video bạn đã thực sự mở và xác nhận đúng nội dung, đúng vụ
       việc. Không bịa VIDEO_ID.
 
-   b) Ảnh. Chạy lệnh sau, từ khoá TIẾNG ANH và phải là TÊN RIÊNG của thứ có
-      thật trong bài — địa danh, tổ chức, doanh nghiệp, sản phẩm, công trình,
-      nhân vật của công chúng:
+$PRESS_BLOCK
 
         genz-news-fetch-image "Thanh Hoa province Vietnam"
-        genz-news-fetch-image --count=2 "Grab motorbike Vietnam"
-        genz-news-fetch-image --html "Hanoi metro Cat Linh"
+        genz-news-fetch-image --count=2 --html "Hanoi metro Cat Linh"
 
       TUYỆT ĐỐI KHÔNG tìm bằng từ tả cảnh chung chung: "school hallway",
       "mental health", "hospital room", "students in classroom", "sad teenager".
       Kiểu đó chỉ ra ảnh vu vơ của một nước khác, một vụ khác. Lệnh cũng đã
       chặn sẵn: khớp mỗi từ tả cảnh là bị loại.
 
-      Lệnh in ra {url, caption}. Đưa url vào coverImage, caption vào
-      coverImageCaption và GIỮ NGUYÊN caption — đó là phần ghi công tác giả.
-      Ảnh trong thân bài chèn đúng dạng này:
+      Ảnh kho tự do gần như không bao giờ chụp đúng vụ việc. Nếu tấm ảnh chỉ
+      là bối cảnh (địa danh nơi xảy ra chuyện, trụ sở doanh nghiệp, sản phẩm
+      được nhắc tới), thêm "Ảnh minh hoạ:" vào ĐẦU caption, giữ nguyên phần
+      ghi công phía sau.
 
-        <figure><img src="URL_LỆNH_TRẢ_VỀ" alt="mô tả ngắn"><figcaption>CAPTION_LỆNH_TRẢ_VỀ</figcaption></figure>
-
-   c) Nói thật trong caption. Ảnh lấy từ kho ảnh tự do gần như không bao giờ
-      là ảnh chụp chính vụ việc. Nếu tấm ảnh chỉ là bối cảnh (địa danh nơi xảy
-      ra chuyện, trụ sở doanh nghiệp, sản phẩm được nhắc tới), thêm hai chữ
-      "Ảnh minh hoạ:" vào ĐẦU caption, giữ nguyên phần ghi công phía sau:
-
-        <figcaption>Ảnh minh hoạ: Ảnh: X — CC BY-SA 4.0, qua Wikimedia Commons (...)</figcaption>
+   c) Mỗi bài nên có ảnh bìa và 1–3 ảnh xen giữa các đoạn, đặt rải ra chứ đừng
+      dồn một chỗ. Ảnh trong thân bài luôn nằm trong <figure> kèm <figcaption>;
+      lệnh lưu bài từ chối ảnh thiếu figcaption.
 
    d) Không tìm được gì đúng thì THÔI, bỏ trống ảnh, bài sẽ dùng nền gradient.
-      Thử 2–3 tên riêng khác nhau rồi mới bỏ cuộc. Đừng hạ tiêu chuẩn xuống
-      một tấm ảnh "cùng chủ đề" cho có.
-
-      Và KHÔNG được lấy ảnh trực tiếp từ báo chí (VnExpress, Tuổi Trẻ,
-      Reuters, AFP...): ảnh của họ có bản quyền, chép về là vi phạm. Muốn có
-      ảnh thật của vụ việc thì hoặc nhúng video chính thức ở bước (a), hoặc
-      để tổng biên tập tự gắn ảnh đã mua/được cấp phép.
+      Thử vài cách rồi mới bỏ cuộc, nhưng đừng hạ tiêu chuẩn xuống một tấm ảnh
+      "cùng chủ đề" cho có.
 
 6. Ghi JSON bài viết ra tệp /tmp/bai-$req_id.json rồi lưu bằng lệnh:
 
