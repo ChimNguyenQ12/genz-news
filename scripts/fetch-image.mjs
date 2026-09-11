@@ -109,6 +109,15 @@ function relevant(title, query) {
 
 const tidy = (t) => String(t).replace(/\s+/g, " ").trim();
 
+/** Vài thực thể HTML hay gặp trong thẻ meta: "Tom&#039;s Guide", "VTV&amp;hellip". */
+function decodeEntities(text) {
+  return String(text)
+    .replace(/&#0?39;|&apos;|&rsquo;/gi, "'")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)))
+    .replace(/&amp;/gi, "&");
+}
+
 function die(msg) {
   console.error(`[fetch-image] ${msg}`);
   process.exit(2);
@@ -274,7 +283,52 @@ async function fromWikipedia(query) {
  * tập, bật/tắt bằng công tắc "Photos from source articles" trong /admin/research.
  * Bù lại, luôn ghi rõ tên báo và dẫn link về bài gốc trong caption.
  */
-async function fromArticle(url) {
+/**
+ * Ảnh nằm TRONG thân bài báo nguồn, không chỉ mỗi ảnh chia sẻ.
+ *
+ * Một bài tổng hợp cần 3–7 tấm, mà mỗi nguồn chỉ có một og:image. Khi cần
+ * thêm thì bới tiếp các thẻ <img> của trang, bỏ những thứ không phải ảnh tin:
+ * logo, avatar, biểu tượng, ảnh bé hơn 300px.
+ */
+function imagesInPage(html, pageUrl) {
+  const junk = /(logo|icon|avatar|banner|sprite|placeholder|blank|pixel|ads?[-_/]|1x1)/i;
+  const out = [];
+
+  for (const tag of html.match(/<img[\s][^>]*>/gi) ?? []) {
+    // Báo hay lazy-load: src thật nằm ở data-src, còn src là ảnh mờ tạm.
+    const pick = (attr) => {
+      const hit = tag.match(new RegExp(`\\s${attr}\\s*=\\s*["']([^"']+)["']`, "i"));
+      return hit ? hit[1] : "";
+    };
+    let raw = pick("data-src") || pick("data-original") || pick("src");
+
+    // srcset thì lấy bản rộng nhất.
+    const srcset = pick("srcset") || pick("data-srcset");
+    if (srcset) {
+      const widest = srcset
+        .split(",")
+        .map((part) => part.trim().split(/\s+/))
+        .map(([u, w]) => ({ u, w: parseInt(w ?? "0", 10) || 0 }))
+        .sort((a, b) => b.w - a.w)[0];
+      if (widest?.u) raw = widest.u;
+    }
+    if (!raw || raw.startsWith("data:")) continue;
+    if (junk.test(raw)) continue;
+
+    const width = parseInt(pick("width") || "0", 10);
+    const height = parseInt(pick("height") || "0", 10);
+    if ((width && width < 300) || (height && height < 200)) continue;
+
+    try {
+      out.push(new URL(raw.replace(/&amp;/g, "&"), pageUrl).href);
+    } catch {
+      // đường dẫn hỏng thì bỏ
+    }
+  }
+  return [...new Set(out)];
+}
+
+async function fromArticle(url, { deep = false } = {}) {
   let page;
   try {
     page = await fetch(url, {
@@ -293,20 +347,23 @@ async function fromArticle(url) {
   // Chỉ đọc phần đầu: thẻ meta nằm trong <head>, tải cả trang là phí băng thông.
   const html = (await page.text()).slice(0, 300_000);
 
+  // Giá trị content được bọc bằng " hoặc ', và bên trong có thể chứa dấu kia —
+  // "Tom's Guide" từng bị cắt thành "Tom" vì so khớp không phân biệt hai loại
+  // nháy. Bắt luôn ký tự mở rồi tham chiếu ngược để đóng đúng cặp.
   const meta = (property) => {
     const patterns = [
       new RegExp(
-        `<meta[^>]+(?:property|name)=["']${property}["'][^>]+content=["']([^"']+)["']`,
+        `<meta[^>]+(?:property|name)=["']${property}["'][^>]+content=(["'])(.*?)\\1`,
         "i",
       ),
       new RegExp(
-        `<meta[^>]+content=["']([^"']+)["'][^>]+(?:property|name)=["']${property}["']`,
+        `<meta[^>]+content=(["'])(.*?)\\1[^>]+(?:property|name)=["']${property}["']`,
         "i",
       ),
     ];
     for (const re of patterns) {
       const hit = html.match(re);
-      if (hit) return hit[1];
+      if (hit) return decodeEntities(hit[2]);
     }
     return "";
   };
@@ -330,18 +387,25 @@ async function fromArticle(url) {
       ? declared
       : host;
 
-  return [
-    {
-      src,
-      // Tiêu đề bài gốc để biết ảnh này đi kèm tin nào.
-      title: tidy(meta("og:title")) || host,
-      artist: outlet,
-      licence: "", // ảnh báo chí, không phải giấy phép mở
-      page: url,
-      outlet,
-      fromPress: true,
-    },
-  ];
+  const title = tidy(meta("og:title")) || host;
+  const asCandidate = (imageUrl) => ({
+    src: imageUrl,
+    // Tiêu đề bài gốc để biết ảnh này đi kèm tin nào.
+    title,
+    artist: outlet,
+    licence: "", // ảnh báo chí, không phải giấy phép mở
+    page: url,
+    outlet,
+    fromPress: true,
+  });
+
+  const found = [asCandidate(src)];
+  if (deep) {
+    for (const extra of imagesInPage(html, url)) {
+      if (extra !== src) found.push(asCandidate(extra));
+    }
+  }
+  return found;
 }
 
 async function login() {
@@ -424,6 +488,8 @@ const escapeHtml = (s) =>
 async function main() {
   const args = process.argv.slice(2);
   const wantHtml = args.includes("--html");
+  // Bới thêm ảnh trong thân bài nguồn, không chỉ tấm og:image.
+  const deep = args.includes("--deep");
   const countArg = args.find((a) => a.startsWith("--count="));
   const count = Math.min(Math.max(Number(countArg?.slice(8)) || 1, 1), 5);
   // Lấy ảnh của chính bài báo nguồn. Nhận nhiều lần để thử lần lượt từng nguồn.
@@ -441,7 +507,7 @@ async function main() {
   // Ảnh của chính bài nguồn xếp trước tất cả: nó là ảnh của ĐÚNG vụ việc, còn
   // ảnh kho tự do giỏi lắm cũng chỉ đúng chủ đề.
   const press = (
-    await Promise.all(articles.map((u) => fromArticle(u).catch(() => [])))
+    await Promise.all(articles.map((u) => fromArticle(u, { deep }).catch(() => [])))
   ).flat();
 
   // Đã chỉ đích danh bài nguồn thì khỏi tìm kho ảnh, trừ khi không moi được gì.

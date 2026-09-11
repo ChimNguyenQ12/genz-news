@@ -25,15 +25,16 @@ const STATUS_STYLE: Record<RequestStatus, string> = {
   rejected: "bg-neutral-500/10 text-neutral-500",
 };
 
-/** Tab luôn hiện đủ, kể cả khi đang có 0 mục — số 0 cũng là một thông tin. */
-const TABS: (RequestStatus | "all")[] = [
-  "all",
-  "pending",
-  "in_progress",
-  "done",
-  "published",
-  "rejected",
-];
+/**
+ * Chỉ bốn tab, đúng bốn chặng của một đề tài: All → Queued → Writing → Drafted.
+ *
+ * Bài đã đăng và đề tài bị bỏ qua không có tab riêng — chúng đã xong việc, để
+ * thêm tab chỉ làm thanh tab dài ra. Muốn xem lại thì vào All, nhãn trạng thái
+ * trên từng dòng vẫn nói rõ mục đó đang ở đâu.
+ *
+ * Bốn tab này luôn hiện, kể cả khi đang có 0 mục — số 0 cũng là một thông tin.
+ */
+const TABS: (RequestStatus | "all")[] = ["all", "pending", "in_progress", "done"];
 
 const TAB_LABEL: Record<RequestStatus | "all", string> = {
   all: "All",
