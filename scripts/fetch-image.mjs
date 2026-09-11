@@ -109,12 +109,20 @@ function relevant(title, query) {
 
 const tidy = (t) => String(t).replace(/\s+/g, " ").trim();
 
-/** Vài thực thể HTML hay gặp trong thẻ meta: "Tom&#039;s Guide", "VTV&amp;hellip". */
+/**
+ * Giải mã thực thể HTML trong thẻ meta.
+ *
+ * Báo Phụ Nữ khai og:site_name bằng thực thể HEX ("B&#xC1;O PH&#x1EE4; N&#x1EEE;"),
+ * và nếu không giải mã thì cái tên đó hiện nguyên xi dưới ảnh — vừa vô nghĩa
+ * vừa lộ ra là máy làm. Dạng thập phân cũng gặp ("Tom&#039;s Guide").
+ */
 function decodeEntities(text) {
   return String(text)
-    .replace(/&#0?39;|&apos;|&rsquo;/gi, "'")
+    .replace(/&#x([0-9a-f]+);/gi, (_, hex) => String.fromCodePoint(parseInt(hex, 16)))
+    .replace(/&#(\d+);/g, (_, code) => String.fromCodePoint(Number(code)))
+    .replace(/&apos;|&rsquo;/gi, "'")
     .replace(/&quot;/gi, '"')
-    .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)))
+    .replace(/&nbsp;/gi, " ")
     .replace(/&amp;/gi, "&");
 }
 
