@@ -92,7 +92,11 @@ async function main() {
   );
 }
 
-main().catch((err) => {
-  console.error("[fix-captions]", err.message);
-  process.exitCode = 1;
-});
+// Node giữ kết nối keep-alive sau lượt fetch cuối nên vòng lặp sự kiện không
+// rỗng: lệnh làm xong việc mà tiến trình vẫn treo. Thoát tường minh.
+main()
+  .then(() => process.exit(0))
+  .catch((err) => {
+    console.error("[fix-captions]", err.message);
+    process.exit(1);
+  });
