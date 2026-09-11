@@ -13,6 +13,7 @@ const STATUS_LABEL: Record<RequestStatus, string> = {
   pending: "Queued",
   in_progress: "Writing",
   done: "Drafted",
+  published: "Published",
   rejected: "Skipped",
 };
 
@@ -20,6 +21,7 @@ const STATUS_STYLE: Record<RequestStatus, string> = {
   pending: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
   in_progress: "bg-blue-500/10 text-blue-600 dark:text-blue-400",
   done: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+  published: "bg-accent/10 text-accent",
   rejected: "bg-neutral-500/10 text-neutral-500",
 };
 
@@ -29,6 +31,7 @@ const TABS: (RequestStatus | "all")[] = [
   "pending",
   "in_progress",
   "done",
+  "published",
   "rejected",
 ];
 
@@ -37,6 +40,7 @@ const TAB_LABEL: Record<RequestStatus | "all", string> = {
   pending: "Queued",
   in_progress: "Writing",
   done: "Drafted",
+  published: "Published",
   rejected: "Skipped",
 };
 
@@ -248,10 +252,10 @@ export default function ResearchQueue({
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex w-full items-center gap-2 sm:w-auto">
           <button
             onClick={() => setModalOpen(true)}
-            className="rounded-xl border border-border px-3 py-2 text-sm font-semibold transition hover:border-accent hover:text-accent"
+            className="flex-1 rounded-xl border border-border px-3 py-2.5 text-sm font-semibold transition hover:border-accent hover:text-accent sm:flex-none sm:py-2"
           >
             <span
               className={`mr-1.5 inline-block size-2 rounded-full align-middle ${
@@ -262,7 +266,7 @@ export default function ResearchQueue({
           </button>
           <button
             onClick={() => setModalOpen(true)}
-            className="rounded-xl bg-accent px-4 py-2 text-sm font-bold text-white transition hover:opacity-90"
+            className="flex-1 rounded-xl bg-accent px-4 py-2.5 text-sm font-bold text-white transition hover:opacity-90 sm:flex-none sm:py-2"
           >
             + New topic
           </button>
@@ -291,31 +295,32 @@ export default function ResearchQueue({
           ))}
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        {/* Điện thoại: ô tìm chiếm cả hàng, ngày và nút chia đôi hàng dưới. */}
+        <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center">
           <input
             value={query.q}
             onChange={(e) => update({ q: e.target.value })}
             placeholder="Search topics..."
-            className={`${fieldClass} w-full sm:w-52`}
+            className={`${fieldClass} col-span-2 min-w-0 sm:w-52`}
           />
           <input
             type="date"
             value={query.date}
             max={data.latestDate || undefined}
             onChange={(e) => update({ date: e.target.value })}
-            className={fieldClass}
+            className={`${fieldClass} min-w-0`}
           />
           {query.date ? (
             <button
               onClick={() => update({ date: "" })}
-              className="rounded-lg border border-border px-3 py-1.5 text-xs font-semibold hover:border-accent hover:text-accent"
+              className="rounded-lg border border-border px-3 py-2 text-xs font-semibold hover:border-accent hover:text-accent sm:py-1.5"
             >
               All dates
             </button>
           ) : (
             <button
               onClick={() => update({ date: data.latestDate })}
-              className="rounded-lg border border-border px-3 py-1.5 text-xs font-semibold hover:border-accent hover:text-accent"
+              className="rounded-lg border border-border px-3 py-2 text-xs font-semibold hover:border-accent hover:text-accent sm:py-1.5"
             >
               Latest day
             </button>
@@ -480,6 +485,7 @@ function RequestRow({
   const orphaned = working && run.known && !run.running;
   const stale = working && (orphaned || elapsed >= staleAfterMin);
   const done = (r.articleIds?.length ?? 0) > 0;
+  const live = r.status === "published";
   // Đã giao rồi mà lại nằm ở "chờ xử lý" nghĩa là lượt trước hỏng — khác hẳn
   // đề tài chưa ai đụng tới, và đó chính là chỗ trước đây nhìn không ra.
   const retried = r.status === "pending" && r.attempts > 0;
@@ -573,13 +579,13 @@ function RequestRow({
           )}
         </div>
 
-        <div className="flex w-full shrink-0 flex-wrap items-center gap-2 [&>*]:flex-1 sm:w-auto sm:[&>*]:flex-none">
+        <div className="flex w-full shrink-0 flex-wrap items-center gap-2 [&>*]:min-w-[calc(50%-0.25rem)] [&>*]:flex-1 [&>*]:text-center sm:w-auto sm:[&>*]:min-w-0 sm:[&>*]:flex-none">
           {done && (
             <a
               href={`/admin/articles/${r.articleIds![r.articleIds!.length - 1]}`}
               className="rounded-lg border border-border px-3 py-1.5 text-xs font-semibold hover:border-accent hover:text-accent"
             >
-              Open draft →
+              {live ? "Open article →" : "Open draft →"}
             </a>
           )}
 

@@ -224,73 +224,78 @@ export default function ArticleList({
         </button>
       </div>
 
-      <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-border bg-surface p-2">
-        <input
-          value={filters.q}
-          onChange={(e) => update({ q: e.target.value })}
-          placeholder="Search headline or dek..."
-          className={`${fieldClass} min-w-0 flex-1 sm:w-56 sm:flex-none`}
-        />
+      {/* Trên điện thoại các ô lọc xếp thành lưới 2 cột thay vì để chúng tự
+          xuống dòng lung tung: sáu ô wrap tự do ở bề ngang 390px cho ra một mớ
+          so le, ô nào cũng hẹp và khó bấm trúng. */}
+      <div className="mb-4 rounded-xl border border-border bg-surface p-2">
+        <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center">
+          <input
+            value={filters.q}
+            onChange={(e) => update({ q: e.target.value })}
+            placeholder="Search headline or dek..."
+            className={`${fieldClass} col-span-2 min-w-0 sm:w-56`}
+          />
 
-        <select
-          value={filters.category}
-          onChange={(e) => update({ category: e.target.value })}
-          className={fieldClass}
-        >
-          <option value="all">All sections</option>
-          {categories.map((c) => (
-            <option key={c.slug} value={c.slug}>
-              {c.name}
-            </option>
-          ))}
-        </select>
-
-        {isAdmin && (
           <select
-            value={filters.author}
-            onChange={(e) => update({ author: e.target.value })}
-            className={fieldClass}
+            value={filters.category}
+            onChange={(e) => update({ category: e.target.value })}
+            className={`${fieldClass} min-w-0`}
           >
-            <option value="all">All authors</option>
-            {data.authors.map((a) => (
-              <option key={a} value={a}>
-                {a}
+            <option value="all">All sections</option>
+            {categories.map((c) => (
+              <option key={c.slug} value={c.slug}>
+                {c.name}
               </option>
             ))}
           </select>
-        )}
 
-        <label className="flex items-center gap-1.5 text-xs text-muted">
-          From
-          <input
-            type="date"
-            value={filters.from}
-            onChange={(e) => update({ from: e.target.value })}
-            className={fieldClass}
-          />
-        </label>
-        <label className="flex items-center gap-1.5 text-xs text-muted">
-          to
-          <input
-            type="date"
-            value={filters.to}
-            onChange={(e) => update({ to: e.target.value })}
-            className={fieldClass}
-          />
-        </label>
+          {isAdmin && (
+            <select
+              value={filters.author}
+              onChange={(e) => update({ author: e.target.value })}
+              className={`${fieldClass} min-w-0`}
+            >
+              <option value="all">All authors</option>
+              {data.authors.map((a) => (
+                <option key={a} value={a}>
+                  {a}
+                </option>
+              ))}
+            </select>
+          )}
 
-        {narrowed && (
-          <button
-            onClick={() => setFilters({ ...EMPTY_FILTERS, status: filters.status })}
-            className="rounded-lg border border-border px-3 py-1.5 text-xs font-semibold hover:border-accent hover:text-accent"
-          >
-            Clear filters
-          </button>
-        )}
+          <label className="flex min-w-0 items-center gap-1.5 text-xs text-muted">
+            <span className="shrink-0">From</span>
+            <input
+              type="date"
+              value={filters.from}
+              onChange={(e) => update({ from: e.target.value })}
+              className={`${fieldClass} w-full min-w-0 sm:w-auto`}
+            />
+          </label>
+          <label className="flex min-w-0 items-center gap-1.5 text-xs text-muted">
+            <span className="shrink-0">to</span>
+            <input
+              type="date"
+              value={filters.to}
+              onChange={(e) => update({ to: e.target.value })}
+              className={`${fieldClass} w-full min-w-0 sm:w-auto`}
+            />
+          </label>
 
-        <span className="ml-auto text-xs text-muted">
-          {loading ? "Loading..." : `${firstRow}–${lastRow} of ${data.total}`}
-        </span>
+          {narrowed && (
+            <button
+              onClick={() => setFilters({ ...EMPTY_FILTERS, status: filters.status })}
+              className="col-span-2 rounded-lg border border-border px-3 py-2 text-xs font-semibold hover:border-accent hover:text-accent sm:col-span-1 sm:py-1.5"
+            >
+              Clear filters
+            </button>
+          )}
+
+          <span className="col-span-2 text-xs text-muted sm:col-span-1 sm:ml-auto">
+            {loading ? "Loading..." : `${firstRow}–${lastRow} of ${data.total}`}
+          </span>
+        </div>
       </div>
 
       {error && (
@@ -379,7 +384,7 @@ export default function ArticleList({
                   )}
                 </div>
 
-                <div className="flex w-full shrink-0 flex-wrap items-center gap-2 [&>*]:flex-1 sm:w-auto sm:[&>*]:flex-none">
+                <div className="flex w-full shrink-0 flex-wrap items-center gap-2 [&>*]:min-w-[calc(50%-0.25rem)] [&>*]:flex-1 [&>*]:text-center sm:w-auto sm:[&>*]:min-w-0 sm:[&>*]:flex-none">
                   {a.status === "published" && (
                     <Link
                       href={`/bai-viet/${a.slug}`}

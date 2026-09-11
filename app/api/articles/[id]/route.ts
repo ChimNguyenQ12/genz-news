@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
 import { deleteArticle, getArticleById, updateArticle } from "@/lib/store";
+import { closeRequestForArticle } from "@/lib/queue";
 import type { Article, ArticleStatus, CategorySlug } from "@/lib/types";
 import { categories } from "@/lib/data";
 import { normalizeArticleHtml } from "@/lib/html";
@@ -170,6 +171,14 @@ export async function PUT(
   if (!article) {
     return NextResponse.json({ error: "Không tìm thấy bài viết" }, { status: 404 });
   }
+
+  // Bài lên trang thì đề tài sinh ra nó coi như xong việc: đóng mục trong hàng
+  // đợi để nó rời khỏi tab "Drafted". Tab đó là danh sách việc CÒN PHẢI LÀM,
+  // không phải nhật ký — bài đã đăng mà vẫn nằm đó thì mỗi ngày một dài thêm.
+  if (patch.status === "published") {
+    await closeRequestForArticle(id);
+  }
+
   return NextResponse.json({ article });
 }
 

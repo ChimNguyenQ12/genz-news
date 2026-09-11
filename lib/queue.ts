@@ -1,6 +1,11 @@
 import { prisma } from "./prisma";
 
-export type RequestStatus = "pending" | "in_progress" | "done" | "rejected";
+export type RequestStatus =
+  | "pending"
+  | "in_progress"
+  | "done"
+  | "published"
+  | "rejected";
 
 export interface ResearchRequest {
   id: string;
@@ -189,6 +194,7 @@ export async function listRequestsPage(
     pending: 0,
     in_progress: 0,
     done: 0,
+    published: 0,
     rejected: 0,
   };
   for (const g of grouped) {
@@ -308,4 +314,28 @@ export async function deleteRequest(id: string): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+/**
+ * Đóng mục hàng đợi khi bài viết của nó đã được đăng.
+ *
+ * Không có bước này thì đề tài nằm mãi ở tab "Drafted" dù bài đã lên trang từ
+ * lâu — tab đó phải là việc CÒN PHẢI LÀM, không phải nhật ký.
+ *
+ * articleIds là chuỗi JSON nên không lọc được bằng SQL; số mục đã có bài luôn
+ * nhỏ nên duyệt tay ở đây là đủ.
+ */
+export async function closeRequestForArticle(articleId: string): Promise<void> {
+  const rows = await prisma.researchRequest.findMany({
+    where: { status: { in: ["done", "in_progress"] } },
+    select: { id: true, articleIds: true },
+  });
+
+  const hit = rows.find((r) => parseList(r.articleIds).includes(articleId));
+  if (!hit) return;
+
+  await prisma.researchRequest.update({
+    where: { id: hit.id },
+    data: { status: "published" },
+  });
 }

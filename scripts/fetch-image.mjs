@@ -6,12 +6,14 @@
  *   node scripts/fetch-image.mjs --count=3 "hanoi metro"     # nhiều ảnh, in mảng
  *   node scripts/fetch-image.mjs --html "hanoi metro"        # in luôn <figure>
  *
- * Hai kho ảnh, hỏi lần lượt:
- *   1. Wikimedia Commons — mọi tệp đều khai giấy phép, API trả về dạng máy đọc.
- *   2. Openverse (openverse.org của WordPress) — gom ảnh CC và ảnh không còn
+ * Ba nguồn, hỏi song song rồi trộn theo thứ tự ưu tiên:
+ *   1. Wikipedia — ảnh đại diện của CHÍNH thực thể được hỏi (doanh nghiệp, địa
+ *      danh, nhân vật). Sát đề tài nhất nên xếp trước.
+ *   2. Wikimedia Commons — mọi tệp đều khai giấy phép, API trả về dạng máy đọc.
+ *   3. Openverse (openverse.org của WordPress) — gom ảnh CC và ảnh không còn
  *      bản quyền từ Flickr, các bảo tàng, thư viện ảnh. Không cần khoá API.
  *
- * Chỉ hai kho này vì cả hai đều nói rõ giấy phép của từng tấm. Ảnh trên báo thì
+ * Chỉ ba nguồn này vì cả ba đều nói rõ giấy phép của từng tấm. Ảnh trên báo thì
  * không — ghi nguồn không thay được giấy phép, nên tuyệt đối không lấy.
  *
  * Ảnh đi qua /api/upload của chính app: ở đó đã có kiểm magic bytes, giới hạn
@@ -45,7 +47,7 @@ const ALLOWED_EXT = {
  * cho bài về đường sắt Việt Nam còn tệ hơn là không có ảnh.
  */
 const BAD_KIND =
-  /\b(map|diagram|chart|logo|wordmark|icon|flag|coat of arms|seal|scheme|plan|blueprint|graph)\b/i;
+  /\b(map|diagram|chart|logo|wordmark|icon|flag|coat of arms|seal|scheme|plan|blueprint|graph|location of|locator|emblem|insignia|crest|silhouette|outline)\b/i;
 
 /** Bỏ dấu để so khớp từ khoá với tên tệp. */
 const bare = (str) =>
@@ -179,6 +181,88 @@ async function fromOpenverse(query) {
   }));
 }
 
+/**
+ * Ảnh đại diện của chính THỰC THỂ được nhắc tới, lấy qua Wikipedia.
+ *
+ * Đây là nguồn sát đề tài nhất trong ba nguồn: hỏi "Grab" thì ra đúng ảnh của
+ * Grab, hỏi "Thanh Hoa" thì ra đúng ảnh Thanh Hoá — thay vì một tấm ảnh "cùng
+ * chủ đề" nhặt được ở đâu đó. Hỏi cả bản tiếng Việt lẫn tiếng Anh vì đề tài
+ * trong nước nhiều khi chỉ có trang tiếng Việt.
+ *
+ * Cẩn thận chuyện giấy phép: Wikipedia tiếng Anh CÓ cho đăng ảnh không tự do
+ * theo fair use (logo, bìa đĩa). Nên tên tệp lấy được phải đối chiếu lại với
+ * Commons — Commons chỉ nhận tệp tự do, có ở đó mới dùng.
+ */
+async function fromWikipedia(query) {
+  const search = async (lang) => {
+    const params = new URLSearchParams({
+      format: "json",
+      origin: "*",
+      action: "query",
+      generator: "search",
+      gsrsearch: query,
+      gsrlimit: "4",
+      gsrnamespace: "0", // chỉ bài, bỏ trang thảo luận và trang phụ
+      prop: "pageimages",
+      piprop: "name",
+      // Chỉ ảnh có giấy phép tự do. Wikipedia tiếng Anh có ảnh fair use, lọc
+      // ngay từ đây cho khỏi phải loại về sau.
+      pilicense: "free",
+    });
+    const data = await json(`https://${lang}.wikipedia.org/w/api.php?${params}`);
+    return Object.values(data?.query?.pages ?? {})
+      .filter((p) => p.pageimage)
+      .map((p) => ({ page: String(p.title ?? ""), file: String(p.pageimage), lang }));
+  };
+
+  const hits = (
+    await Promise.all([search("vi").catch(() => []), search("en").catch(() => [])])
+  )
+    .flat()
+    // Tìm kiếm của Wikipedia rất rộng tay: hỏi "Thanh Hoa province" nó trả về
+    // cả trang "Tây Tạng". Loại ngay ở đây theo đúng thước đo dùng cho mọi
+    // nguồn, đỡ một lượt gọi Commons cho những trang chẳng liên quan.
+    .filter((h) => relevant(h.page, query));
+  if (!hits.length) return [];
+
+  // Một lượt hỏi Commons cho tất cả tệp: tệp nào không có ở Commons thì rơi ra,
+  // và đó chính là những tệp không tự do.
+  const params = new URLSearchParams({
+    format: "json",
+    origin: "*",
+    action: "query",
+    titles: hits.map((h) => `File:${h.file}`).join("|"),
+    prop: "imageinfo",
+    iiprop: "url|extmetadata|mime",
+    iiurlwidth: "1600",
+  });
+  const data = await json(`${COMMONS}?${params}`);
+  const byFile = new Map();
+  for (const page of Object.values(data?.query?.pages ?? {})) {
+    const info = page.imageinfo?.[0];
+    if (!info || page.missing !== undefined) continue;
+    byFile.set(String(page.title ?? "").replace(/^File:/, ""), info);
+  }
+
+  return hits.flatMap((h) => {
+    const info = byFile.get(h.file);
+    if (!info || !/^image\//.test(info.mime ?? "")) return [];
+    const meta = info.extmetadata ?? {};
+    return [
+      {
+        src: info.thumburl || info.url,
+        // Dùng tên BÀI làm tiêu đề: bộ lọc liên quan so với tên thực thể trong
+        // truy vấn, mà tên tệp trên Commons thì hay đặt lung tung.
+        title: h.page,
+        artist: tidy(String(meta.Artist?.value ?? "").replace(/<[^>]+>/g, "")),
+        licence: tidy(meta.LicenseShortName?.value ?? meta.License?.value ?? ""),
+        page: info.descriptionurl ?? info.url,
+        outlet: "Wikimedia Commons",
+      },
+    ];
+  });
+}
+
 async function login() {
   const res = await fetch(`${APP_URL}/api/auth/login`, {
     method: "POST",
@@ -243,14 +327,16 @@ async function main() {
   if (!query) die('thiếu từ khoá. Ví dụ: genz-news-fetch-image "đường sắt cao tốc"');
   if (!USER || !PASS) die("thiếu NEWSROOM_USER / NEWSROOM_PASS");
 
-  // Hỏi cả hai kho rồi trộn. Commons đứng trước vì phần ghi công của nó đầy đủ
-  // nhất, nhưng kho ảnh thời sự thì Openverse rộng hơn hẳn.
-  const [commons, openverse] = await Promise.all([
+  // Thứ tự ưu tiên chính là thứ tự ghép mảng: Wikipedia trước vì nó trả về ảnh
+  // đại diện của ĐÚNG thực thể được hỏi, còn hai kho kia chỉ xếp hạng theo độ
+  // giống chữ nghĩa nên dễ ra ảnh "cùng chủ đề" mà khác vụ, khác nước.
+  const [wiki, commons, openverse] = await Promise.all([
+    fromWikipedia(query).catch(() => []),
     fromCommons(query).catch(() => []),
     fromOpenverse(query).catch(() => []),
   ]);
 
-  const candidates = [...commons, ...openverse].filter((c) => {
+  const candidates = [...wiki, ...commons, ...openverse].filter((c) => {
     if (!c.src) return false;
     if (BAD_LICENCE.test(c.licence)) return false;
     if (BAD_KIND.test(c.title)) return false;
@@ -264,11 +350,22 @@ async function main() {
     );
   }
 
+  // Ảnh chụp gần như luôn là JPEG, còn bản đồ/sơ đồ/ảnh chụp màn hình thì
+  // PNG. Không loại PNG (có bài cần đúng ảnh chụp màn hình), chỉ xếp JPEG lên
+  // trước — sắp xếp ổn định nên thứ tự ưu tiên giữa các nguồn vẫn giữ nguyên.
+  const ranked = candidates
+    .map((c, i) => {
+      const ext = (c.src.split("?")[0].split(".").pop() ?? "").toLowerCase();
+      return { c, i, photo: ext === "jpg" || ext === "jpeg" ? 0 : 1 };
+    })
+    .sort((a, b) => a.photo - b.photo || a.i - b.i)
+    .map((x) => x.c);
+
   const cookie = await login();
   const picked = [];
   const seen = new Set();
 
-  for (const c of candidates) {
+  for (const c of ranked) {
     if (picked.length >= count) break;
     // Cùng một tấm ảnh xuất hiện ở cả hai kho là chuyện thường — Openverse có
     // gom cả Wikimedia. So bằng tên tệp chứ không bằng URL: Commons trả link
