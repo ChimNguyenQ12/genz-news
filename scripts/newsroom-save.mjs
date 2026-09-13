@@ -42,7 +42,7 @@ const CATEGORIES = [
 
 /**
  * Bách khoa toàn thư và trang tổng hợp tin: được phép liệt kê làm tài liệu
- * tham khảo, nhưng KHÔNG tính vào mức tối thiểu 2 nguồn độc lập. Chúng chép
+ * tham khảo, nhưng KHÔNG tính vào mức tối thiểu 1 nguồn. Chúng chép
  * lại nguồn khác, nên hai bài cùng dẫn Wikipedia không phải là hai nguồn.
  */
 const NOT_INDEPENDENT = [
@@ -128,7 +128,7 @@ function validate(a) {
     console.error(`[newsroom-save] LƯU Ý: bài ${words} từ, dưới mốc 800 của hiến chương.`);
   }
 
-  // Tối thiểu 2 nguồn ĐỘC LẬP: khác tên miền, không phải cùng một báo.
+  // Tối thiểu 1 nguồn: khác tên miền, không phải cùng một báo.
   const sources = Array.isArray(a.sources) ? a.sources : [];
   const hosts = new Set();
   for (const s of sources) {

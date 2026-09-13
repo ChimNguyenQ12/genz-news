@@ -162,7 +162,7 @@ const SUBREDDITS = [
  *
  * Link trả về là link chuyển hướng của news.google.com. Nó dùng để LẦN RA bài
  * gốc, không được tính là nguồn — newsroom-save.mjs đã xếp news.google.com vào
- * nhóm trang tổng hợp, nên nó không đếm vào mức tối thiểu 2 nguồn độc lập.
+ * nhóm trang tổng hợp, nên nó không đếm vào mức tối thiểu 1 nguồn.
  */
 const GOOGLE_NEWS_QUERIES = [
   { label: "Việt Nam trên báo nước ngoài", q: "Vietnam when:2d" },
@@ -340,7 +340,7 @@ async function fetchRedditHot({ sub, minUps }) {
   if (!String(res.headers.get("content-type") ?? "").includes("json")) {
     throw new Error(
       "Reddit trả về HTML chứ không phải JSON (chặn bot ẩn danh) — " +
-        "đặt REDDIT_CLIENT_ID/REDDIT_CLIENT_SECRET hoặc TRENDS_REDDIT=0",
+      "đặt REDDIT_CLIENT_ID/REDDIT_CLIENT_SECRET hoặc TRENDS_REDDIT=0",
     );
   }
 
@@ -426,7 +426,7 @@ function readRecentTopics(sinceMs) {
     if (!DRY_RUN) throw err;
     console.warn(
       `  ! không đọc được hàng đợi cũ (${err.message.split("\n")[0]}) — ` +
-        "dry run bỏ qua bước lọc trùng",
+      "dry run bỏ qua bước lọc trùng",
     );
     return [];
   }
@@ -535,7 +535,7 @@ async function main() {
   });
 
   if (!googleTrendsVN.length && !youtube.length && !headlines.length &&
-      !reddit.length && !gnews.length) {
+    !reddit.length && !gnews.length) {
     console.error("[collect-trends] LỖI: không lấy được dữ liệu từ bất kỳ nguồn nào.");
     process.exitCode = 1;
     return;
@@ -615,9 +615,9 @@ async function main() {
         origin: "google-news-vn",
         notes: [
           `[Google News · ${h.query}] báo gốc: ${h.publisher || "không rõ"}` +
-            (h.pubDate ? ` · ${h.pubDate}` : ""),
+          (h.pubDate ? ` · ${h.pubDate}` : ""),
           "Link trên là link chuyển hướng của Google News — mở ra rồi lấy URL bài gốc, " +
-            "news.google.com KHÔNG tính là nguồn độc lập.",
+          "news.google.com KHÔNG tính là nguồn độc lập.",
         ].join("\n"),
       }),
     );
@@ -656,18 +656,18 @@ async function main() {
 
   console.log(
     `\n[collect-trends] ${pool.length} ứng viên → ${deduped.length} không trùng → ` +
-      `${picked.length} được chọn`,
+    `${picked.length} được chọn`,
   );
   console.log(
     `  hạn ngạch: Việt Nam ${stats.vnTake}/${stats.vnAvailable} · ` +
-      `quốc tế ${stats.intlTake}/${stats.intlAvailable} · ` +
-      `${stats.belowMinScore} dưới ngưỡng (${MIN_SCORE} điểm, quốc tế ${MIN_SCORE_INTL}) · ` +
-      `trần ${Math.round(stats.perOriginShare * 100)}% suất mỗi nguồn`,
+    `quốc tế ${stats.intlTake}/${stats.intlAvailable} · ` +
+    `${stats.belowMinScore} dưới ngưỡng (${MIN_SCORE} điểm, quốc tế ${MIN_SCORE_INTL}) · ` +
+    `trần ${Math.round(stats.perOriginShare * 100)}% suất mỗi nguồn`,
   );
   for (const c of picked) {
     console.log(
       `   + [${String(c.score).padStart(3)}] ${c.vietnam ? "VN " : "QT "}` +
-        `${c.priority ? "★ " : "  "}${c.topic}  (${c.origin})`,
+      `${c.priority ? "★ " : "  "}${c.topic}  (${c.origin})`,
     );
   }
 
@@ -706,9 +706,9 @@ async function main() {
       .join(",");
     sql(
       "INSERT INTO research_requests " +
-        "(id, topic, urls, notes, status, articleIds, createdAt, updatedAt) VALUES " +
-        values +
-        ";",
+      "(id, topic, urls, notes, status, articleIds, createdAt, updatedAt) VALUES " +
+      values +
+      ";",
     );
   }
 

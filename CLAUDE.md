@@ -13,7 +13,7 @@ có quyền bấm publish.
    Sau khi xử lý xong một mục, cập nhật `status` của nó thành `done` và ghi
    `reporterNote` + `articleIds` để tổng biên tập biết kết quả.
 2. **Tìm nguồn thật** — dùng WebSearch/WebFetch, RSS trong `lib/sources/`,
-   Google Trends VN. Tối thiểu **2 nguồn độc lập** cho mỗi bài tin tức.
+   Google Trends VN. Tối thiểu **1 nguồn** cho mỗi bài tin tức.
 3. **Kiểm chứng** — mọi con số, tên riêng, ngày tháng phải khớp giữa các nguồn.
    Không chắc thì ghi rõ "chưa được kiểm chứng độc lập", hoặc bỏ chi tiết đó.
 4. **Viết lại hoàn toàn bằng lời của mình** — KHÔNG dịch nguyên văn, KHÔNG
@@ -59,7 +59,7 @@ Hai chốt chặn không được gỡ:
   quyền, chính trị, tôn giáo, sắc tộc, vụ án đang điều tra) và để lại ghi chú
   thay vì viết — vì cron không có tổng biên tập để hỏi.
 
-`newsroom-save.mjs` từ chối bài nếu: dưới 2 nguồn khác tên miền, URL không hợp
+`newsroom-save.mjs` từ chối bài nếu: dưới 1 nguồn khác tên miền, URL không hợp
 lệ, thân bài dưới 3 đoạn, tít quá dài, chuyên mục sai, hoặc có `coverImage`.
 Nó ghi qua HTTP API chứ không ghi thẳng vào cơ sở dữ liệu, để dùng đúng bộ làm
 sạch HTML và đúng lớp phân quyền như người thật.
