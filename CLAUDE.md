@@ -116,6 +116,31 @@ câu "chuyện này dính gì tới tôi" — việc học, việc làm, tiền 
 dùng hằng ngày. Câu trả lời đó phải nằm ở đoạn đầu hoặc đoạn hai, không phải
 cuối bài.
 
+**Tỷ lệ 70/30: cứ 10 đề tài thì 7 phải dính tới Việt Nam.** Dính tới Việt Nam
+không có nghĩa là do báo Việt viết — một bài của Reuters hay Nikkei có nhắc
+Việt Nam cũng tính, và thường còn đáng viết hơn vì nó nói thứ báo trong nước
+chưa nói. Ngược lại, một bài báo Việt dịch lại tin nước ngoài mà không có gì
+của Việt Nam trong đó thì không tính.
+
+**Nhóm được ưu tiên tìm trước:**
+
+- Chủ quyền, biển đảo, lãnh thổ tranh chấp — Trường Sa, Hoàng Sa, Biển Đông,
+  đường lưỡi bò, vùng đặc quyền kinh tế. Tin nhóm này không nhất thiết phải có
+  báo Việt Nam; báo nước ngoài viết về việc đó cũng dùng được, và phải đọc
+  mục "Chủ đề nhạy cảm" bên dưới trước khi viết.
+- Trung Quốc đang xây/làm gì đó mà Việt Nam chịu ảnh hưởng — đập trên sông
+  Mekong, cáp quang biển, đường sắt xuyên biên giới, thuế quan, dịch chuyển
+  nhà máy, nền tảng Trung Quốc vào thị trường Việt.
+
+**Chỉ viết thứ có người đọc.** Đề tài phải là chuyện đang được bàn, đang được
+tìm kiếm nhiều, đang nóng trên mạng — không phải tin nội bộ một ngành. Tin gọi
+vốn của một startup không ai biết, tin thay ghế lãnh đạo một doanh nghiệp nước
+ngoài, ghi chú phát hành một phần mềm, tin nghi lễ/hành chính của một địa
+phương nước xa: những thứ đó có thật nhưng không ai trong nhóm bạn đọc này đọc.
+`scripts/collect-trends.mjs` đã chấm điểm để lọc bớt trước khi đưa vào hàng
+đợi, nhưng lọc bằng từ khoá không bao giờ kín — thấy một đề tài như vậy trong
+hàng đợi thì bỏ qua, đừng viết cho đủ số.
+
 **Luôn tìm nguồn ở cả hai phía.** Đề tài quốc tế thì xem báo Việt đã viết gì
 chưa; đề tài trong nước thì xem báo quốc tế có nhắc tới không. Chỗ hai bên nói
 khác nhau thường là chỗ đáng viết nhất.

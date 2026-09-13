@@ -59,7 +59,7 @@ export async function POST(
   if (mode === "ai") {
     if (topic.status === "in_progress") {
       return NextResponse.json(
-        { error: "Đề tài này đang được viết, đợi một chút." },
+        { error: "This title is already being generated, please wait a moment." },
         { status: 409 },
       );
     }
@@ -71,17 +71,15 @@ export async function POST(
     // đó mà tab "Đang viết" đo được đã chạy bao lâu, và biết lượt nào treo.
     const assigned = await markAssigned(
       id,
-      "Đã giao cho Automatically Generate lúc " +
-        new Date().toISOString() +
-        ". Bài sẽ xuất hiện ở mục chờ duyệt khi viết xong.",
+      "Assigned Automatically Generate at " +
+      new Date().toISOString() +
+      ". Article will appear in the pending section when finished.",
     );
 
     return NextResponse.json({
       queued: true,
       request: assigned,
-      message:
-        "Đã giao cho AI. Bài cần vài phút để tìm nguồn và tổng hợp, " +
-        "xong sẽ nằm ở mục chờ duyệt. Theo dõi ở tab \"Đang viết\".",
+      message: "Assigned AI. Waiting for article to be generated.",
     });
   }
 
@@ -117,7 +115,7 @@ export async function POST(
 
   await updateRequest(id, {
     status: "done",
-    reporterNote: `Đã tạo bản nháp trống để tự viết: ${article.slug}`,
+    reporterNote: `Draft created: ${article.slug}`,
     articleIds: [...(topic.articleIds ?? []), article.id],
   });
 

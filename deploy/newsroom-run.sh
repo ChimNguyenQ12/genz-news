@@ -234,6 +234,14 @@ Làm theo đúng quy trình trong CLAUDE.md của repo này:
    Hai nguồn là MỨC SÀN, không phải mức trần: tìm bao nhiêu tuỳ đề tài, đọc
    thêm nguồn nào thấy cần thì đọc, không có giới hạn số lần tìm kiếm. Bài
    càng nhiều nguồn đối chiếu càng chắc.
+
+   Ghi chú của đề tài có dòng [xếp loại]. Ghi "Việt Nam" nghĩa là đề tài này
+   vào hàng đợi vì nó dính tới Việt Nam — kể cả khi bài gốc là báo nước ngoài,
+   GÓC VIỆT NAM là góc chính, đừng thuật lại theo góc của báo nước ngoài rồi
+   nhắc Việt Nam một câu ở cuối. Ghi thêm "ƯU TIÊN" nghĩa là chuyện chủ quyền/
+   lãnh thổ, hoặc chuyện Trung Quốc làm gì đó mà Việt Nam chịu ảnh hưởng: bắt
+   buộc tìm thêm nguồn phía Việt Nam và nguồn quốc tế thứ ba, và chỉ dùng phát
+   ngôn chính thức có nguồn rõ ràng theo mục "Chủ đề nhạy cảm" trong CLAUDE.md.
 2. Kiểm chứng: mọi con số, tên riêng, ngày tháng phải khớp giữa các nguồn.
    Không khớp thì bỏ chi tiết đó, đừng đoán.
 3. Viết lại hoàn toàn bằng lời của mình. Không dịch nguyên văn, nhưng các câu

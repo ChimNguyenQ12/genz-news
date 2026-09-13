@@ -4,10 +4,26 @@
  *
  *   npm run collect-trends
  *
+ * Săn ĐỀ TÀI ĐANG NÓNG, không phải quét đều mặt báo. Vòng cũ lấy tin luân
+ * phiên đều tay giữa các feed RSS, nên tin nội bộ ngành ("CEO Automattic quay
+ * lại ghế") hay tin nghi lễ ở nước xa ("đám tang vua Oyo ở Uganda") vào hàng
+ * đợi ngang hàng với chuyện cả nước đang bàn. Giờ mọi ứng viên đều bị chấm
+ * điểm ở scripts/lib/topic-filter.mjs rồi mới chọn, và đề tài Việt Nam chiếm
+ * hạn ngạch 70%.
+ *
  * Nguồn (đều hợp pháp, không scrape nền tảng cấm bot):
- *   1. Google Trends VN  — feed RSS công khai, không cần key
- *   2. YouTube Trending VN — API chính thức, cần YOUTUBE_API_KEY
- *   3. RSS báo quốc tế   — feed công khai do chính các hãng cung cấp
+ *   1. Google Trends VN     — lượt tìm kiếm thật của người Việt hôm nay
+ *   2. Google Trends toàn cầu — cùng feed đó, geo khác, cho phần quốc tế
+ *   3. YouTube Trending VN  — API chính thức, cần YOUTUBE_API_KEY
+ *   4. Reddit hot           — JSON công khai; r/popular và r/VietNam là hai
+ *                             chỗ đo "đang được bàn" tốt nhất mà không cần key
+ *   5. Google News search   — mọi bài báo nước ngoài có nhắc Việt Nam
+ *   6. RSS báo Việt + quốc tế — feed công khai do chính các hãng cung cấp
+ *
+ * Facebook/TikTok/X không có API công khai cho phần trending, mà cào thì trái
+ * điều khoản của họ và trái hiến chương — nên không lấy trực tiếp. Phần lớn
+ * thứ nóng trên các nền tảng đó vẫn hiện ra ở Google Trends VN (người ta search
+ * sau khi thấy trên phây) và ở tin giải trí của báo Việt, nên vẫn bắt được.
  *
  * Kết quả:
  *   - bảng research_requests    ← thêm đề tài mới, trạng thái "pending"
@@ -15,10 +31,17 @@
  *
  * Biến môi trường (tùy chọn):
  *   YOUTUBE_API_KEY      bật nguồn YouTube Trending
- *   TRENDS_MAX_GOOGLE    số đề tài lấy từ Google Trends (mặc định 8)
- *   TRENDS_MAX_YOUTUBE   số đề tài lấy từ YouTube (mặc định 6)
+ *   TRENDS_MAX_TOPICS    tổng số đề tài ghi vào hàng đợi (mặc định 18)
+ *   TRENDS_VN_SHARE      tỷ lệ đề tài Việt Nam (mặc định 0.7)
+ *   TRENDS_MIN_SCORE     điểm nóng tối thiểu để được nhận (mặc định 0)
+ *   TRENDS_MIN_SCORE_INTL  ngưỡng riêng, cao hơn, cho đề tài quốc tế (mặc định 20)
+ *   TRENDS_GLOBAL_GEO    geo cho Google Trends quốc tế (mặc định US)
+ *   REDDIT_CLIENT_ID     khoá "script app" miễn phí ở reddit.com/prefs/apps —
+ *   REDDIT_CLIENT_SECRET không có thì lối ẩn danh hay bị chặn bot
+ *   TRENDS_REDDIT=0      tắt hẳn nguồn Reddit
  *   TRENDS_DEDUPE_DAYS   bỏ qua đề tài đã có trong N ngày (mặc định 7)
  *   TRENDS_DRY_RUN=1     chỉ in ra, không ghi file
+ *   TRENDS_EXPLAIN=1     in cả những đề tài bị loại và lý do
  */
 
 import fs from "fs/promises";
@@ -26,6 +49,13 @@ import path from "path";
 import { XMLParser } from "fast-xml-parser";
 import { execFileSync } from "child_process";
 import { randomUUID } from "crypto";
+import {
+  dedupeKey,
+  isNoise,
+  pickWithQuota,
+  scoreTopic,
+  volumeBonus,
+} from "./lib/topic-filter.mjs";
 
 const ROOT = process.cwd();
 const DATA_DIR = process.env.DATA_DIR ?? path.join(ROOT, "data");
@@ -60,11 +90,15 @@ function sql(query, { json = false } = {}) {
   return out ? JSON.parse(out) : [];
 }
 
-const MAX_GOOGLE = Number(process.env.TRENDS_MAX_GOOGLE ?? 8);
-const MAX_YOUTUBE = Number(process.env.TRENDS_MAX_YOUTUBE ?? 6);
-const MAX_HEADLINES = Number(process.env.TRENDS_MAX_HEADLINES ?? 12);
+const MAX_TOPICS = Number(process.env.TRENDS_MAX_TOPICS ?? 18);
+const VN_SHARE = Number(process.env.TRENDS_VN_SHARE ?? 0.7);
+const MIN_SCORE = Number(process.env.TRENDS_MIN_SCORE ?? 0);
+const MIN_SCORE_INTL = Number(process.env.TRENDS_MIN_SCORE_INTL ?? 20);
+const GLOBAL_GEO = process.env.TRENDS_GLOBAL_GEO ?? "US";
+const USE_REDDIT = process.env.TRENDS_REDDIT !== "0";
 const DEDUPE_DAYS = Number(process.env.TRENDS_DEDUPE_DAYS ?? 7);
 const DRY_RUN = process.env.TRENDS_DRY_RUN === "1";
+const EXPLAIN = process.env.TRENDS_EXPLAIN === "1";
 const UA = "GenZNewsBot/1.0 (+editorial trend collector)";
 
 const parser = new XMLParser({
@@ -76,91 +110,66 @@ const parser = new XMLParser({
   htmlEntities: true,
 });
 
-// Giữ đồng bộ thủ công với lib/sources/rss.ts (script chạy độc lập bằng Node
-// nên không import trực tiếp file TypeScript của app).
+/**
+ * Giữ đồng bộ thủ công với lib/sources/rss.ts (script chạy độc lập bằng Node
+ * nên không import trực tiếp file TypeScript của app).
+ *
+ * `origin` quyết định điểm khởi đầu khi chấm: feed Việt vào thẳng rổ 70%, feed
+ * quốc tế phải tự kiếm điểm bằng nội dung của nó.
+ */
 const RSS_FEEDS = [
   // --- Quốc tế: tin thế giới
-  { name: "BBC World", url: "https://feeds.bbci.co.uk/news/world/rss.xml" },
-  { name: "The Guardian World", url: "https://www.theguardian.com/world/rss" },
-  { name: "Al Jazeera", url: "https://www.aljazeera.com/xml/rss/all.xml" },
-  { name: "NYT World", url: "https://rss.nytimes.com/services/xml/rss/nyt/World.xml" },
+  { name: "BBC World", url: "https://feeds.bbci.co.uk/news/world/rss.xml", origin: "rss-intl" },
+  { name: "The Guardian World", url: "https://www.theguardian.com/world/rss", origin: "rss-intl" },
+  { name: "Al Jazeera", url: "https://www.aljazeera.com/xml/rss/all.xml", origin: "rss-intl" },
+  { name: "NYT World", url: "https://rss.nytimes.com/services/xml/rss/nyt/World.xml", origin: "rss-intl" },
   // --- Quốc tế: công nghệ và văn hoá mạng, mảng Gen Z đọc nhiều nhất
-  { name: "BBC Technology", url: "https://feeds.bbci.co.uk/news/technology/rss.xml" },
-  { name: "TechCrunch", url: "https://techcrunch.com/feed/" },
-  { name: "Ars Technica", url: "https://feeds.arstechnica.com/arstechnica/index" },
-  { name: "WIRED", url: "https://www.wired.com/feed/rss" },
+  { name: "BBC Technology", url: "https://feeds.bbci.co.uk/news/technology/rss.xml", origin: "rss-intl" },
+  { name: "TechCrunch", url: "https://techcrunch.com/feed/", origin: "rss-intl" },
+  { name: "Ars Technica", url: "https://feeds.arstechnica.com/arstechnica/index", origin: "rss-intl" },
+  { name: "WIRED", url: "https://www.wired.com/feed/rss", origin: "rss-intl" },
   // --- Việt Nam
-  { name: "BBC Tiếng Việt", url: "https://feeds.bbci.co.uk/vietnamese/rss.xml" },
-  { name: "VnExpress Thế giới", url: "https://vnexpress.net/rss/the-gioi.rss" },
-  { name: "VnExpress Số hoá", url: "https://vnexpress.net/rss/so-hoa.rss" },
-  { name: "VnExpress Giải trí", url: "https://vnexpress.net/rss/giai-tri.rss" },
-  { name: "Thanh Niên Giới trẻ", url: "https://thanhnien.vn/rss/gioi-tre.rss" },
-  { name: "Thanh Niên Công nghệ", url: "https://thanhnien.vn/rss/cong-nghe.rss" },
-  { name: "Tuổi Trẻ Nhịp sống trẻ", url: "https://tuoitre.vn/rss/nhip-song-tre.rss" },
-  { name: "Kênh14 Star", url: "https://kenh14.vn/star.rss" },
-  { name: "Znews Công nghệ", url: "https://znews.vn/rss/cong-nghe.rss" },
+  { name: "BBC Tiếng Việt", url: "https://feeds.bbci.co.uk/vietnamese/rss.xml", origin: "rss-vn" },
+  { name: "VnExpress Thế giới", url: "https://vnexpress.net/rss/the-gioi.rss", origin: "rss-vn" },
+  { name: "VnExpress Số hoá", url: "https://vnexpress.net/rss/so-hoa.rss", origin: "rss-vn" },
+  { name: "VnExpress Giải trí", url: "https://vnexpress.net/rss/giai-tri.rss", origin: "rss-vn" },
+  { name: "Thanh Niên Giới trẻ", url: "https://thanhnien.vn/rss/gioi-tre.rss", origin: "rss-vn" },
+  { name: "Thanh Niên Công nghệ", url: "https://thanhnien.vn/rss/cong-nghe.rss", origin: "rss-vn" },
+  { name: "Tuổi Trẻ Nhịp sống trẻ", url: "https://tuoitre.vn/rss/nhip-song-tre.rss", origin: "rss-vn" },
+  { name: "Kênh14 Star", url: "https://kenh14.vn/star.rss", origin: "rss-vn" },
+  { name: "Znews Công nghệ", url: "https://znews.vn/rss/cong-nghe.rss", origin: "rss-vn" },
 ];
 
 /**
- * Từ khoá rác của Google Trends VN — tra cứu tiện ích hằng ngày, không phải
- * đề tài báo chí. Sửa danh sách này nếu thấy lọt/lọc nhầm.
+ * Reddit: JSON công khai, không cần khoá, chỉ cần User-Agent tử tế. Đây là chỗ
+ * đo "đang được bàn" rẻ nhất hiện có — số upvote là phiếu thật của người đọc,
+ * khác hẳn feed RSS vốn chỉ nói toà soạn vừa đăng gì.
+ *
+ * r/VietNam và r/TroChuyenLinhTinh là hai diễn đàn tiếng Việt/về Việt Nam đông
+ * nhất trên nền tảng này.
  */
-const NOISE_PATTERNS = [
-  /xổ số|xsmb|xsmn|xsmt|kết quả xs|kqxs/i,
-  /giá vàng|giá xăng|giá heo|giá lợn|giá bạc|giá cà phê|giá tiêu/i,
-  /tỷ giá|đô la mỹ|usd hôm nay|euro hôm nay/i,
-  /lịch âm|ngày tốt|tử vi|xem bói/i,
-  /dự báo thời tiết|thời tiết hôm nay/i,
-  /lich thi dau|ket qua bong da hom nay/i,
-  // Tra lịch/bảng xếp hạng giải đấu — tiện ích, không phải tin.
-  /lich (ngoai hang anh|la liga|serie a|c1|cup)|bang xep hang|bxh/i,
-  // Tra cứu tiện ích — người ta gõ để dùng, không phải để đọc tin.
-  /lịch cúp điện|cắt điện|tra cứu|số điện thoại|mã vùng|bảng giá|tra điểm/i,
-  // Từ khoá là tên miền: "edu.vn", "abc.com" — không thành đề tài được.
-  /^[\w-]+\.(vn|com|net|org|edu|gov)$/i,
+const SUBREDDITS = [
+  { sub: "popular", minUps: 5000 },
+  { sub: "worldnews", minUps: 3000 },
+  { sub: "technology", minUps: 2000 },
+  { sub: "VietNam", minUps: 150 },
+  { sub: "TroChuyenLinhTinh", minUps: 150 },
 ];
 
 /**
- * Danh từ chung trần trụi. Google Trends VN hay đẩy lên những từ như "phường",
- * "bệnh viện", "máy móc" — đúng là đang hot nhưng không nói lên chuyện gì.
+ * Google News search: cách duy nhất bắt được "báo nước ngoài nào vừa viết gì
+ * có chữ Việt Nam" mà không phải đăng ký từng hãng một.
+ *
+ * Link trả về là link chuyển hướng của news.google.com. Nó dùng để LẦN RA bài
+ * gốc, không được tính là nguồn — newsroom-save.mjs đã xếp news.google.com vào
+ * nhóm trang tổng hợp, nên nó không đếm vào mức tối thiểu 2 nguồn độc lập.
  */
-const GENERIC_WORDS = new Set(
-  [
-    "phường", "xã", "huyện", "tỉnh", "quận", "thành phố",
-    "bệnh viện", "trường học", "công ty", "ngân hàng", "máy móc",
-    "học sinh", "sinh viên", "giáo viên", "bác sĩ", "công an",
-    "thời tiết", "bóng đá", "điện thoại", "xe máy", "ô tô",
-  ].map((w) => stripDiacritics(w)),
-);
-
-/** Bỏ từ khoá quá ngắn/mơ hồ như "đất", "đâm" — không đủ thành đề tài. */
-function isTooVague(keyword) {
-  // So khớp trên bản không dấu: Google Trends trả về cả "phường" lẫn "phuong".
-  const k = stripDiacritics(keyword.trim().toLowerCase());
-  if (GENERIC_WORDS.has(k)) return true;
-  const words = k.split(/\s+/);
-  // Một chữ thì phải đủ dài mới mong là tên riêng; ngưỡng cũ (6) lọt cả
-  // "phường", "edu.vn".
-  if (words.length < 2 && k.length < 10) return true;
-  // Hai chữ mà cả hai đều là danh từ chung thì cũng chẳng thành đề tài.
-  if (words.length === 2 && words.every((w) => GENERIC_WORDS.has(w))) return true;
-  return false;
-}
-
-/** Bỏ dấu tiếng Việt để so khớp. Google Trends VN trả về cả có dấu lẫn không. */
-function stripDiacritics(str) {
-  return str
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .replace(/đ/g, "d")
-    .replace(/Đ/g, "D");
-}
-
-function isNoise(keyword) {
-  const bare = stripDiacritics(keyword);
-  const hit = (re) => re.test(keyword) || re.test(bare);
-  return NOISE_PATTERNS.some(hit) || isTooVague(keyword);
-}
+const GOOGLE_NEWS_QUERIES = [
+  { label: "Việt Nam trên báo nước ngoài", q: "Vietnam when:2d" },
+  { label: "Việt Nam – Trung Quốc", q: "Vietnam China when:3d" },
+  { label: "Biển Đông", q: '"South China Sea" when:3d' },
+  { label: "Kinh tế Việt Nam", q: "Vietnam economy OR investment OR factory when:3d" },
+];
 
 const toArray = (v) => (v === undefined ? [] : Array.isArray(v) ? v : [v]);
 
@@ -220,11 +229,14 @@ async function fetchWithTimeout(url, ms = 20000) {
   }
 }
 
-// ---------------------------------------------------------------- nguồn 1
-async function fetchGoogleTrendsVN() {
-  const res = await fetchWithTimeout("https://trends.google.com/trending/rss?geo=VN");
+// ---------------------------------------------------------------- nguồn 1+2
+async function fetchGoogleTrends(geo) {
+  const res = await fetchWithTimeout(
+    `https://trends.google.com/trending/rss?geo=${encodeURIComponent(geo)}`,
+  );
   const parsed = parser.parse(await res.text());
   return toArray(parsed?.rss?.channel?.item).map((item) => ({
+    geo,
     keyword: textOf(item.title),
     approxTraffic: textOf(item["ht:approx_traffic"]),
     articles: toArray(item["ht:news_item"]).map((n) => ({
@@ -235,7 +247,7 @@ async function fetchGoogleTrendsVN() {
   }));
 }
 
-// ---------------------------------------------------------------- nguồn 2
+// ---------------------------------------------------------------- nguồn 3
 async function fetchYouTubeTrendingVN() {
   const key = process.env.YOUTUBE_API_KEY;
   if (!key) return { skipped: "chưa đặt YOUTUBE_API_KEY", videos: [] };
@@ -257,7 +269,128 @@ async function fetchYouTubeTrendingVN() {
   return { skipped: null, videos };
 }
 
-// ---------------------------------------------------------------- nguồn 3
+// ---------------------------------------------------------------- nguồn 4
+/**
+ * Vé vào cửa Reddit.
+ *
+ * Endpoint .json ẩn danh giờ hay trả về trang HTML "Welcome to Reddit" kèm mã
+ * 200 thay vì JSON — chặn bot mềm, và nó chặn theo địa chỉ IP nên chạy được ở
+ * máy này không có nghĩa là chạy được ở máy chủ. Đường chính thức là đăng ký
+ * một "script app" miễn phí ở https://www.reddit.com/prefs/apps rồi đặt
+ * REDDIT_CLIENT_ID / REDDIT_CLIENT_SECRET. Có khoá thì đi lối oauth.reddit.com,
+ * không có thì vẫn thử lối ẩn danh và chịu rủi ro bị chặn.
+ *
+ * Lấy một lần rồi dùng chung cho mọi subreddit — mỗi lần xin vé là một lần gọi.
+ */
+let redditTokenPromise = null;
+function redditToken() {
+  const id = process.env.REDDIT_CLIENT_ID;
+  const secret = process.env.REDDIT_CLIENT_SECRET;
+  if (!id || !secret) return Promise.resolve(null);
+  if (!redditTokenPromise) {
+    redditTokenPromise = (async () => {
+      const res = await fetch("https://www.reddit.com/api/v1/access_token", {
+        method: "POST",
+        headers: {
+          Authorization: "Basic " + Buffer.from(`${id}:${secret}`).toString("base64"),
+          "Content-Type": "application/x-www-form-urlencoded",
+          "User-Agent": UA,
+        },
+        body: "grant_type=client_credentials",
+      });
+      if (!res.ok) throw new Error(`xin token hỏng: HTTP ${res.status}`);
+      const data = await res.json();
+      if (!data.access_token) throw new Error("phản hồi token không có access_token");
+      return data.access_token;
+    })();
+  }
+  return redditTokenPromise;
+}
+
+/**
+ * Bài hot của một subreddit. Bỏ bài ghim (thông báo nội quy, không phải tin),
+ * bỏ bài NSFW, và bỏ bài dưới ngưỡng upvote — dưới ngưỡng thì "hot" chỉ là
+ * hot trong vài chục người.
+ */
+async function fetchRedditHot({ sub, minUps }) {
+  const token = await redditToken();
+  const url = token
+    ? `https://oauth.reddit.com/r/${sub}/hot?limit=30&raw_json=1`
+    // old.reddit.com chứ không phải www: cùng một JSON, nhưng chứng chỉ TLS của
+    // www.reddit.com hỏng trên vài máy (Node báo "certificate has expired").
+    : `https://old.reddit.com/r/${sub}/hot.json?limit=30&raw_json=1`;
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 20000);
+  let res;
+  try {
+    res = await fetch(url, {
+      headers: token
+        ? { Authorization: `Bearer ${token}`, "User-Agent": UA }
+        : { "User-Agent": UA },
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timer);
+  }
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+  // Trang chặn bot về với mã 200 và content-type text/html. Bắt ở đây để báo
+  // đúng bệnh, thay vì để JSON.parse chết với "Unexpected token '<'".
+  if (!String(res.headers.get("content-type") ?? "").includes("json")) {
+    throw new Error(
+      "Reddit trả về HTML chứ không phải JSON (chặn bot ẩn danh) — " +
+        "đặt REDDIT_CLIENT_ID/REDDIT_CLIENT_SECRET hoặc TRENDS_REDDIT=0",
+    );
+  }
+
+  const data = await res.json();
+  return (data?.data?.children ?? [])
+    .map((c) => c.data ?? {})
+    .filter((p) => p.title && !p.stickied && !p.over_18 && (p.score ?? 0) >= minUps)
+    .map((p) => ({
+      sub,
+      title: p.title,
+      ups: p.score ?? 0,
+      comments: p.num_comments ?? 0,
+      // Bài dẫn link ngoài thì lấy link gốc; bài tự viết thì lấy link thảo luận.
+      url: p.is_self ? `https://www.reddit.com${p.permalink}` : p.url_overridden_by_dest || p.url,
+      permalink: `https://www.reddit.com${p.permalink}`,
+    }));
+}
+
+// ---------------------------------------------------------------- nguồn 5
+/**
+ * Google News RSS. Tít về dạng "Tít bài - Tên báo" và tên báo lặp lại ở thẻ
+ * <source>; cắt đuôi đó đi để đề tài trong hàng đợi đọc cho sạch.
+ */
+async function fetchGoogleNews({ label, q }) {
+  const url =
+    "https://news.google.com/rss/search?q=" +
+    encodeURIComponent(q) +
+    "&hl=en-US&gl=US&ceid=US:en";
+  const res = await fetchWithTimeout(url);
+  const parsed = parser.parse(await res.text());
+  return toArray(parsed?.rss?.channel?.item)
+    .slice(0, 25)
+    .map((item) => {
+      const publisher = textOf(item.source);
+      let title = textOf(item.title);
+      if (publisher && title.endsWith(` - ${publisher}`)) {
+        title = title.slice(0, -(publisher.length + 3)).trim();
+      }
+      return {
+        query: label,
+        title,
+        publisher,
+        url: textOf(item.link),
+        pubDate: textOf(item.pubDate),
+      };
+    })
+    .filter((h) => h.title && h.url);
+}
+
+// ---------------------------------------------------------------- nguồn 6
 async function fetchRssFeed(feed) {
   const res = await fetchWithTimeout(feed.url);
   const parsed = parser.parse(await res.text());
@@ -267,32 +400,59 @@ async function fetchRssFeed(feed) {
       title: textOf(item.title),
       url: textOf(item.link),
       source: feed.name,
+      origin: feed.origin,
       pubDate: textOf(item.pubDate),
     }));
 }
 
 // ---------------------------------------------------------------- hàng đợi
-/** Đề tài đã có trong DB ở N ngày gần nhất — để lọc trùng. */
+/**
+ * Đề tài đã có trong DB ở N ngày gần nhất — để lọc trùng.
+ *
+ * Ở chế độ DRY_RUN, đọc hỏng thì chỉ cảnh báo rồi đi tiếp: máy Windows hay kèm
+ * sqlite3 cũ không có tuỳ chọn -json, mà dry run vốn chỉ để xem nguồn chấm
+ * điểm ra sao. Lượt ghi thật thì vẫn phải hỏng to — bỏ lọc trùng lúc đó nghĩa
+ * là đổ lại cả hàng đợi hôm qua vào hôm nay.
+ */
 function readRecentTopics(sinceMs) {
   const since = new Date(sinceMs).toISOString().replace("Z", "+00:00");
-  const rows = sql(
-    `SELECT topic FROM research_requests WHERE createdAt >= ${quote(since)};`,
-    { json: true },
-  );
-  return rows.map((r) => r.topic);
+  try {
+    const rows = sql(
+      `SELECT topic FROM research_requests WHERE createdAt >= ${quote(since)};`,
+      { json: true },
+    );
+    return rows.map((r) => r.topic);
+  } catch (err) {
+    if (!DRY_RUN) throw err;
+    console.warn(
+      `  ! không đọc được hàng đợi cũ (${err.message.split("\n")[0]}) — ` +
+        "dry run bỏ qua bước lọc trùng",
+    );
+    return [];
+  }
 }
 
-const normalize = (s) =>
-  s
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .replace(/[^a-z0-9\s]/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
-
-function makeRequest(topic, urls, notes) {
-  return { topic, urls, notes };
+/**
+ * Dựng một ứng viên đã kèm điểm. Điểm và lý do được ghi luôn vào `notes` để
+ * tổng biên tập mở /admin/research là thấy vì sao đề tài này lọt vào, và để
+ * phóng viên AI biết góc nào đang được quan tâm.
+ */
+function candidate({ topic, urls = [], notes = "", extra = "", origin, bonus = 0 }) {
+  const verdict = scoreTopic({ topic, extra, origin, bonus });
+  const tags = [
+    `điểm nóng ${verdict.score}`,
+    verdict.vietnam ? "Việt Nam" : "quốc tế",
+    verdict.priority ? "ƯU TIÊN" : null,
+  ].filter(Boolean);
+  return {
+    topic,
+    urls: urls.filter(Boolean),
+    notes: [notes, `[xếp loại] ${tags.join(" · ")}`, verdict.reasons.length ? `Vì sao: ${verdict.reasons.join("; ")}` : null]
+      .filter(Boolean)
+      .join("\n"),
+    origin,
+    ...verdict,
+  };
 }
 
 // ---------------------------------------------------------------- main
@@ -300,147 +460,234 @@ async function main() {
   const startedAt = new Date();
   console.log(`[collect-trends] bắt đầu ${startedAt.toISOString()}`);
 
-  const [gRes, ytRes, ...rssResults] = await Promise.allSettled([
-    fetchGoogleTrendsVN(),
+  const redditJobs = USE_REDDIT ? SUBREDDITS : [];
+  const [gVnRes, gGlobalRes, ytRes, ...rest] = await Promise.allSettled([
+    fetchGoogleTrends("VN"),
+    fetchGoogleTrends(GLOBAL_GEO),
     fetchYouTubeTrendingVN(),
+    ...redditJobs.map(fetchRedditHot),
+    ...GOOGLE_NEWS_QUERIES.map(fetchGoogleNews),
     ...RSS_FEEDS.map(fetchRssFeed),
   ]);
+  const redditResults = rest.slice(0, redditJobs.length);
+  const gnewsResults = rest.slice(redditJobs.length, redditJobs.length + GOOGLE_NEWS_QUERIES.length);
+  const rssResults = rest.slice(redditJobs.length + GOOGLE_NEWS_QUERIES.length);
 
-  // --- Google Trends
-  let googleTrends = [];
-  if (gRes.status === "fulfilled") {
-    googleTrends = gRes.value;
-    console.log(`  ✓ Google Trends VN: ${googleTrends.length} từ khoá`);
-  } else {
-    console.error(`  ✗ Google Trends VN thất bại: ${gRes.reason?.message ?? gRes.reason}`);
-  }
+  const settled = (res, label, onOk) => {
+    if (res.status === "fulfilled") return onOk(res.value);
+    console.error(`  ✗ ${label} thất bại: ${res.reason?.message ?? res.reason}`);
+    return undefined;
+  };
+
+  // --- Google Trends VN + toàn cầu
+  let googleTrendsVN = [];
+  settled(gVnRes, "Google Trends VN", (v) => {
+    googleTrendsVN = v;
+    console.log(`  ✓ Google Trends VN: ${v.length} từ khoá`);
+  });
+
+  let googleTrendsGlobal = [];
+  settled(gGlobalRes, `Google Trends ${GLOBAL_GEO}`, (v) => {
+    googleTrendsGlobal = v;
+    console.log(`  ✓ Google Trends ${GLOBAL_GEO}: ${v.length} từ khoá`);
+  });
 
   // --- YouTube
   let youtube = [];
-  if (ytRes.status === "fulfilled") {
-    if (ytRes.value.skipped) {
-      console.log(`  – YouTube Trending VN: bỏ qua (${ytRes.value.skipped})`);
-    } else {
-      youtube = ytRes.value.videos;
-      console.log(`  ✓ YouTube Trending VN: ${youtube.length} video`);
+  settled(ytRes, "YouTube Trending VN", (v) => {
+    if (v.skipped) {
+      console.log(`  – YouTube Trending VN: bỏ qua (${v.skipped})`);
+      return;
     }
-  } else {
-    console.error(`  ✗ YouTube thất bại: ${ytRes.reason?.message ?? ytRes.reason}`);
-  }
+    youtube = v.videos;
+    console.log(`  ✓ YouTube Trending VN: ${v.videos.length} video`);
+  });
+
+  // --- Reddit
+  const reddit = [];
+  redditResults.forEach((r, i) => {
+    const { sub } = redditJobs[i];
+    settled(r, `Reddit r/${sub}`, (v) => {
+      reddit.push(...v);
+      console.log(`  ✓ Reddit r/${sub}: ${v.length} bài nóng`);
+    });
+  });
+  if (!USE_REDDIT) console.log("  – Reddit: tắt (TRENDS_REDDIT=0)");
+
+  // --- Google News
+  const gnews = [];
+  gnewsResults.forEach((r, i) => {
+    const { label } = GOOGLE_NEWS_QUERIES[i];
+    settled(r, `Google News "${label}"`, (v) => {
+      gnews.push(...v);
+      console.log(`  ✓ Google News "${label}": ${v.length} tin`);
+    });
+  });
 
   // --- RSS
   const headlines = [];
   rssResults.forEach((r, i) => {
     const feed = RSS_FEEDS[i];
-    if (r.status === "fulfilled") {
-      headlines.push(...r.value);
-      console.log(`  ✓ ${feed.name}: ${r.value.length} tin`);
-    } else {
-      console.error(`  ✗ ${feed.name} thất bại: ${r.reason?.message ?? r.reason}`);
-    }
+    settled(r, feed.name, (v) => {
+      headlines.push(...v);
+      console.log(`  ✓ ${feed.name}: ${v.length} tin`);
+    });
   });
 
-  if (!googleTrends.length && !youtube.length && !headlines.length) {
+  if (!googleTrendsVN.length && !youtube.length && !headlines.length &&
+      !reddit.length && !gnews.length) {
     console.error("[collect-trends] LỖI: không lấy được dữ liệu từ bất kỳ nguồn nào.");
     process.exitCode = 1;
     return;
   }
 
-  // --- dựng đề tài ứng viên
-  const candidates = [];
+  // --- dựng đề tài ứng viên, ai cũng bị chấm điểm như nhau
+  const pool = [];
 
   let skippedNoise = 0;
-  const usableTrends = googleTrends.filter((t) => {
-    if (!t.keyword) return false;
+  const trendCandidates = [
+    ...googleTrendsVN.map((t) => ({ t, origin: "google-trends-vn", geo: "VN" })),
+    ...googleTrendsGlobal.map((t) => ({ t, origin: "google-trends-global", geo: GLOBAL_GEO })),
+  ];
+  for (const { t, origin, geo } of trendCandidates) {
+    if (!t.keyword) continue;
     if (isNoise(t.keyword)) {
       skippedNoise++;
-      return false;
+      continue;
     }
-    return true;
-  });
+    pool.push(
+      candidate({
+        topic: t.keyword,
+        urls: t.articles.map((a) => a.url),
+        origin,
+        // Lượt tìm kiếm là thước đo độ nóng thật nhất trong cả mớ nguồn này.
+        bonus: volumeBonus(t.approxTraffic, { cap: 25, floor: 1000 }),
+        // Từ khoá Google Trends thường chỉ là một cái tên ("90 phút"), không
+        // đủ để chấm. Tít các bài đang đưa tin về nó mới nói ra chuyện gì.
+        extra: t.articles.map((a) => a.title).join("\n"),
+        notes: [
+          `[Google Trends ${geo}] lượt tìm kiếm: ${t.approxTraffic || "n/a"}`,
+          ...t.articles.map((a) => `• ${a.title} (${a.source})`),
+        ].join("\n"),
+      }),
+    );
+  }
   if (skippedNoise) {
     console.log(`  · lọc bỏ ${skippedNoise} từ khoá rác (xổ số, giá vàng, quá ngắn...)`);
   }
 
-  for (const t of usableTrends.slice(0, MAX_GOOGLE)) {
-    candidates.push(
-      makeRequest(
-        t.keyword,
-        t.articles.map((a) => a.url).filter(Boolean),
-        [
-          `[Google Trends VN] lượt tìm kiếm: ${t.approxTraffic || "n/a"}`,
-          ...t.articles.map((a) => `• ${a.title} (${a.source})`),
-        ].join("\n"),
-      ),
-    );
-  }
-
-  for (const v of youtube.slice(0, MAX_YOUTUBE)) {
+  for (const v of youtube) {
     if (!v.title) continue;
-    candidates.push(
-      makeRequest(v.title, [v.url], [
-        `[YouTube Trending VN] kênh: ${v.channel}`,
-        `Lượt xem: ${v.views.toLocaleString("vi-VN")}`,
-      ].join("\n")),
+    pool.push(
+      candidate({
+        topic: v.title,
+        urls: [v.url],
+        origin: "youtube-vn",
+        bonus: volumeBonus(v.views, { cap: 15, floor: 100000 }),
+        notes: [
+          `[YouTube Trending VN] kênh: ${v.channel}`,
+          `Lượt xem: ${v.views.toLocaleString("vi-VN")}`,
+        ].join("\n"),
+      }),
     );
   }
 
-  // Tin quốc tế — nguồn đề tài chính của trang. Lấy luân phiên giữa các hãng
-  // để không hãng nào chiếm hết hàng đợi.
-  const byFeed = new Map();
+  for (const p of reddit) {
+    pool.push(
+      candidate({
+        topic: p.title,
+        urls: [p.url, p.permalink],
+        origin: "reddit",
+        bonus: volumeBonus(p.ups, { cap: 20, floor: 500 }),
+        notes: [
+          `[Reddit r/${p.sub}] ${p.ups.toLocaleString("vi-VN")} upvote · ${p.comments} bình luận`,
+          "Reddit chỉ là chỉ dấu đang được bàn — phải tìm nguồn tin chính thống trước khi viết.",
+        ].join("\n"),
+      }),
+    );
+  }
+
+  for (const h of gnews) {
+    pool.push(
+      candidate({
+        topic: h.title,
+        urls: [h.url],
+        origin: "google-news-vn",
+        notes: [
+          `[Google News · ${h.query}] báo gốc: ${h.publisher || "không rõ"}` +
+            (h.pubDate ? ` · ${h.pubDate}` : ""),
+          "Link trên là link chuyển hướng của Google News — mở ra rồi lấy URL bài gốc, " +
+            "news.google.com KHÔNG tính là nguồn độc lập.",
+        ].join("\n"),
+      }),
+    );
+  }
+
   for (const h of headlines) {
     if (!h.title || !h.url) continue;
-    if (!byFeed.has(h.source)) byFeed.set(h.source, []);
-    byFeed.get(h.source).push(h);
-  }
-  const roundRobin = [];
-  // Đảo thứ tự nguồn: vòng round-robin luôn bắt đầu từ đầu danh sách, để
-  // nguyên thì mấy nguồn cuối gần như không bao giờ được chọn.
-  const lists = [...byFeed.values()].sort(() => Math.random() - 0.5);
-  for (let i = 0; roundRobin.length < MAX_HEADLINES; i++) {
-    let addedThisRound = false;
-    for (const list of lists) {
-      if (i < list.length) {
-        roundRobin.push(list[i]);
-        addedThisRound = true;
-        if (roundRobin.length >= MAX_HEADLINES) break;
-      }
-    }
-    if (!addedThisRound) break;
-  }
-
-  for (const h of roundRobin) {
-    candidates.push(
-      makeRequest(h.title, [h.url], `[${h.source}] tin quốc tế${h.pubDate ? ` · ${h.pubDate}` : ""}`),
+    pool.push(
+      candidate({
+        topic: h.title,
+        urls: [h.url],
+        origin: h.origin,
+        notes: `[${h.source}]${h.pubDate ? ` · ${h.pubDate}` : ""}`,
+      }),
     );
   }
 
-  // --- lọc trùng
+  // --- lọc trùng: trong chính mẻ này, và với những gì đã vào hàng đợi N ngày qua
   const cutoff = Date.now() - DEDUPE_DAYS * 24 * 60 * 60 * 1000;
-  const seen = new Set(readRecentTopics(cutoff).map(normalize));
-
-  const fresh = [];
-  for (const c of candidates) {
-    const key = normalize(c.topic);
+  const seen = new Set(readRecentTopics(cutoff).map(dedupeKey));
+  const deduped = [];
+  for (const c of pool) {
+    const key = dedupeKey(c.topic);
     if (!key || seen.has(key)) continue;
     seen.add(key);
-    fresh.push(c);
+    deduped.push(c);
   }
 
+  // --- chọn theo điểm nóng + hạn ngạch 70/30
+  const { picked, stats } = pickWithQuota(deduped, {
+    max: MAX_TOPICS,
+    vnShare: VN_SHARE,
+    minScore: MIN_SCORE,
+    minScoreIntl: MIN_SCORE_INTL,
+  });
+
   console.log(
-    `\n[collect-trends] ${candidates.length} ứng viên → ${fresh.length} đề tài mới ` +
-      `(${candidates.length - fresh.length} trùng, bỏ qua)`,
+    `\n[collect-trends] ${pool.length} ứng viên → ${deduped.length} không trùng → ` +
+      `${picked.length} được chọn`,
   );
-  fresh.forEach((r) => console.log(`   + ${r.topic}`));
+  console.log(
+    `  hạn ngạch: Việt Nam ${stats.vnTake}/${stats.vnAvailable} · ` +
+      `quốc tế ${stats.intlTake}/${stats.intlAvailable} · ` +
+      `${stats.belowMinScore} dưới ngưỡng (${MIN_SCORE} điểm, quốc tế ${MIN_SCORE_INTL}) · ` +
+      `trần ${Math.round(stats.perOriginShare * 100)}% suất mỗi nguồn`,
+  );
+  for (const c of picked) {
+    console.log(
+      `   + [${String(c.score).padStart(3)}] ${c.vietnam ? "VN " : "QT "}` +
+        `${c.priority ? "★ " : "  "}${c.topic}  (${c.origin})`,
+    );
+  }
+
+  if (EXPLAIN) {
+    console.log("\n[collect-trends] đề tài BỊ LOẠI (điểm thấp nhất trước):");
+    const pickedSet = new Set(picked.map((c) => c.topic));
+    for (const c of deduped.filter((c) => !pickedSet.has(c.topic)).sort((a, b) => a.score - b.score)) {
+      console.log(`   − [${String(c.score).padStart(4)}] ${c.topic}`);
+      if (c.reasons.length) console.log(`          ${c.reasons.join("; ")}`);
+    }
+  }
 
   if (DRY_RUN) {
     console.log("\n[collect-trends] DRY RUN — không ghi gì.");
     return;
   }
 
-  if (fresh.length > 0) {
+  if (picked.length > 0) {
     const stamp = nowStamp();
-    const values = fresh
+    const values = picked
       .map((r) =>
         "(" +
         [
@@ -472,9 +719,20 @@ async function main() {
     JSON.stringify(
       {
         collectedAt: startedAt.toISOString(),
-        googleTrendsVN: googleTrends,
+        googleTrendsVN,
+        googleTrendsGlobal,
         youtubeTrendingVN: youtube,
+        redditHot: reddit,
+        googleNewsVietnam: gnews,
         internationalHeadlines: headlines,
+        picked: picked.map((c) => ({
+          topic: c.topic,
+          score: c.score,
+          vietnam: c.vietnam,
+          priority: c.priority,
+          origin: c.origin,
+          reasons: c.reasons,
+        })),
       },
       null,
       2,
@@ -482,7 +740,7 @@ async function main() {
     "utf8",
   );
 
-  console.log(`\n[collect-trends] đã ghi ${fresh.length} đề tài vào database`);
+  console.log(`\n[collect-trends] đã ghi ${picked.length} đề tài vào database`);
   console.log(`[collect-trends] ảnh chụp dữ liệu thô: ${DIGEST_FILE}`);
   console.log("[collect-trends] mở /admin/research để duyệt.");
 }

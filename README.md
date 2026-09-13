@@ -158,13 +158,44 @@ Sao lưu: [`deploy/backup-to-s3.sh`](deploy/backup-to-s3.sh) chụp SQLite bằn
 npm run collect-trends
 ```
 
-Script gom xu hướng từ 3 nguồn hợp pháp rồi ghi thẳng vào hàng đợi đề tài:
+Script gom xu hướng từ 6 nguồn hợp pháp, **chấm điểm độ nóng** rồi mới ghi vào
+hàng đợi đề tài:
 
 | Nguồn | Cần key? | Ghi chú |
 |---|---|---|
-| Google Trends VN | Không | Từ khoá hot + bài báo VN liên quan; tự lọc bỏ xổ số/giá vàng/từ khoá quá ngắn |
+| Google Trends VN | Không | Lượt tìm kiếm thật của người Việt hôm nay — thước đo nóng nhất; tự lọc xổ số/giá vàng/link xem bóng đá |
+| Google Trends toàn cầu | Không | Cùng feed, `TRENDS_GLOBAL_GEO` khác (mặc định US), cho phần quốc tế |
 | YouTube Trending VN | `YOUTUBE_API_KEY` | Bỏ qua êm nếu chưa có key |
-| RSS quốc tế (BBC, Guardian, Al Jazeera, NYT, BBC Tiếng Việt) | Không | Lấy luân phiên để không hãng nào chiếm hết |
+| Reddit hot | Nên có | `r/popular`, `r/worldnews`, `r/technology`, `r/VietNam`, `r/TroChuyenLinhTinh` — số upvote là phiếu thật của người đọc |
+| Google News search | Không | Mọi bài báo nước ngoài có nhắc Việt Nam / Biển Đông / kinh tế VN |
+| RSS 17 báo Việt + quốc tế | Không | Feed công khai do chính các hãng cung cấp |
+
+**Reddit cần khoá.** Endpoint `.json` ẩn danh giờ hay trả về trang HTML "Welcome
+to Reddit" kèm mã 200 thay vì JSON, và nó chặn theo IP nên chạy được ở máy này
+không có nghĩa là chạy được trên EC2. Đăng ký một *script app* miễn phí ở
+<https://www.reddit.com/prefs/apps> rồi đặt `REDDIT_CLIENT_ID` và
+`REDDIT_CLIENT_SECRET`; script tự đi lối `oauth.reddit.com`. Chưa có khoá thì
+nguồn này chỉ ghi một dòng cảnh báo rồi bỏ qua, các nguồn khác vẫn chạy.
+
+Facebook/TikTok/X không có API công khai cho trending (X đã đóng hẳn bậc miễn
+phí) và cào thì trái điều khoản của họ, nên không lấy trực tiếp. Thứ nóng trên
+các nền tảng đó phần lớn vẫn hiện ra ở Google Trends VN — người ta search sau
+khi thấy trên mạng xã hội — và ở tin giải trí của báo Việt.
+
+**Cách chọn đề tài.** Mọi ứng viên đi qua `scripts/lib/topic-filter.mjs`:
+
+- Cộng điểm: nguồn càng đo được độ quan tâm thật càng cao; nhắc Việt Nam +20;
+  chủ quyền/lãnh thổ +45; Trung Quốc ↔ Việt Nam +35; chuyện bạn đọc 18–27 đang
+  bàn (học phí, việc làm, iPhone, concert, drama...) tối đa +24.
+- Trừ điểm: tin gọi vốn/thay ghế lãnh đạo/ghi chú phát hành/nghi lễ địa phương
+  nước xa tối đa −45; không dính Việt Nam mà cũng không chạm tới nước hay hãng
+  nào người Việt theo dõi −25; từ khoá tra cứu chưa thành câu chuyện −30.
+- Chọn theo **hạn ngạch 70% Việt Nam / 30% quốc tế**, trần 40% suất cho mỗi
+  nguồn để không nguồn nào nuốt hết hàng đợi. Đề tài quốc tế phải qua ngưỡng
+  điểm cao hơn — phần 30% chỉ có vài suất nên tin thế giới phải thật sự lớn.
+
+Đề tài nào lọt vào đều mang theo dòng `[xếp loại] điểm nóng N · Việt Nam · ƯU
+TIÊN` cùng lý do trong `notes`, hiện ngay ở `/admin/research`.
 
 Kết quả ghi vào bảng `research_requests` (hiện ở `/admin/research`) và
 `data/trends-digest.json` (dữ liệu thô để tra cứu). Đề tài đã có trong 7 ngày
@@ -174,11 +205,23 @@ Tùy chỉnh bằng biến môi trường:
 
 ```
 YOUTUBE_API_KEY=...        # bật nguồn YouTube (lấy ở Google Cloud Console)
-TRENDS_MAX_GOOGLE=8        # số đề tài từ Google Trends
-TRENDS_MAX_YOUTUBE=6       # số đề tài từ YouTube
-TRENDS_MAX_HEADLINES=8     # số đề tài từ RSS quốc tế
+REDDIT_CLIENT_ID=...       # script app ở reddit.com/prefs/apps
+REDDIT_CLIENT_SECRET=...
+TRENDS_MAX_TOPICS=18       # tổng số đề tài ghi vào hàng đợi mỗi lượt
+TRENDS_VN_SHARE=0.7        # tỷ lệ đề tài Việt Nam
+TRENDS_MIN_SCORE=0         # ngưỡng điểm nóng tối thiểu
+TRENDS_MIN_SCORE_INTL=20   # ngưỡng riêng, cao hơn, cho đề tài quốc tế
+TRENDS_GLOBAL_GEO=US       # geo cho Google Trends quốc tế
+TRENDS_REDDIT=0            # tắt nguồn Reddit
 TRENDS_DEDUPE_DAYS=7       # cửa sổ chống trùng
 TRENDS_DRY_RUN=1           # chỉ in ra, không ghi file
+TRENDS_EXPLAIN=1           # in cả đề tài bị loại kèm lý do, để chỉnh ngưỡng
+```
+
+Muốn xem bộ lọc đang chấm ra sao mà không ghi gì:
+
+```bash
+TRENDS_DRY_RUN=1 TRENDS_EXPLAIN=1 npm run collect-trends
 ```
 
 ### Đặt lịch chạy
