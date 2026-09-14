@@ -41,6 +41,12 @@ cách chặn tải cho máy chủ dùng chung. Lượt viết dừng sớm khi h
 quá `MAX_MINUTES` (mặc định 50), hoặc sau **hai lượt hỏng liên tiếp** — hỏng
 hai lần liền thường là hỏng hệ thống chứ không phải xui một đề tài.
 
+`ARTICLE_TIMEOUT` (mặc định `25m`) là trần thời gian cho MỘT bài, khác
+`MAX_MINUTES` vốn chỉ được kiểm giữa hai bài. Không được gỡ: lượt viết giữ
+`flock` dùng chung với cron, nên một tiến trình treo là mọi lượt sau đó thoát
+lặng lẽ, không để lại một dòng log — nhìn vào chỉ thấy trang ngừng cập nhật.
+Đúng chuyện đó xảy ra ngày 13–14/09/2026, mất 15 tiếng.
+
 Bốn mảnh:
 
 | Thành phần | Việc |
