@@ -349,6 +349,27 @@ export function volumeBonus(raw, { cap = 25, floor = 1000 } = {}) {
 export function scoreTopic(c) {
   const text = stripDiacritics(`${c.topic ?? ""}\n${c.extra ?? ""}`).toLowerCase();
   const reasons = [];
+  const words = String(c.topic ?? "").trim().split(/\s+/).length;
+
+  // Lịch/kết quả thi đấu lọt vào qua đường Google News: "Chinese Taipei vs
+  // Vietnam - Football Women's" khớp đủ cả "Việt Nam" lẫn "Trung Quốc" nên
+  // được tận 96 điểm, trong khi nó chỉ là một dòng lịch thi đấu.
+  //
+  // Phải CẮT NGANG chứ không trừ điểm: trừ bao nhiêu cũng không đủ khi nó vẫn
+  // ôm trọn +35 ưu tiên Trung Quốc ↔ Việt Nam và +20 nhắc Việt Nam. Đây không
+  // phải câu chuyện viết được, nên đừng chấm nó như một câu chuyện.
+  //
+  // Nhận dạng theo hình dạng "A vs B" trong một tít ngắn. Tin thật có chữ "vs"
+  // — một vụ kiện, một cuộc so kè — bao giờ cũng dài hơn vì còn phải kể đã xảy
+  // ra chuyện gì ("Apple vs Epic ruling could reshape the App Store...").
+  if (/(?<![a-z0-9])vs\.?(?![a-z0-9])/i.test(stripDiacritics(c.topic ?? "")) && words <= 8) {
+    return {
+      score: -50,
+      vietnam: false,
+      priority: false,
+      reasons: ["−50 chỉ là một dòng lịch/kết quả thi đấu, không phải câu chuyện"],
+    };
+  }
 
   let score = (SOURCE_HEAT[c.origin] ?? 0) + (c.bonus ?? 0);
 
@@ -428,7 +449,7 @@ export function scoreTopic(c) {
   const bareQuery =
     String(c.origin ?? "").startsWith("google-trends") &&
     !hasContentSignal &&
-    String(c.topic ?? "").trim().split(/\s+/).length <= 3;
+    words <= 3;
   if (bareQuery) {
     score -= 30;
     reasons.push("−30 mới là từ khoá tra cứu, chưa thành câu chuyện");
