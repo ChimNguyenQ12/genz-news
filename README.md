@@ -190,9 +190,35 @@ khi thấy trên mạng xã hội — và ở tin giải trí của báo Việt.
 - Trừ điểm: tin gọi vốn/thay ghế lãnh đạo/ghi chú phát hành/nghi lễ địa phương
   nước xa tối đa −45; không dính Việt Nam mà cũng không chạm tới nước hay hãng
   nào người Việt theo dõi −25; từ khoá tra cứu chưa thành câu chuyện −30.
-- Chọn theo **hạn ngạch 70% Việt Nam / 30% quốc tế**, trần 40% suất cho mỗi
-  nguồn để không nguồn nào nuốt hết hàng đợi. Đề tài quốc tế phải qua ngưỡng
-  điểm cao hơn — phần 30% chỉ có vài suất nên tin thế giới phải thật sự lớn.
+- Gộp **trùng gần**: cùng một sự việc thì mỗi báo giật tít một kiểu, `dedupeKey`
+  chỉ bắt được tít giống hệt. `sameStory()` so theo tập từ mang nghĩa — một mẻ
+  thật gộp được ~140 tít, trong đó có 4 bản của cùng tin Tesla mở công ty ở Việt Nam.
+- Chọn theo **hạn ngạch 70% Việt Nam / 30% quốc tế**, kèm hai trần: **25% mỗi
+  nguồn** (tính theo từng truy vấn / từng tờ báo, không phải cả cụm Google News)
+  và **30% mỗi mảng đề tài**. Trần theo mảng là thứ giữ cho hàng đợi còn chỗ cho
+  kinh tế, giao thông, giáo dục — nhóm ưu tiên được chọn TRƯỚC, không phải
+  được chọn HẾT. Các mảng: Việt–Trung/chủ quyền, kinh tế, giao thông, chính trị,
+  giáo dục, công nghệ, giải trí, thể thao, đời sống.
+- Đề tài quốc tế phải qua ngưỡng điểm cao hơn — phần 30% chỉ có vài suất nên
+  tin thế giới phải thật sự lớn.
+
+### Tít tiếng Việt
+
+Hơn nửa hàng đợi là tít tiếng Anh (Reuters, Nikkei, SCMP...), đọc từng cái mới quyết
+được có bấm *Create post* hay không thì rất chậm. `scripts/translate-topics.mjs`
+dịch chúng sang tiếng Việt, ghi vào cột `topicVi`; `collect-trends` tự gọi sau
+mỗi lượt thu thập. Màn hình hiện tít Việt lên trước, tít gốc xuống dưới dạng phụ
+— bản dịch do máy viết nên cần đối chiếu được, và tên riêng trong tít gốc là thứ
+dùng để đi tìm bài nguồn.
+
+Dịch bằng `claude -p` (đã đăng nhập sẵn trên máy chủ cho vòng viết bài) chứ không
+gọi API dịch: tít báo cần diễn giải chứ không dịch từng chữ. Một lượt gọi cho cả mẻ.
+Chưa cài `claude` thì script cảnh báo rồi thoát êm, màn hình rơi về tít gốc.
+
+```bash
+npm run translate-topics              # dịch mọi mục chưa có tít Việt
+npm run translate-topics -- --dry-run # chỉ in ra, không ghi
+```
 
 Đề tài nào lọt vào đều mang theo dòng `[xếp loại] điểm nóng N · Việt Nam · ƯU
 TIÊN` cùng lý do trong `notes`, hiện ngay ở `/admin/research`.
