@@ -85,6 +85,11 @@ fi
 [ -n "$MAX_ARTICLES" ] || MAX_ARTICLES=1
 # Trần thời gian cả lượt, phòng khi một bài sa lầy.
 [ -n "$MAX_MINUTES" ]  || MAX_MINUTES=50
+# Trần thời gian cho MỘT bài. Khác MAX_MINUTES ở chỗ cái này ép được ngay giữa
+# lúc claude đang chạy, còn MAX_MINUTES chỉ kiểm khi một bài đã xong. Mỗi bài
+# bình thường mất 8–10 phút nên 25 phút là rộng rãi.
+ARTICLE_TIMEOUT="${ARTICLE_TIMEOUT:-$(sed -n 's/^ARTICLE_TIMEOUT=//p' "$ENV_FILE" | tail -1)}"
+[ -n "$ARTICLE_TIMEOUT" ] || ARTICLE_TIMEOUT=25m
 
 case "$MAX_ARTICLES" in ''|*[!0-9]*) log "MAX_ARTICLES không phải số, dùng 1"; MAX_ARTICLES=1 ;; esac
 case "$MAX_MINUTES"  in ''|*[!0-9]*) log "MAX_MINUTES không phải số, dùng 50"; MAX_MINUTES=50 ;; esac
@@ -147,7 +152,7 @@ PRESSEOF
 fi
 
 write_one() {
-  local want="${1:-}" task_json req_id topic sensitive sensitive_note prompt still now reason
+  local want="${1:-}" task_json req_id topic sensitive sensitive_note prompt still now reason rc
 
   # Kiểm lại mỗi vòng: một lượt deploy giữa chừng có thể vừa khởi động lại app,
   # mà bước lưu bài lại gọi HTTP vào chính app đó.
@@ -358,12 +363,31 @@ PROMPTEOF
   # Danh sách công cụ mở đúng hai lệnh của toà soạn. Thiếu genz-news-fetch-image
   # ở đây thì bước 5 trong prompt là lời nói suông — Claude xin chạy lệnh, bị
   # từ chối, và mọi bài ra đời không có lấy một tấm ảnh.
-  if claude -p "$prompt" \
-       --allowed-tools "WebSearch" "WebFetch" "Read" "Grep" "Glob" "Write" \
+  #
+  # Edit phải có bên cạnh Write. Claude ghi JSON bài bằng Write rồi gần như lúc
+  # nào cũng sửa lại một chữ bằng Edit; thiếu Edit thì nó dừng lại xin phép —
+  # mà chạy dưới cron thì không có ai để trả lời. Ngày 13/09/2026 đúng chuyện
+  # đó làm hỏng hai lượt liền rồi treo lượt thứ ba suốt 15 tiếng.
+  #
+  # timeout là chốt chặn cuối. MAX_MINUTES chỉ được kiểm GIỮA các bài, nên một
+  # bài treo thì vòng lặp không bao giờ quay lại để kiểm. Mà lượt viết lại giữ
+  # flock dùng chung với cron 06:00/18:00 — một tiến trình treo là mọi lượt sau
+  # đó chết lặng, không một dòng log. TERM trước, 60 giây sau chưa chết thì KILL.
+  if timeout --signal=TERM --kill-after=60 "${ARTICLE_TIMEOUT}" \
+     claude -p "$prompt" \
+       --allowed-tools "WebSearch" "WebFetch" "Read" "Grep" "Glob" "Write" "Edit" \
                        "Bash(genz-news-fetch-image:*)" \
                        "Bash(genz-news-save-article:*)" ; then
     log "Claude chạy xong lượt [$req_id]"
   else
+    rc=$?
+    if [ "$rc" -eq 124 ] || [ "$rc" -eq 137 ]; then
+      log "lượt [$req_id] quá $ARTICLE_TIMEOUT, đã giết để nhả khoá"
+      heartbeat_stop
+      release "Lượt viết lúc $(date -Iseconds) bị giết vì chạy quá $ARTICLE_TIMEOUT. Thường là Claude dừng hỏi quyền một công cụ không nằm trong --allowed-tools."
+      status finish --result=failed --error="quá giờ ($ARTICLE_TIMEOUT): $topic"
+      return 1
+    fi
     log "lượt [$req_id] hỏng, trả đề tài về hàng đợi"
     heartbeat_stop
     release "Lượt viết lúc $(date -Iseconds) hỏng giữa chừng (claude thoát với mã lỗi). Xem /var/log/genz-news-newsroom.log."
