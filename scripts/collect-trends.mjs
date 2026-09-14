@@ -53,6 +53,7 @@ import {
   dedupeKey,
   isNoise,
   pickWithQuota,
+  sameStory,
   scoreTopic,
   volumeBonus,
 } from "./lib/topic-filter.mjs";
@@ -154,11 +155,41 @@ const SUBREDDITS = [
  * gốc, không được tính là nguồn — newsroom-save.mjs đã xếp news.google.com vào
  * nhóm trang tổng hợp, nên nó không đếm vào mức tối thiểu 1 nguồn.
  */
+/**
+ * Mỗi truy vấn nhắm một mảng đề tài khác nhau. Trước đây chỉ có 4 truy vấn mà
+ * 2 trong số đó là Trung Quốc/Biển Đông, nên rổ ứng viên đã lệch sẵn từ gốc —
+ * chấm điểm xong lại cộng thêm ưu tiên cho đúng nhóm ấy, thành ra hàng đợi
+ * gần như chỉ còn tin Việt - Trung. Trần theo mảng ở topic-filter.mjs chặn
+ * phía sau, nhưng chặn cũng vô nghĩa nếu rổ không có gì khác để chọn.
+ *
+ * Dùng hl=vi cho mấy truy vấn tiếng Việt: Google News trả về báo trong nước,
+ * bổ sung cho phần RSS vốn chỉ có vài tờ.
+ */
 const GOOGLE_NEWS_QUERIES = [
-  { label: "Việt Nam trên báo nước ngoài", q: "Vietnam when:2d" },
+  // --- nhóm ưu tiên
   { label: "Việt Nam – Trung Quốc", q: "Vietnam China when:3d" },
   { label: "Biển Đông", q: '"South China Sea" when:3d' },
-  { label: "Kinh tế Việt Nam", q: "Vietnam economy OR investment OR factory when:3d" },
+  // --- Việt Nam nói chung, trên báo nước ngoài
+  { label: "Việt Nam trên báo nước ngoài", q: "Vietnam when:2d" },
+  // --- các mảng đời sống, để hàng đợi không chỉ có chuyện biển đảo
+  { label: "Kinh tế Việt Nam", q: "Vietnam economy OR investment OR export when:3d" },
+  { label: "Lao động, việc làm", q: "Vietnam jobs OR wages OR workers when:4d" },
+  {
+    label: "Giao thông, hạ tầng",
+    q: "Vietnam metro OR railway OR airport OR expressway when:4d",
+  },
+  {
+    label: "Chính sách, chính trị",
+    q: "Vietnam policy OR government OR reform when:3d",
+  },
+  { label: "Giáo dục, du học", q: "Vietnam education OR students OR university when:4d" },
+  { label: "Du lịch", q: "Vietnam tourism OR travel OR tourists when:4d" },
+  { label: "Công nghệ Việt Nam", q: "Vietnam technology OR startup OR AI when:3d" },
+  // --- báo trong nước, tiếng Việt
+  { label: "Kinh tế trong nước", q: "kinh tế Việt Nam when:2d", hl: "vi" },
+  { label: "Giao thông trong nước", q: "giao thông hạ tầng when:2d", hl: "vi" },
+  { label: "Giáo dục trong nước", q: "giáo dục học phí tuyển sinh when:2d", hl: "vi" },
+  { label: "Đời sống giới trẻ", q: "giới trẻ việc làm lương when:3d", hl: "vi" },
 ];
 
 const toArray = (v) => (v === undefined ? [] : Array.isArray(v) ? v : [v]);
@@ -354,11 +385,13 @@ async function fetchRedditHot({ sub, minUps }) {
  * Google News RSS. Tít về dạng "Tít bài - Tên báo" và tên báo lặp lại ở thẻ
  * <source>; cắt đuôi đó đi để đề tài trong hàng đợi đọc cho sạch.
  */
-async function fetchGoogleNews({ label, q }) {
+async function fetchGoogleNews({ label, q, hl }) {
+  // hl="vi" cho ra báo trong nước, mặc định cho ra báo tiếng Anh. Cùng một
+  // truy vấn ở hai thứ tiếng trả về hai rổ bài gần như không giao nhau.
+  const locale =
+    hl === "vi" ? "hl=vi&gl=VN&ceid=VN:vi" : "hl=en-US&gl=US&ceid=US:en";
   const url =
-    "https://news.google.com/rss/search?q=" +
-    encodeURIComponent(q) +
-    "&hl=en-US&gl=US&ceid=US:en";
+    "https://news.google.com/rss/search?q=" + encodeURIComponent(q) + "&" + locale;
   const res = await fetchWithTimeout(url);
   const parsed = parser.parse(await res.text());
   return toArray(parsed?.rss?.channel?.item)
@@ -422,16 +455,41 @@ function readRecentTopics(sinceMs) {
   }
 }
 
+/** Nhãn tiếng Việt cho mảng đề tài, để dòng [xếp loại] đọc được ngay. */
+const CATEGORY_LABEL = {
+  // Gom cả chủ quyền lẫn "Trung Quốc làm gì ảnh hưởng tới Việt Nam", nên nhãn phải
+  // nói đúng cả hai: một tin nhập ethanol từ SDIC không phải tin chủ quyền.
+  "chu-quyen": "Việt–Trung / chủ quyền",
+  "kinh-te": "kinh tế",
+  "giao-thong": "giao thông",
+  "chinh-tri": "chính trị",
+  "giao-duc": "giáo dục",
+  "cong-nghe": "công nghệ",
+  "giai-tri": "giải trí",
+  "the-thao": "thể thao",
+  "doi-song": "đời sống",
+  khac: "khác",
+};
+
 /**
  * Dựng một ứng viên đã kèm điểm. Điểm và lý do được ghi luôn vào `notes` để
  * tổng biên tập mở /admin/research là thấy vì sao đề tài này lọt vào, và để
  * phóng viên AI biết góc nào đang được quan tâm.
  */
-function candidate({ topic, urls = [], notes = "", extra = "", origin, bonus = 0 }) {
+function candidate({
+  topic,
+  urls = [],
+  notes = "",
+  extra = "",
+  origin,
+  bonus = 0,
+  spreadKey,
+}) {
   const verdict = scoreTopic({ topic, extra, origin, bonus });
   const tags = [
     `điểm nóng ${verdict.score}`,
     verdict.vietnam ? "Việt Nam" : "quốc tế",
+    CATEGORY_LABEL[verdict.category] ?? verdict.category,
     verdict.priority ? "ƯU TIÊN" : null,
   ].filter(Boolean);
   return {
@@ -441,6 +499,14 @@ function candidate({ topic, urls = [], notes = "", extra = "", origin, bonus = 0
       .filter(Boolean)
       .join("\n"),
     origin,
+    // Khoá dàn trải, tách hẳn khỏi `origin`. `origin` quyết định ĐIỂM nên phải
+    // thô; khoá này quyết định TRẦN SUẤT nên phải mịn.
+    //
+    // Cả  14 truy vấn Google News cùng một `origin`, nên chúng tranh nhau đúng
+    // 6 suất — mà 6 suất ấy luôn bị nhóm Việt–Trung 96 điểm thắng sạch.
+    // Mọi truy vấn kinh tế, giao thông, chính trị thêm vào đều bị khoá ngoài
+    // cửa dù điểm đủ cao. Tách ra thì mỗi truy vấn, mỗi tờ báo có phần riêng.
+    spreadKey: spreadKey ?? origin,
     ...verdict,
   };
 }
@@ -588,6 +654,7 @@ async function main() {
         topic: p.title,
         urls: [p.url, p.permalink],
         origin: "reddit",
+        spreadKey: `reddit:${p.sub}`,
         bonus: volumeBonus(p.ups, { cap: 20, floor: 500 }),
         notes: [
           `[Reddit r/${p.sub}] ${p.ups.toLocaleString("vi-VN")} upvote · ${p.comments} bình luận`,
@@ -603,6 +670,7 @@ async function main() {
         topic: h.title,
         urls: [h.url],
         origin: "google-news-vn",
+        spreadKey: `gnews:${h.query}`,
         notes: [
           `[Google News · ${h.query}] báo gốc: ${h.publisher || "không rõ"}` +
           (h.pubDate ? ` · ${h.pubDate}` : ""),
@@ -620,6 +688,7 @@ async function main() {
         topic: h.title,
         urls: [h.url],
         origin: h.origin,
+        spreadKey: `rss:${h.source}`,
         notes: `[${h.source}]${h.pubDate ? ` · ${h.pubDate}` : ""}`,
       }),
     );
@@ -627,13 +696,26 @@ async function main() {
 
   // --- lọc trùng: trong chính mẻ này, và với những gì đã vào hàng đợi N ngày qua
   const cutoff = Date.now() - DEDUPE_DAYS * 24 * 60 * 60 * 1000;
-  const seen = new Set(readRecentTopics(cutoff).map(dedupeKey));
+  const recent = readRecentTopics(cutoff);
+  const seen = new Set(recent.map(dedupeKey));
   const deduped = [];
-  for (const c of pool) {
+  // Giữ riêng danh sách tít để so trùng GẦN ĐÚ NG. Xếp ứng viên theo điểm
+  // giảm dần trước, để trong một chùm trùng thì bản điểm cao nhất được giữ lại.
+  const titles = [...recent];
+  let nearDupes = 0;
+  for (const c of [...pool].sort((a, b) => b.score - a.score)) {
     const key = dedupeKey(c.topic);
     if (!key || seen.has(key)) continue;
+    if (titles.some((t) => sameStory(c.topic, t))) {
+      nearDupes++;
+      continue;
+    }
     seen.add(key);
+    titles.push(c.topic);
     deduped.push(c);
+  }
+  if (nearDupes) {
+    console.log(`  · gộp ${nearDupes} tít kể lại cùng một sự việc`);
   }
 
   // --- chọn theo điểm nóng + hạn ngạch 70/30
@@ -652,12 +734,21 @@ async function main() {
     `  hạn ngạch: Việt Nam ${stats.vnTake}/${stats.vnAvailable} · ` +
     `quốc tế ${stats.intlTake}/${stats.intlAvailable} · ` +
     `${stats.belowMinScore} dưới ngưỡng (${MIN_SCORE} điểm, quốc tế ${MIN_SCORE_INTL}) · ` +
-    `trần ${Math.round(stats.perOriginShare * 100)}% suất mỗi nguồn`,
+    `trần ${Math.round(stats.perOriginShare * 100)}% mỗi nguồn, ` +
+    `${Math.round(stats.perCategoryShare * 100)}% mỗi mảng`,
+  );
+  console.log(
+    "  mảng đề tài: " +
+    Object.entries(stats.byCategory)
+      .sort((x, y) => y[1] - x[1])
+      .map(([k, n]) => `${CATEGORY_LABEL[k] ?? k} ${n}`)
+      .join(" · "),
   );
   for (const c of picked) {
     console.log(
       `   + [${String(c.score).padStart(3)}] ${c.vietnam ? "VN " : "QT "}` +
-      `${c.priority ? "★ " : "  "}${c.topic}  (${c.origin})`,
+      `${c.priority ? "★ " : "  "}${c.topic}  ` +
+      `(${CATEGORY_LABEL[c.category] ?? c.category} · ${c.origin})`,
     );
   }
 
@@ -749,6 +840,21 @@ async function main() {
     ),
     "utf8",
   );
+
+  // Dịch tít sang tiếng Việt ngay sau khi ghi, để tổng biên tập mở
+  // /admin/research là đọc được liền. Hỏng thì cột để trống và màn hình rơi về
+  // tít gốc — không được làm hỏng cả lượt thu thập chỉ vì việc dịch.
+  if (!DRY_RUN) {
+    try {
+      execFileSync(
+        process.execPath,
+        [path.join(ROOT, "scripts", "translate-topics.mjs")],
+        { stdio: "inherit", env: process.env },
+      );
+    } catch (err) {
+      console.warn(`[collect-trends] dịch tít không xong: ${err.message}`);
+    }
+  }
 
   console.log(`\n[collect-trends] đã ghi ${picked.length} đề tài vào database`);
   console.log(`[collect-trends] ảnh chụp dữ liệu thô: ${DIGEST_FILE}`);

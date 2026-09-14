@@ -48,6 +48,57 @@ export function dedupeKey(s) {
   return normalize(s).replace(/\s+/g, "");
 }
 
+/**
+ * Từ nối, quá phổ biến để nói lên đề tài là gì. Bỏ đi trước khi so trùng gần,
+ * nếu không hai tít chẳng liên quan vẫn "giống nhau" chỉ vì cùng có "của",
+ * "the", "cho".
+ */
+const STOPWORDS = new Set(
+  (
+    "va cua cho voi tu den ve theo trong ngoai tren duoi khi da dang se bi duoc " +
+    "co khong nhung ma la mot hai cac nhung nay do day kia se vua moi lai con " +
+    "nguoi viec sau truoc giua hon nhat rat qua cung deu tai boi nen neu thi " +
+    "the a an and or of to in on at for from with by as is are was were be been " +
+    "has have had will would can could may might that this these those it its " +
+    "but not no new say says said after before over under into out up down " +
+    "report reports amid via than then them they their we you he she his her"
+  ).split(/\s+/),
+);
+
+/**
+ * Tách tít thành tập từ mang nghĩa: bỏ dấu, bỏ từ nối, bỏ từ một-hai chữ cái.
+ */
+function contentTokens(s) {
+  return new Set(
+    normalize(s)
+      .split(" ")
+      .filter((w) => w.length > 2 && !STOPWORDS.has(w)),
+  );
+}
+
+/**
+ * Hai tít có phải cùng MỘT câu chuyện không.
+ *
+ * Vì sao cần: `dedupeKey` chỉ bắt được hai tít giống hệt nhau. Nhưng cùng một
+ * sự việc thì mỗi báo giật tít một kiểu — "Tesla sets up Vietnam unit,
+ * registration filing shows" và "Tesla sets up Vietnam unit to tap fast-growing
+ * EV market" là một chuyện, chữ thì khác. Mẻ 14/09/2026 có 4 tít Tesla và 2 tít
+ * Việt Nam - Pháp, tức 6 trong 13 suất Việt Nam chỉ nói về ĐÚNG HAI sự việc.
+ * Càng thêm truy vấn Google News thì càng nhiều báo, càng nhiều bản trùng.
+ *
+ * Chia cho tập NHỎ HƠN chứ không chia cho hợp: một tít ngắn nằm gọn trong một
+ * tít dài vẫn là cùng chuyện, mà chia cho hợp thì tỷ lệ bị kéo tụt vì phần
+ * đuôi dài của tít kia.
+ */
+export function sameStory(a, b, threshold = 0.5) {
+  const ta = contentTokens(a);
+  const tb = contentTokens(b);
+  if (ta.size < 3 || tb.size < 3) return false;
+  let shared = 0;
+  for (const w of ta) if (tb.has(w)) shared++;
+  return shared / Math.min(ta.size, tb.size) >= threshold;
+}
+
 const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 /**
@@ -227,6 +278,128 @@ const GLOBAL_REACH_MARKERS = [
   "messi", "ronaldo", "oscar", "grammy", "cannes",
 ];
 
+// --------------------------------------------------------------- mảng đề tài
+/**
+ * Xếp đề tài vào mảng nội dung, để hàng đợi không bị một mảng nuốt hết.
+ *
+ * Vì sao cần: nhóm chủ quyền được +45 và nhóm Trung Quốc ↔ Việt Nam được +35,
+ * nên chấm xong thì chúng chiếm sạch bảng — mẻ 14/09/2026 có tới 6/13 suất Việt
+ * Nam là tin Việt - Trung, không còn chỗ cho kinh tế, giao thông, giáo dục.
+ * Ưu tiên vẫn giữ, nhưng ưu tiên nghĩa là "được chọn trước", không phải "được
+ * chọn hết".
+ *
+ * Xếp theo mảng nào khớp NHIỀU từ khoá nhất; hoà thì theo thứ tự trong danh
+ * sách này, nên nhóm đặt trước có tiếng nói hơn.
+ */
+const CATEGORY_MARKERS = {
+  "kinh-te": [
+    "kinh te", "economy", "economic", "gdp", "lam phat", "inflation",
+    "xuat khau", "export", "exports", "nhap khau", "import", "imports",
+    "thuong mai", "trade", "dau tu", "investment", "investor", "fdi",
+    "chung khoan", "stock", "shares", "ngan hang", "bank", "banking",
+    "lai suat", "interest rate", "thue", "tax", "tariff", "tariffs",
+    "doanh nghiep", "business", "company", "startup", "nha may", "factory",
+    "san xuat", "manufacturing", "chuoi cung ung", "supply chain",
+    "lao dong", "labour", "labor", "viec lam", "jobs", "that nghiep",
+    "unemployment", "luong", "wage", "salary", "gia ca", "prices",
+    "bat dong san", "real estate", "property", "chung cu", "lam phat",
+    "tien te", "currency", "ty gia", "revenue", "profit", "gdp",
+  ],
+  "giao-thong": [
+    "giao thong", "transport", "transportation", "metro", "duong sat",
+    "railway", "rail", "cao toc", "expressway", "highway", "san bay",
+    "airport", "cang bien", "seaport", "bridge",
+    // KHONG dung "cau" va "ham" tran: bo dau xong chung dinh "cau hinh",
+    // "yeu cau", "cau chuyen", "ham y", "ham luong" - mot tit dien thoai
+    // Samsung tung bi xep vao muc giao thong vi chu "cau hinh".
+    "cay cau", "cau vuot", "cau duong", "ham duong bo", "duong ham", "tunnel",
+    "ket xe", "traffic", "xe buyt", "bus", "hang khong",
+    "aviation", "airline", "tau dien", "subway", "ha tang", "infrastructure",
+    "duong bo", "road", "van tai", "logistics", "tau hoa", "train",
+    "tai nan giao thong", "toll", "tram thu phi",
+  ],
+  "chinh-tri": [
+    "chinh tri", "politics", "political", "quoc hoi", "national assembly",
+    "chinh phu", "government", "thu tuong", "prime minister", "chu tich nuoc",
+    "bo truong", "minister", "ministry", "nghi dinh", "decree", "thong tu",
+    "luat", "law", "legislation", "chinh sach", "policy", "bau cu", "election",
+    "cai cach", "reform", "sap nhap tinh", "sap nhap", "dai hoi", "congress",
+    "ngoai giao", "diplomacy", "diplomatic", "dai su", "ambassador",
+    "hiep dinh", "agreement", "treaty", "thoa thuan", "cong uoc",
+    "tham nhung", "corruption", "ky luat", "bo may", "cong chuc",
+  ],
+  "giao-duc": [
+    "giao duc", "education", "hoc phi", "tuition", "dai hoc", "university",
+    "truong hoc", "school", "hoc sinh", "pupil", "sinh vien", "student",
+    "ky thi", "exam", "tuyen sinh", "admission", "diem chuan", "du hoc",
+    "study abroad", "hoc bong", "scholarship", "giao vien", "teacher",
+    "giang vien", "curriculum", "chuong trinh hoc", "sach giao khoa",
+  ],
+  "cong-nghe": [
+    "cong nghe", "technology", "chatgpt", "openai", "gemini", "iphone",
+    "samsung", "smartphone", "dien thoai", "internet", "5g", "phan mem",
+    "software", "ung dung", "mang xa hoi", "social media", "tiktok",
+    "facebook", "google", "microsoft", "apple", "chip", "ban dan",
+    "semiconductor", "du lieu", "data", "an ninh mang", "cybersecurity",
+    "blockchain", "crypto", "bitcoin", "xe dien", "electric vehicle",
+    "tesla", "vinfast", "ev market", "automobile", "o to", "xe hoi", "pin xe",
+    "tri tue nhan tao", "artificial intelligence", "robot", "ve tinh",
+    "satellite", "vien thong", "telecom", "thuong mai dien tu", "ecommerce",
+  ],
+  "giai-tri": [
+    "giai tri", "entertainment", "phim", "film", "movie", "ca si", "singer",
+    "am nhac", "dan nhac", "ban nhac", "giao huong", "orchestra", "symphony",
+    "music", "concert", "album", "idol", "kpop", "hoa hau",
+    "dien vien", "actor", "actress", "truyen hinh", "gameshow", "netflix",
+    "streamer", "youtuber", "tiktoker", "scandal", "drama", "showbiz",
+    "nghe si", "artist", "le trao giai", "award",
+  ],
+  "the-thao": [
+    "the thao", "sport", "sports", "bong da", "football", "soccer",
+    "world cup", "sea games", "olympic", "asiad", "van dong vien", "athlete",
+    "huan luyen vien", "coach", "tran dau", "match", "giai dau", "tournament",
+    "vo dich", "champion", "esports", "chuyen nhuong", "doi tuyen",
+    "asian games", "badminton", "cau long", "shuttler", "bong chuyen",
+    "volleyball", "tennis", "boxing", "marathon", "bong ro", "basketball",
+    "chung ket", "ban ket", "huy chuong", "medal",
+  ],
+  "doi-song": [
+    "doi song", "suc khoe", "health", "benh", "disease", "dich benh",
+    "y te", "medical", "benh vien", "hospital", "bac si", "doctor",
+    "moi truong", "environment", "o nhiem", "pollution", "khi hau", "climate",
+    "thoi tiet", "weather", "storm", "typhoon", "lu lut", "flood",
+    // "bao" tran dinh "bao chi", "bao cao", "thong bao"; "chay" dinh "chay bo".
+    "con bao", "bao lut", "sieu bao",
+    "dong dat", "earthquake", "sat lo", "du lich", "tourism", "tourist",
+    "am thuc", "food", "nha o", "housing", "dan so", "population",
+    "hon nhan", "marriage", "sinh con", "birth rate", "nguoi cao tuoi",
+    "an toan thuc pham", "hoa hoan", "chay rung", "chay nha", "fire",
+  ],
+};
+
+const CATEGORY_RE = Object.entries(CATEGORY_MARKERS).map(([name, words]) => [
+  name,
+  matcher(words),
+]);
+
+/**
+ * Mảng của một đề tài. Nhóm chủ quyền/Trung Quốc không nằm trong bảng trên —
+ * scoreTopic tự gán "chu-quyen" cho chúng, vì chúng đã được nhận dạng bằng bộ
+ * từ khoá riêng và chính xác hơn.
+ */
+export function categorize(text) {
+  let best = "khac";
+  let bestCount = 0;
+  for (const [name, re] of CATEGORY_RE) {
+    const n = hits(re, text).length;
+    if (n > bestCount) {
+      best = name;
+      bestCount = n;
+    }
+  }
+  return best;
+}
+
 const RE_VN = matcher(VN_MARKERS);
 const RE_SOVEREIGNTY = matcher(SOVEREIGNTY_MARKERS);
 const RE_CHINA = matcher(CHINA_MARKERS);
@@ -344,12 +517,22 @@ export function volumeBonus(raw, { cap = 25, floor = 1000 } = {}) {
  * @param {string} [c.extra]  văn bản thật sự thuộc về đề tài (tít bài liên quan)
  * @param {string} c.origin   khoá trong SOURCE_HEAT
  * @param {number} [c.bonus]  điểm cộng riêng của nguồn (lượt tìm/xem/upvote)
- * @returns {{score:number, vietnam:boolean, priority:boolean, reasons:string[]}}
+ * @returns {{score:number, vietnam:boolean, priority:boolean, category:string, reasons:string[]}}
  */
 export function scoreTopic(c) {
   const text = stripDiacritics(`${c.topic ?? ""}\n${c.extra ?? ""}`).toLowerCase();
   const reasons = [];
   const words = String(c.topic ?? "").trim().split(/\s+/).length;
+  // Riêng câu hỏi "đây có phải chuyện Việt Nam / Việt - Trung không" thì chỉ đọc
+  // CHÍNH CÁI TÍT, không đọc `extra`.
+  //
+  // `extra` là tít mấy bài đang đưa tin về từ khoá đó — đủ tốt để đo độ nóng,
+  // nhưng quá loãng để kết luận đề tài thuộc nhóm nào. Từ khoá "asiad 2026" có
+  // vài bài liên quan nhắc Trung Quốc và Việt Nam, thế là nó được +35 ưu tiên
+  // Việt - Trung và vọt lên 126 điểm, đứng đầu hàng đợi — trong khi nó chỉ là tên
+  // một đại hội thể thao.
+  const topicText = stripDiacritics(c.topic ?? "").toLowerCase();
+
 
   // Lịch/kết quả thi đấu lọt vào qua đường Google News: "Chinese Taipei vs
   // Vietnam - Football Women's" khớp đủ cả "Việt Nam" lẫn "Trung Quốc" nên
@@ -367,16 +550,17 @@ export function scoreTopic(c) {
       score: -50,
       vietnam: false,
       priority: false,
+      category: "the-thao",
       reasons: ["−50 chỉ là một dòng lịch/kết quả thi đấu, không phải câu chuyện"],
     };
   }
 
   let score = (SOURCE_HEAT[c.origin] ?? 0) + (c.bonus ?? 0);
 
-  const vnHits = hits(RE_VN, text);
-  const sovHits = hits(RE_SOVEREIGNTY, text);
-  const chinaHits = hits(RE_CHINA, text);
-  const impactHits = hits(RE_CHINA_IMPACT, text);
+  const vnHits = hits(RE_VN, topicText);
+  const sovHits = hits(RE_SOVEREIGNTY, topicText);
+  const chinaHits = hits(RE_CHINA, topicText);
+  const impactHits = hits(RE_CHINA_IMPACT, topicText);
 
   // Chủ quyền thì luôn ưu tiên. Trung Quốc chỉ thành ưu tiên khi đứng cạnh
   // Việt Nam, hoặc cạnh một thứ mà Việt Nam chịu tác động trực tiếp (đập trên
@@ -455,7 +639,11 @@ export function scoreTopic(c) {
     reasons.push("−30 mới là từ khoá tra cứu, chưa thành câu chuyện");
   }
 
-  return { score: Math.round(score), vietnam, priority, reasons };
+  // Nhóm chủ quyền/Trung Quốc có bộ từ khoá riêng, chính xác hơn bảng mảng
+  // chung, nên gán thẳng. Còn lại mới đi dò theo từ khoá.
+  const category = priority ? "chu-quyen" : categorize(text);
+
+  return { score: Math.round(score), vietnam, priority, category, reasons };
 }
 
 /**
@@ -470,15 +658,23 @@ export function scoreTopic(c) {
  * cả trăm đề tài 40 điểm chưa được gọi. Trần giữ được thứ tự tốt-trước, chỉ
  * chặn đúng cái cần chặn là một nguồn nuốt hết.
  */
-function takeSpread(list, limit, share) {
-  const cap = Math.max(2, Math.ceil(limit * share));
-  const used = new Map();
+function takeSpread(list, limit, dims) {
+  // Mỗi chiều một trần riêng, và một đề tài phải lọt qua HẾT các trần mới được
+  // lấy. Hai chiều đang dùng: nguồn (đừng để Google News nuốt hết) và mảng nội
+  // dung (đừng để chủ quyền/Trung Quốc nuốt hết).
+  const caps = dims.map((d) => ({
+    key: d.key,
+    cap: Math.max(d.min ?? 2, Math.ceil(limit * d.share)),
+    used: new Map(),
+  }));
   const taken = new Set();
   for (const c of list) {
     if (taken.size >= limit) break;
-    const n = used.get(c.origin) ?? 0;
-    if (n >= cap) continue;
-    used.set(c.origin, n + 1);
+    if (caps.some((d) => (d.used.get(d.key(c)) ?? 0) >= d.cap)) continue;
+    for (const d of caps) {
+      const k = d.key(c);
+      d.used.set(k, (d.used.get(k) ?? 0) + 1);
+    }
     taken.add(c);
   }
   // Trần là để ưu tiên đa dạng, không phải để bỏ trống hạn ngạch. Hôm nào chỉ
@@ -505,10 +701,23 @@ function takeSpread(list, limit, share) {
  * vẫn đáng viết cho bạn đọc Việt Nam; một đề tài quốc tế thì phải thật sự lớn
  * mới bõ chiếm một trong vài suất ít ỏi của phần 30% — không thì hàng đợi đầy
  * từ khoá tìm kiếm kiểu "russell wilson" của Google Trends Mỹ.
+ *
+ * `maxPerCategoryShare` giữ cho hàng đợi có nhiều mảng. Nhóm chủ quyền được
+ * +45 và nhóm Việt - Trung được +35, nên nếu chỉ sắp theo điểm thì chúng chiếm
+ * sạch: mẻ 14/09/2026 có 6/13 suất Việt Nam là tin Việt - Trung, không còn chỗ
+ * cho kinh tế, giao thông, giáo dục. Ưu tiên nghĩa là được chọn TRƯỚC, không
+ * phải được chọn HẾT.
  */
 export function pickWithQuota(
   candidates,
-  { max, vnShare = 0.7, minScore = 0, minScoreIntl = minScore, maxPerOriginShare = 0.4 },
+  {
+    max,
+    vnShare = 0.7,
+    minScore = 0,
+    minScoreIntl = minScore,
+    maxPerOriginShare = 0.25,
+    maxPerCategoryShare = 0.3,
+  },
 ) {
   const sorted = [...candidates].sort((a, b) => b.score - a.score);
   const vn = sorted.filter((c) => c.vietnam && c.score >= minScore);
@@ -523,10 +732,22 @@ export function pickWithQuota(
     : max;
   const intlTake = Math.min(intl.length, Math.max(0, intlCap));
 
+  const dims = [
+    { key: (c) => c.spreadKey ?? c.origin, share: maxPerOriginShare },
+    // min 1: mảng chỉ được nới lên 2 suất khi hạn ngạch đủ lớn, nếu không
+    // "tối thiểu 2" lại thành cửa sau cho nhóm chủ quyền ở những mẻ nhỏ.
+    { key: (c) => c.category ?? "khac", share: maxPerCategoryShare, min: 1 },
+  ];
   const picked = [
-    ...takeSpread(vn, vnTake, maxPerOriginShare),
-    ...takeSpread(intl, intlTake, maxPerOriginShare),
+    ...takeSpread(vn, vnTake, dims),
+    ...takeSpread(intl, intlTake, dims),
   ].sort((a, b) => b.score - a.score);
+
+  const byCategory = {};
+  for (const c of picked) {
+    const k = c.category ?? "khac";
+    byCategory[k] = (byCategory[k] ?? 0) + 1;
+  }
 
   return {
     picked,
@@ -538,6 +759,8 @@ export function pickWithQuota(
       vnTake: picked.filter((c) => c.vietnam).length,
       intlTake: picked.filter((c) => !c.vietnam).length,
       perOriginShare: maxPerOriginShare,
+      perCategoryShare: maxPerCategoryShare,
+      byCategory,
     },
   };
 }

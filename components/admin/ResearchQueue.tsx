@@ -546,7 +546,21 @@ function RequestRow({
             </span>
           </div>
 
-          <p className="mt-1.5 break-words font-semibold">{r.topic}</p>
+          {/*
+            Tít tiếng Việt lên trước, tít gốc xuống dưới dạng phụ. Hơn nửa hàng đợi
+            giờ là tít tiếng Anh của Reuters, Nikkei, SCMP... đọc từng cái mới quyết
+            được có bấm "Create post" hay không thì rất chậm.
+
+            Vẫn giữ tít gốc chứ không thay hẳn: bản dịch là do máy viết, cần đối
+            chiếu được — và tên riêng trong tít gốc là thứ dùng để đi tìm bài nguồn.
+            Chưa dịch (topicVi rỗng) thì chỉ hiện tít gốc, không để dòng trống.
+          */}
+          <p className="mt-1.5 break-words font-semibold">{r.topicVi || r.topic}</p>
+          {r.topicVi && (
+            <p className="mt-0.5 break-words text-xs text-muted" title="Tít gốc">
+              {r.topic}
+            </p>
+          )}
           {r.notes && <p className="mt-1 break-words text-sm text-muted">{r.notes}</p>}
 
           {r.urls.length > 0 && (

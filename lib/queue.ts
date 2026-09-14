@@ -11,6 +11,8 @@ export interface ResearchRequest {
   id: string;
   /** Từ khoá, chủ đề, hoặc mô tả đề tài muốn làm. */
   topic: string;
+  /** Tít dịch sang tiếng Việt. Rỗng khi chưa dịch — màn hình hiện tít gốc. */
+  topicVi?: string;
   /** Link nguồn gợi ý (nếu có). */
   urls: string[];
   /** Ghi chú thêm cho phóng viên. */
@@ -33,6 +35,7 @@ export interface ResearchRequest {
 type RequestRow = {
   id: string;
   topic: string;
+  topicVi: string | null;
   urls: string;
   notes: string;
   status: string;
@@ -68,6 +71,7 @@ function toRequest(row: RequestRow): ResearchRequest {
   return {
     id: row.id,
     topic: row.topic,
+    topicVi: row.topicVi ?? undefined,
     urls: parseList(row.urls),
     notes: row.notes,
     status: row.status as RequestStatus,
@@ -164,7 +168,17 @@ export async function listRequestsPage(
         : "";
 
   const filters = {
-    ...(q ? { OR: [{ topic: { contains: q } }, { notes: { contains: q } }] } : {}),
+    // Tìm cả trên tít dịch: tổng biên tập nhìn màn hình thấy tiếng Việt thì sẽ
+    // gõ tiếng Việt để tìm, không ai gõ lại tít tiếng Anh.
+    ...(q
+      ? {
+          OR: [
+            { topic: { contains: q } },
+            { topicVi: { contains: q } },
+            { notes: { contains: q } },
+          ],
+        }
+      : {}),
     ...(date ? { createdAt: vietnamDayRange(date) } : {}),
   };
 

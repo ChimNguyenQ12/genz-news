@@ -122,6 +122,9 @@ model Comment {
 model ResearchRequest {
   id    String @id @default(uuid())
   topic String
+  /// Tít dịch sang tiếng Việt, do scripts/translate-topics.mjs điền. NULL khi
+  /// chưa dịch — màn hình khi đó hiện tít gốc.
+  topicVi String?
   /// Mảng JSON các link gợi ý.
   urls  String @default("[]")
   notes String @default("")
