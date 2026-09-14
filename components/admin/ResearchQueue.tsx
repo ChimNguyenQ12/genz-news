@@ -59,6 +59,29 @@ function describeElapsed(min: number) {
   return `${hours}h ${min % 60}m`;
 }
 
+/**
+ * Rút gọn link để hiển thị. Link chuyển hướng của Google News dài khoảng 300
+ * ký tự và là MỘT khối liền không dấu cách, nên trình duyệt không có chỗ nào
+ * để ngắt dòng — nó tràn ra khỏi thẻ và đẩy vỡ cả layout. Lớp break-all ở chỗ
+ * dùng lo phần không tràn; hàm này lo phần không để một cái link nuốt mất bốn
+ * dòng màn hình.
+ *
+ * Giữ nguyên href, nên bấm vào vẫn tới đúng bài; phần bị cắt nằm ở title.
+ */
+function shortUrl(raw: string, max = 72) {
+  if (raw.length <= max) return raw;
+  try {
+    const u = new URL(raw);
+    const rest = `${u.pathname}${u.search}`;
+    const room = max - u.host.length - 1;
+    if (room > 8) return `${u.host}${rest.slice(0, room)}…`;
+    return `${u.host}/…`;
+  } catch {
+    // Không phải URL hợp lệ thì cắt thô, vẫn hơn là để nó tràn.
+    return `${raw.slice(0, max)}…`;
+  }
+}
+
 interface Query {
   tab: RequestStatus | "all";
   page: number;
@@ -523,8 +546,8 @@ function RequestRow({
             </span>
           </div>
 
-          <p className="mt-1.5 font-semibold">{r.topic}</p>
-          {r.notes && <p className="mt-1 text-sm text-muted">{r.notes}</p>}
+          <p className="mt-1.5 break-words font-semibold">{r.topic}</p>
+          {r.notes && <p className="mt-1 break-words text-sm text-muted">{r.notes}</p>}
 
           {r.urls.length > 0 && (
             <ul className="mt-1.5 space-y-0.5">
@@ -534,9 +557,10 @@ function RequestRow({
                     href={u}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-xs text-accent hover:underline"
+                    title={u}
+                    className="break-all text-xs text-accent hover:underline"
                   >
-                    {u}
+                    {shortUrl(u)}
                   </a>
                 </li>
               ))}
@@ -574,7 +598,7 @@ function RequestRow({
           )}
 
           {r.reporterNote && (
-            <p className="mt-2 rounded-lg bg-surface-2 p-2 text-xs text-muted">
+            <p className="mt-2 break-words rounded-lg bg-surface-2 p-2 text-xs text-muted">
               <strong>Reporter:</strong> {r.reporterNote}
             </p>
           )}
