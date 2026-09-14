@@ -403,7 +403,7 @@ PROMPTEOF
   if [ "$still" = "in_progress" ]; then
     log "Claude không lưu bài nào — trả đề tài về hàng đợi. Xem các dòng ngay"
     log "trên để biết vì sao (thiếu nguồn, bị bộ kiểm từ chối, hay lỗi hệ thống)."
-    release "Chạy xong nhưng không lưu được bài (thường là không đủ 1 nguồn độc lập, hoặc bị bộ kiểm của lệnh lưu từ chối). Thử giao lại hoặc tự viết."
+    release "Chạy xong nhưng không lưu được bài, hoặc bị bộ kiểm của lệnh lưu từ chối. Thử giao lại hoặc tự viết."
     status finish --result=failed --error="Chạy xong nhưng không lưu bài nào: $topic"
     return 1
   fi

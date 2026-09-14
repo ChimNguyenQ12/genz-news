@@ -15,7 +15,7 @@ có quyền bấm publish.
 2. **Tìm nguồn thật** — dùng WebSearch/WebFetch, RSS trong `lib/sources/`,
    Google Trends VN. Tối thiểu **1 nguồn** cho mỗi bài tin tức.
 3. **Kiểm chứng** — mọi con số, tên riêng, ngày tháng phải khớp giữa các nguồn.
-   Không chắc thì ghi rõ "chưa được kiểm chứng độc lập", hoặc bỏ chi tiết đó.
+   , hoặc bỏ chi tiết đó.
 4. **Viết lại hoàn toàn bằng lời của mình** — KHÔNG dịch nguyên văn, KHÔNG
    paraphrase sát bản gốc. Diễn đạt phải là của mình; chỉ dữ kiện là của nguồn.
 5. **Lưu bài** — qua lệnh `genz-news-save-article` (xem mục "Automatically Generate"),
@@ -49,12 +49,12 @@ lặng lẽ, không để lại một dòng log — nhìn vào chỉ thấy tran
 
 Bốn mảnh:
 
-| Thành phần | Việc |
-|---|---|
-| `scripts/newsroom-next.mjs` | Lấy đề tài kế tiếp, đánh dấu `in_progress` |
-| `scripts/newsroom-save.mjs` | Kiểm tra rồi lưu bài, đóng mục trong hàng đợi |
-| `deploy/newsroom-run.sh` | Nối hai cái trên với `claude -p`; lặp tới `MAX_ARTICLES` bài |
-| `deploy/newsroom-watch.sh` | Nhặt yêu cầu từ nút "Create Post" trong /admin, chạy mỗi phút |
+| Thành phần                  | Việc                                                          |
+| --------------------------- | ------------------------------------------------------------- |
+| `scripts/newsroom-next.mjs` | Lấy đề tài kế tiếp, đánh dấu `in_progress`                    |
+| `scripts/newsroom-save.mjs` | Kiểm tra rồi lưu bài, đóng mục trong hàng đợi                 |
+| `deploy/newsroom-run.sh`    | Nối hai cái trên với `claude -p`; lặp tới `MAX_ARTICLES` bài  |
+| `deploy/newsroom-watch.sh`  | Nhặt yêu cầu từ nút "Create Post" trong /admin, chạy mỗi phút |
 
 Hai chốt chặn không được gỡ:
 
@@ -76,23 +76,21 @@ sạch HTML và đúng lớp phân quyền như người thật.
 - Mỗi bài **bắt buộc** có mảng `sources` trỏ về nguồn gốc thật (URL thật, đã
   kiểm tra tồn tại). Không bịa nguồn, không bịa URL.
 - Wikipedia, Baomoi, Google News và các trang tổng hợp/bách khoa được phép
-  liệt kê làm tài liệu tham khảo, nhưng **không tính** vào mức tối thiểu 2
-  nguồn độc lập — chúng chép lại nguồn khác. Phải có ít nhất 2 hãng tin
-  tự đưa tin.
+  liệt kê làm tài liệu tham khảo
 - **Ảnh và video: đúng vụ việc, hoặc không có.** Người đọc mặc định ảnh trong
   bài là ảnh chụp chính chuyện đang kể. Một tấm ảnh "cùng chủ đề" nhưng khác
   vụ, khác nước là làm người đọc hiểu sai — tệ hơn hẳn một cái nền gradient.
 
   Thứ tự ưu tiên:
-
   1. **Ảnh của chính bài báo nguồn.** `genz-news-fetch-image --from-article="<url>"`
      đọc thẻ `og:image` của bài đó — đúng tấm hiện ra khi chia sẻ link — rồi
      đẩy lên kho của toà soạn. Đây là ảnh của đúng vụ việc.
 
      Đây là **ảnh có bản quyền của hãng tin**, dùng theo quyết định của tổng
-     biên tập; công tắc *Photos from source articles* trong `/admin/research`
+     biên tập; công tắc _Photos from source articles_ trong `/admin/research`
      bật tắt được. Điều kiện không được bỏ: caption ghi **tên báo** và **dẫn
      link về bài gốc**. Cờ `--html` sinh sẵn thẻ đúng dạng.
+
   2. **Video chính thức** trên kênh YouTube/Vimeo của hãng tin, cơ quan hay
      doanh nghiệp liên quan (`youtube-nocookie.com`, `player.vimeo.com`).
      Nền tảng cho phép nhúng, và video nằm nguyên chỗ của họ.
@@ -113,6 +111,7 @@ sạch HTML và đúng lớp phân quyền như người thật.
   Không có gì đúng thì để `coverGradient` — bỏ trống là một lựa chọn đúng.
   Lệnh lưu bài từ chối **mọi** ảnh không nằm trên kho của mình (cả ảnh bìa lẫn
   ảnh trong thân bài) và từ chối ảnh trong bài không có `<figcaption>` ghi công.
+
 - Scrape các nền tảng mạng xã hội (Threads, Facebook, Instagram).
 
 ## Chọn đề tài và góc nhìn
@@ -158,6 +157,7 @@ không giật tít câu view — cái hấp dẫn nằm ở thông tin cụ th�
 ## Chủ đề nhạy cảm
 
 Chủ quyền/biển đảo, chính trị, tôn giáo, sắc tộc, vụ án đang điều tra:
+
 - Chỉ dùng phát ngôn chính thức có nguồn rõ ràng.
 - Với tin chủ quyền không nhất thiết phải báo Việt Nam, tìm báo nước ngoài nói về việc đó
 
