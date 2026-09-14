@@ -65,16 +65,6 @@ const DIGEST_FILE = path.join(DATA_DIR, "trends-digest.json");
 const quote = (v) => "'" + String(v).replace(/'/g, "''") + "'";
 
 /**
- * Kho dữ liệu lưu DateTime ở dạng "2026-09-04T11:08:40.049+00:00", trong khi
- * cột createdAt có DEFAULT CURRENT_TIMESTAMP cho ra "2026-09-04 11:08:40" —
- * thiếu chữ T, thiếu mili giây, thiếu múi giờ. Nên INSERT thô phải TỰ điền cả
- * hai cột thời gian, đừng trông vào giá trị mặc định.
- */
-function nowStamp() {
-  return new Date().toISOString().replace("Z", "+00:00");
-}
-
-/**
  * Chạy SQL bằng lệnh sqlite3 của máy chủ — script không cần thư viện ORM.
  * Cần sqlite3 >= 3.33 (bản có tuỳ chọn -json). Máy Windows hay kèm bản cũ hơn,
  * khi đó chạy trên máy chủ hoặc chỉ dùng TRENDS_DRY_RUN để xem nguồn.
@@ -686,9 +676,29 @@ async function main() {
   }
 
   if (picked.length > 0) {
-    const stamp = nowStamp();
+    // Đóng dấu thời gian GIÃN RA THEO THỨ HẠNG, đề tài điểm cao nhất là mới
+    // nhất. Đây là chỗ duy nhất truyền được thứ hạng sang cho máy viết:
+    // newsroom-next.mjs lấy đề tài bằng "ORDER BY createdAt DESC", mà cột
+    // createdAt không có gì khác để phân biệt.
+    //
+    // Trước đây cả mẻ dùng CHUNG một mốc thời gian. Cột bằng nhau hết thì
+    // SQLite đi ngược chỉ mục và trả về hàng chèn SAU CÙNG trước — tức đề tài
+    // ĐIỂM THẤP NHẤT. Toàn bộ công chấm điểm bị lật ngược đúng ở bước giao
+    // việc: lượt 14/09/2026 nhặt trúng bài quỹ đầu tư 33 điểm, đứng chót bảng,
+    // trong khi sáu đề tài Việt - Trung 96 điểm nằm ngay trên nó.
+    //
+    // Lùi một giây mỗi bậc: đủ để sắp thứ tự, mà cả mẻ vẫn mới hơn hẳn hàng
+    // đợi hôm trước.
+    //
+    // Định dạng phải là "2026-09-04T11:08:40.049+00:00" cho khớp với cách kho
+    // dữ liệu ghi DateTime. Giá trị mặc định của cột cho ra "2026-09-04
+    // 11:08:40" — thiếu chữ T, thiếu mili giây, thiếu múi giờ — mà dấu cách
+    // xếp trước chữ "T" nên trộn hai dạng là sắp xếp theo thời gian sai hết.
+    const base = Date.now();
+    const stampAt = (rank) =>
+      new Date(base - rank * 1000).toISOString().replace("Z", "+00:00");
     const values = picked
-      .map((r) =>
+      .map((r, rank) =>
         "(" +
         [
           quote(randomUUID()),
@@ -698,8 +708,8 @@ async function main() {
           quote(r.notes ?? ""),
           "'pending'",
           "'[]'",
-          quote(stamp),
-          quote(stamp),
+          quote(stampAt(rank)),
+          quote(stampAt(rank)),
         ].join(", ") +
         ")",
       )
