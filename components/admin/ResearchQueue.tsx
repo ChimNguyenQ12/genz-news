@@ -556,7 +556,7 @@ function RequestRow({
             Chưa dịch (topicVi rỗng) thì chỉ hiện tít gốc, không để dòng trống.
           */}
           <p className="mt-1.5 break-words font-semibold">{r.topicVi || r.topic}</p>
-          {r.topicVi && (
+          {r.topicVi && r.topicVi !== r.topic && (
             <p className="mt-0.5 break-words text-xs text-muted" title="Tít gốc">
               {r.topic}
             </p>

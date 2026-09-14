@@ -133,25 +133,37 @@ function main() {
   }
 
   let done = 0;
+  let unchanged = 0;
   const updates = [];
   rows.forEach((row, i) => {
     const vi = translated[i];
-    // Bỏ qua khi model không trả dòng đó, hoặc trả lại y nguyên tít gốc.
-    if (!vi || vi === row.topic) return;
-    done++;
-    console.log(`   ${row.topic}\n     → ${vi}`);
+    if (!vi) return; // model không trả dòng này, để lượt sau làm lại
+    if (vi === row.topic) {
+      // Tít vốn đã là tiếng Việt nên model trả lại y nguyên. VẪN phải ghi
+      // xuống: để NULL thì mỗi lượt thu thập lại đem đúng mấy trăm tít tiếng
+      // Việt đi dịch lại, tốn quota mà không đổi gì. Màn hình đã biết cách
+      // xử lý — topicVi trùng topic thì không hiện thêm dòng tít gốc.
+      unchanged++;
+    } else {
+      done++;
+      console.log(`   ${row.topic}\n     → ${vi}`);
+    }
     updates.push(
       `UPDATE research_requests SET topicVi = ${quote(vi)}, ` +
         `updatedAt = ${quote(nowStamp())} WHERE id = ${quote(row.id)};`,
     );
   });
 
+  const summary =
+    `${done} tít dịch mới, ${unchanged} tít vốn đã là tiếng Việt, ` +
+    `${rows.length - done - unchanged} tít model không trả`;
+
   if (DRY_RUN) {
-    console.log(`\n[translate-topics] DRY RUN — không ghi gì (${done} tít).`);
+    console.log(`\n[translate-topics] DRY RUN — không ghi gì (${summary}).`);
     return;
   }
   if (updates.length) sql(updates.join("\n"));
-  console.log(`\n[translate-topics] đã ghi ${done}/${rows.length} tít tiếng Việt.`);
+  console.log(`\n[translate-topics] ${summary}.`);
 }
 
 try {
