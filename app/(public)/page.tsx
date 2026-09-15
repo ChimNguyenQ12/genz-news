@@ -10,6 +10,9 @@ import NewsletterBanner from "@/components/NewsletterBanner";
 
 export const dynamic = "force-dynamic";
 
+const BASE_URL =
+  process.env.NEXT_PUBLIC_BASE_URL ?? "https://genz-news.site";
+
 export default async function Home() {
   const articles = await listArticles({ status: "published" });
 
@@ -28,8 +31,29 @@ export default async function Home() {
   const trending = articles.filter((a) => a.trending).slice(0, 5);
   const latest = articles.filter((a) => a.slug !== featured.slug).slice(0, 4);
 
+  // JSON-LD WebSite — giúp Google hiểu site và kích hoạt Sitelinks Searchbox
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    name: "GenZ News",
+    url: BASE_URL,
+    description:
+      "Tin tức quốc tế được chắt lọc, biên tập lại và trích dẫn nguồn rõ ràng — đọc nhanh, hiểu sâu.",
+    inLanguage: "vi",
+    publisher: {
+      "@type": "NewsMediaOrganization",
+      name: "GenZ News",
+      url: BASE_URL,
+    },
+  };
+
   return (
     <div className="mx-auto max-w-6xl px-4 py-6 sm:py-10">
+      {/* JSON-LD WebSite structured data */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
       <FeaturedHero article={featured} />
 
       <div className="no-scrollbar mt-6 flex gap-2 overflow-x-auto pb-2">

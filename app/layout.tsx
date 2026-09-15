@@ -3,6 +3,9 @@ import type { ReactNode } from "react";
 import { Be_Vietnam_Pro } from "next/font/google";
 import "./globals.css";
 
+const BASE_URL =
+  process.env.NEXT_PUBLIC_BASE_URL ?? "https://genz-news.site";
+
 const beVietnamPro = Be_Vietnam_Pro({
   variable: "--font-be-vietnam-pro",
   subsets: ["latin", "vietnamese"],
@@ -14,18 +17,23 @@ const SITE_DESC =
   "Tin tức quốc tế được chắt lọc, biên tập lại và trích dẫn nguồn rõ ràng — đọc nhanh, hiểu sâu.";
 
 export const metadata: Metadata = {
+  // metadataBase bắt buộc phải có để Next.js resolve canonical, og:image, sitemap
+  metadataBase: new URL(BASE_URL),
   title: {
     default: `${SITE_NAME} — Tin thế giới, gọn cho Gen Z`,
     template: `%s | ${SITE_NAME}`,
   },
   description: SITE_DESC,
   applicationName: SITE_NAME,
+  alternates: { canonical: "/" },
+  robots: { index: true, follow: true, googleBot: { index: true, follow: true } },
   openGraph: {
     title: `${SITE_NAME} — Tin thế giới, gọn cho Gen Z`,
     description: SITE_DESC,
     siteName: SITE_NAME,
     locale: "vi_VN",
     type: "website",
+    url: BASE_URL,
   },
   twitter: {
     card: "summary_large_image",
@@ -59,6 +67,13 @@ export default function RootLayout({
     >
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
+        {/* RSS autodiscovery — trình đọc RSS và crawler AI engines tìm feed qua tag này */}
+        <link
+          rel="alternate"
+          type="application/rss+xml"
+          title="GenZ News — RSS Feed"
+          href={`${BASE_URL}/feed`}
+        />
       </head>
       <body className="flex min-h-full flex-col bg-background text-foreground">
         {children}
