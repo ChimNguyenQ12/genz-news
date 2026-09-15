@@ -6,7 +6,8 @@
 #   genz-news-newsroom.sh <id-đề-tài>  # viết đúng một đề tài (nút trong /admin)
 #
 #   crontab -e   (flock để lượt cron và lượt bấm nút không chồng lên nhau)
-#   0 6  * * * flock -n /var/lock/genz-news-newsroom.lock /usr/local/bin/genz-news-newsroom.sh
+#   # 6h sáng Việt Nam (GMT+7) = 23h UTC:
+#   0 23 * * * flock -n /var/lock/genz-news-newsroom.lock /usr/local/bin/genz-news-newsroom.sh
 #
 # Cần: đã cài claude (npm i -g @anthropic-ai/claude-code) và đã đăng nhập MỘT
 # LẦN bằng tài khoản Claude (chạy "claude" rồi /login). Không dùng API trả tiền.

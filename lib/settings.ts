@@ -11,7 +11,7 @@ import path from "path";
 export interface NewsroomSettings {
   /** Tắt là cron không viết bài nữa. Nút "Create Post" vẫn dùng được. */
   enabled: boolean;
-  /** Số bài tối đa mỗi lượt cron. Có hai lượt/ngày (6h và 18h). */
+  /** Số bài tối đa mỗi lượt cron (chạy vào 6h sáng hằng ngày). */
   maxArticlesPerRun: number;
   /**
    * Cho phép lấy ảnh của chính bài báo nguồn (thẻ og:image) thay vì chỉ dùng
