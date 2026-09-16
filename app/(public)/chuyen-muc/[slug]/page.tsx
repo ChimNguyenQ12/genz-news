@@ -5,7 +5,7 @@ import { categoryStyles } from "@/lib/categoryStyles";
 import { listArticles } from "@/lib/store";
 import ArticleCard from "@/components/ArticleCard";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 60;
 
 const BASE_URL =
   process.env.NEXT_PUBLIC_BASE_URL ?? "https://genz-news.site";

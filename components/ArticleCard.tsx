@@ -20,7 +20,9 @@ export default function ArticleCard({
         // eslint-disable-next-line @next/next/no-img-element
         <img
           src={article.coverImage}
-          alt=""
+          alt={article.title}
+          loading="lazy"
+          decoding="async"
           className="mb-3 aspect-16/10 w-full rounded-2xl bg-surface-2 object-cover"
         />
       ) : (

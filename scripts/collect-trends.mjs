@@ -90,7 +90,8 @@ const USE_REDDIT = process.env.TRENDS_REDDIT !== "0";
 const DEDUPE_DAYS = Number(process.env.TRENDS_DEDUPE_DAYS ?? 7);
 const DRY_RUN = process.env.TRENDS_DRY_RUN === "1";
 const EXPLAIN = process.env.TRENDS_EXPLAIN === "1";
-const UA = "GenZNewsBot/1.0 (+editorial trend collector)";
+const UA =
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36";
 
 const parser = new XMLParser({
   ignoreAttributes: false,
@@ -109,18 +110,21 @@ const parser = new XMLParser({
  * quốc tế phải tự kiếm điểm bằng nội dung của nó.
  */
 const RSS_FEEDS = [
-  // --- Quốc tế: tin thế giới
+  // --- Quốc tế: tin thế giới & Châu Á
   { name: "BBC World", url: "https://feeds.bbci.co.uk/news/world/rss.xml", origin: "rss-intl" },
   { name: "The Guardian World", url: "https://www.theguardian.com/world/rss", origin: "rss-intl" },
   { name: "Al Jazeera", url: "https://www.aljazeera.com/xml/rss/all.xml", origin: "rss-intl" },
   { name: "NYT World", url: "https://rss.nytimes.com/services/xml/rss/nyt/World.xml", origin: "rss-intl" },
-  // --- Quốc tế: công nghệ và văn hoá mạng, mảng Gen Z đọc nhiều nhất
-  { name: "BBC Technology", url: "https://feeds.bbci.co.uk/news/technology/rss.xml", origin: "rss-intl" },
+  { name: "SCMP Asia", url: "https://www.scmp.com/rss/91/feed", origin: "rss-intl" },
+  // --- Quốc tế: công nghệ, AI, Game, Văn hoá mạng Gen Z
+  { name: "The Verge", url: "https://www.theverge.com/rss/index.xml", origin: "rss-intl" },
   { name: "TechCrunch", url: "https://techcrunch.com/feed/", origin: "rss-intl" },
-  { name: "Ars Technica", url: "https://feeds.arstechnica.com/arstechnica/index", origin: "rss-intl" },
   { name: "WIRED", url: "https://www.wired.com/feed/rss", origin: "rss-intl" },
+  { name: "Ars Technica", url: "https://feeds.arstechnica.com/arstechnica/index", origin: "rss-intl" },
+  { name: "Dexerto (Gaming & Culture)", url: "https://www.dexerto.com/feed/", origin: "rss-intl" },
   // --- Việt Nam
   { name: "BBC Tiếng Việt", url: "https://feeds.bbci.co.uk/vietnamese/rss.xml", origin: "rss-vn" },
+  { name: "VnExpress Tin Mới", url: "https://vnexpress.net/rss/tin-moi-nhat.rss", origin: "rss-vn" },
   { name: "VnExpress Thế giới", url: "https://vnexpress.net/rss/the-gioi.rss", origin: "rss-vn" },
   { name: "VnExpress Số hoá", url: "https://vnexpress.net/rss/so-hoa.rss", origin: "rss-vn" },
   { name: "VnExpress Giải trí", url: "https://vnexpress.net/rss/giai-tri.rss", origin: "rss-vn" },
@@ -143,6 +147,8 @@ const SUBREDDITS = [
   { sub: "popular", minUps: 5000 },
   { sub: "worldnews", minUps: 3000 },
   { sub: "technology", minUps: 2000 },
+  { sub: "todayilearned", minUps: 3000 },
+  { sub: "Damnthatsinteresting", minUps: 3000 },
   { sub: "VietNam", minUps: 150 },
   { sub: "TroChuyenLinhTinh", minUps: 150 },
 ];
@@ -428,6 +434,42 @@ async function fetchRssFeed(feed) {
     }));
 }
 
+// ---------------------------------------------------------------- nguồn 7: Hacker News (Tin AI & Công nghệ nóng toàn cầu)
+async function fetchHackerNewsTop() {
+  try {
+    const res = await fetchWithTimeout(
+      "https://hacker-news.firebaseio.com/v0/topstories.json",
+      10000,
+    );
+    const ids = (await res.json()).slice(0, 15);
+    const settled = await Promise.allSettled(
+      ids.map(async (id) => {
+        const itemRes = await fetchWithTimeout(
+          `https://hacker-news.firebaseio.com/v0/item/${id}.json`,
+          6000,
+        );
+        return itemRes.json();
+      }),
+    );
+    return settled
+      .filter(
+        (r) =>
+          r.status === "fulfilled" &&
+          r.value?.title &&
+          (r.value?.score ?? 0) >= 80,
+      )
+      .map((r) => ({
+        title: r.value.title,
+        url: r.value.url || `https://news.ycombinator.com/item?id=${r.value.id}`,
+        source: "Hacker News",
+        origin: "rss-intl",
+        pubDate: new Date((r.value.time ?? 0) * 1000).toISOString(),
+      }));
+  } catch {
+    return [];
+  }
+}
+
 // ---------------------------------------------------------------- hàng đợi
 /**
  * Đề tài đã có trong DB ở N ngày gần nhất — để lọc trùng.
@@ -517,10 +559,11 @@ async function main() {
   console.log(`[collect-trends] bắt đầu ${startedAt.toISOString()}`);
 
   const redditJobs = USE_REDDIT ? SUBREDDITS : [];
-  const [gVnRes, gGlobalRes, ytRes, ...rest] = await Promise.allSettled([
+  const [gVnRes, gGlobalRes, ytRes, hnRes, ...rest] = await Promise.allSettled([
     fetchGoogleTrends("VN"),
     fetchGoogleTrends(GLOBAL_GEO),
     fetchYouTubeTrendingVN(),
+    fetchHackerNewsTop(),
     ...redditJobs.map(fetchRedditHot),
     ...GOOGLE_NEWS_QUERIES.map(fetchGoogleNews),
     ...RSS_FEEDS.map(fetchRssFeed),
@@ -559,6 +602,17 @@ async function main() {
     console.log(`  ✓ YouTube Trending VN: ${v.videos.length} video`);
   });
 
+  // --- RSS & Headlines
+  const headlines = [];
+
+  // --- Hacker News
+  settled(hnRes, "Hacker News Top Stories", (v) => {
+    if (v && v.length) {
+      headlines.push(...v);
+      console.log(`  ✓ Hacker News (Tech/AI): ${v.length} tin`);
+    }
+  });
+
   // --- Reddit
   const reddit = [];
   redditResults.forEach((r, i) => {
@@ -581,7 +635,6 @@ async function main() {
   });
 
   // --- RSS
-  const headlines = [];
   rssResults.forEach((r, i) => {
     const feed = RSS_FEEDS[i];
     settled(r, feed.name, (v) => {

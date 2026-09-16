@@ -11,7 +11,7 @@ import ArticleCard from "@/components/ArticleCard";
 import CommentSection from "@/components/CommentSection";
 import BackToTopButton from "@/components/BackToTopButton";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 60;
 
 const BASE_URL =
   process.env.NEXT_PUBLIC_BASE_URL ?? "https://genz-news.site";
@@ -209,6 +209,8 @@ export default async function ArticlePage({ params }: Props) {
           <img
             src={article.coverImage}
             alt={article.coverImageCaption ?? article.title}
+            fetchPriority="high"
+            decoding="async"
             className="aspect-16/9 w-full rounded-3xl bg-surface-2 object-cover"
           />
           <figcaption className="mt-2 px-1 text-xs text-muted">

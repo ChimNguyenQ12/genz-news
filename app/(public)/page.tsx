@@ -8,7 +8,7 @@ import TrendingList from "@/components/TrendingList";
 import SectionHeader from "@/components/SectionHeader";
 import NewsletterBanner from "@/components/NewsletterBanner";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 60;
 
 const BASE_URL =
   process.env.NEXT_PUBLIC_BASE_URL ?? "https://genz-news.site";

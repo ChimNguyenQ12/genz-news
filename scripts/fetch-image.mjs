@@ -27,9 +27,8 @@ const PASS = process.env.NEWSROOM_PASS ?? "";
 
 const COMMONS = "https://commons.wikimedia.org/w/api.php";
 const OPENVERSE = "https://api.openverse.org/v1/images/";
-// Header HTTP chỉ nhận latin-1: chữ tiếng Việt có dấu trong User-Agent làm
-// fetch ném "Cannot convert argument to a ByteString". Giữ thuần ASCII.
-const UA = "GenZNewsBot/1.0 (+https://genz-news.site; editorial use)";
+const UA =
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36";
 
 /** Loại rõ ràng không được dùng lại. */
 const BAD_LICENCE = /(non[- ]?commercial|fair use|all rights reserved)/i;

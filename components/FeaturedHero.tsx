@@ -20,7 +20,9 @@ export default function FeaturedHero({ article }: { article: Article }) {
         // eslint-disable-next-line @next/next/no-img-element
         <img
           src={article.coverImage}
-          alt=""
+          alt={article.title}
+          fetchPriority="high"
+          decoding="async"
           className="absolute inset-0 size-full object-cover"
         />
       )}
