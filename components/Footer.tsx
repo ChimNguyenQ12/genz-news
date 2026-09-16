@@ -7,10 +7,12 @@ export default function Footer() {
       <div className="mx-auto max-w-6xl px-4 py-12">
         <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-4">
           <div>
-            <Link href="/" className="flex items-center gap-2">
-              <span className="flex size-8 items-center justify-center rounded-lg bg-accent text-xs font-black text-white">
-                GZ
-              </span>
+            <Link href="/" className="group flex items-center gap-2.5">
+              <img
+                src="/genz-news-logo.png"
+                alt="GenZ News"
+                className="size-8 rounded-lg object-contain transition-transform group-hover:scale-105 sm:size-9"
+              />
               <span className="font-display text-xl font-black tracking-tight">
                 GenZ<span className="text-accent"> News</span>
               </span>

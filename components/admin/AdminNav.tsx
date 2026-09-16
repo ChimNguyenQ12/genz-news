@@ -32,10 +32,12 @@ export default function AdminNav({ user }: { user: PublicUser }) {
       <div className="mx-auto max-w-6xl px-3 sm:px-4">
         <div className="flex h-14 items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-4">
-          <Link href="/admin" className="flex shrink-0 items-center gap-2">
-            <span className="flex size-7 items-center justify-center rounded-lg bg-accent text-[10px] font-black text-white">
-              GZ
-            </span>
+          <Link href="/admin" className="group flex shrink-0 items-center gap-2.5">
+            <img
+              src="/genz-news-logo.png"
+              alt="GenZ News"
+              className="size-7 rounded-lg object-contain transition-transform group-hover:scale-105"
+            />
             <span className="font-display hidden text-sm font-black tracking-tight sm:block">
               GenZ<span className="text-accent"> News</span>
             </span>

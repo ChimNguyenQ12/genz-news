@@ -23,10 +23,12 @@ export default function Header({ user }: { user: PublicUser | null }) {
   return (
     <header className="sticky top-0 z-50 border-b border-border bg-background/80 backdrop-blur-md">
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4">
-        <Link href="/" className="flex items-center gap-2 shrink-0">
-          <span className="flex size-8 items-center justify-center rounded-lg bg-accent text-xs font-black text-white">
-            GZ
-          </span>
+        <Link href="/" className="group flex shrink-0 items-center gap-2.5">
+          <img
+            src="/genz-news-logo.png"
+            alt="GenZ News"
+            className="size-8 rounded-lg object-contain transition-transform group-hover:scale-105 sm:size-9"
+          />
           <span className="font-display text-xl font-black tracking-tight">
             GenZ<span className="text-accent"> News</span>
           </span>

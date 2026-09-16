@@ -35,6 +35,15 @@ export const metadata: Metadata = {
     type: "website",
     url: BASE_URL,
   },
+  icons: {
+    icon: [
+      { url: "/genz-news-logo.png", sizes: "32x32", type: "image/png" },
+      { url: "/genz-news-logo.png", sizes: "192x192", type: "image/png" },
+    ],
+    apple: [
+      { url: "/genz-news-logo.png", sizes: "180x180", type: "image/png" },
+    ],
+  },
   twitter: {
     card: "summary_large_image",
     title: `${SITE_NAME} — Tin thế giới, gọn cho Gen Z`,
