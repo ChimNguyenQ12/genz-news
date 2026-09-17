@@ -6,6 +6,10 @@ có quyền bấm publish.
 
 ## Quy trình chuẩn khi được yêu cầu làm một bài
 
+Có sẵn skill **`viet-bai-toa-soan`** gói lại đúng sáu bước dưới đây (kèm skill
+`lay-anh-bai-viet` cho riêng phần ảnh/video) — gọi skill đó thay vì đọc lại
+từng bước ở đây cũng được, nhất là khi cần làm nhiều bài liên tiếp.
+
 1. **Nhận đề tài** — từ chat, hoặc từ hàng đợi trong bảng `research_requests`
    (do trang `/admin/research` ghi vào, hoặc do `npm run collect-trends`
    tự thu thập từ Google Trends VN / YouTube VN / RSS quốc tế).
@@ -55,6 +59,19 @@ Bốn mảnh:
 | `scripts/newsroom-save.mjs` | Kiểm tra rồi lưu bài, đóng mục trong hàng đợi                 |
 | `deploy/newsroom-run.sh`    | Nối hai cái trên với `claude -p`; lặp tới `MAX_ARTICLES` bài  |
 | `deploy/newsroom-watch.sh`  | Nhặt yêu cầu từ nút "Create Post" trong /admin, chạy mỗi phút |
+
+`deploy/newsroom-watch.sh` và cron 06:00/18:00 đều gọi cùng một hàm
+`write_one()` trong `newsroom-run.sh` — nút "Create Post" không phải một
+đường riêng, chỉ là gọi hàm đó với một `id` cụ thể. Nên toàn bộ quy trình viết
+(tìm nguồn → kiểm chứng → dựng bài → ảnh → lưu) chỉ cần đóng gói **một lần**:
+sống ở [`.claude/skills/viet-bai-toa-soan/SKILL.md`](.claude/skills/viet-bai-toa-soan/SKILL.md)
+(phần ảnh/video tách riêng ra
+[`lay-anh-bai-viet/SKILL.md`](.claude/skills/lay-anh-bai-viet/SKILL.md)).
+`newsroom-run.sh` giờ chỉ dựng một prompt vài dòng (đề tài, requestId, cờ ảnh
+báo chí) rồi bảo Claude "Dùng skill viet-bai-toa-soan" — quy trình chi tiết
+chỉ tải vào khi skill được gọi, không lặp lại nguyên văn ở mọi lượt như trước
+(từng dài hơn 200 dòng, giống nhau ở mọi lần gọi). Viết bài qua chat cũng dùng
+được skill này, không chỉ vòng tự động.
 
 Hai chốt chặn không được gỡ:
 
