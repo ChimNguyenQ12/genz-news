@@ -138,6 +138,18 @@ câu "chuyện này dính gì tới tôi" — việc học, việc làm, tiền 
 dùng hằng ngày. Câu trả lời đó phải nằm ở đoạn đầu hoặc đoạn hai, không phải
 cuối bài.
 
+**Đề tài do tổng biên tập tự tay giao thì luôn viết, không được từ chối vì
+"không liên quan tới Việt Nam".** Câu hỏi "dính gì tới tôi" ở trên là tiêu
+chí để MÁY tự chọn/tự bỏ qua đề tài nó tự nhặt trong hàng đợi — không phải lý
+do để từ chối một đề tài mà tổng biên tập đã chủ động chọn (bấm "Create Post"
+trong `/admin/research`, hoặc gõ trực tiếp trong chat). Bấm nút hay gõ ra là
+quyết định biên tập rồi: cứ tìm nguồn, kiểm chứng, viết đúng chuyện, không cần
+nặn ra một góc Việt Nam giả nếu thật ra không có — viết như một tin quốc tế
+thuần (thuộc nhóm 30% quốc tế) cũng được. Chỉ từ chối khi có lý do THẬT khác:
+không tìm đủ nguồn đáng tin, hoặc đề tài nhạy cảm cần cẩn trọng theo mục "Chủ
+đề nhạy cảm". Việc bỏ qua tuỳ ý vì "không liên quan" đã từng làm một đề tài bị
+giao đi giao lại 3 lần cho tới khi có người báo lại.
+
 **Tỷ lệ 70/30: cứ 10 đề tài thì 7 phải dính tới Việt Nam.** Dính tới Việt Nam
 không có nghĩa là do báo Việt viết — một bài của Reuters hay Nikkei có nhắc
 Việt Nam cũng tính, và thường còn đáng viết hơn vì nó nói thứ báo trong nước
@@ -154,14 +166,16 @@ của Việt Nam trong đó thì không tính.
   Mekong, cáp quang biển, đường sắt xuyên biên giới, thuế quan, dịch chuyển
   nhà máy, nền tảng Trung Quốc vào thị trường Việt.
 
-**Chỉ viết thứ có người đọc.** Đề tài phải là chuyện đang được bàn, đang được
-tìm kiếm nhiều, đang nóng trên mạng — không phải tin nội bộ một ngành. Tin gọi
-vốn của một startup không ai biết, tin thay ghế lãnh đạo một doanh nghiệp nước
-ngoài, ghi chú phát hành một phần mềm, tin nghi lễ/hành chính của một địa
-phương nước xa: những thứ đó có thật nhưng không ai trong nhóm bạn đọc này đọc.
-`scripts/collect-trends.mjs` đã chấm điểm để lọc bớt trước khi đưa vào hàng
-đợi, nhưng lọc bằng từ khoá không bao giờ kín — thấy một đề tài như vậy trong
-hàng đợi thì bỏ qua, đừng viết cho đủ số.
+**Chỉ viết thứ có người đọc — áp dụng khi MÁY tự nhặt đề tài, không áp dụng
+khi tổng biên tập tự chọn (xem trên).** Đề tài phải là chuyện đang được bàn,
+đang được tìm kiếm nhiều, đang nóng trên mạng — không phải tin nội bộ một
+ngành. Tin gọi vốn của một startup không ai biết, tin thay ghế lãnh đạo một
+doanh nghiệp nước ngoài, ghi chú phát hành một phần mềm, tin nghi lễ/hành
+chính của một địa phương nước xa: những thứ đó có thật nhưng không ai trong
+nhóm bạn đọc này đọc. `scripts/collect-trends.mjs` đã chấm điểm để lọc bớt
+trước khi đưa vào hàng đợi, nhưng lọc bằng từ khoá không bao giờ kín — máy tự
+nhặt được một đề tài như vậy thì bỏ qua, đừng viết cho đủ số. Còn nếu tổng
+biên tập đã bấm đúng đề tài đó thì viết, không tự suy diễn thay người.
 
 **Luôn tìm nguồn ở cả hai phía.** Đề tài quốc tế thì xem báo Việt đã viết gì
 chưa; đề tài trong nước thì xem báo quốc tế có nhắc tới không. Chỗ hai bên nói

@@ -133,7 +133,7 @@ PRESS_LABEL="TẮT"
 [ "${PRESS_IMAGES:-1}" = "1" ] && PRESS_LABEL="BẬT"
 
 write_one() {
-  local want="${1:-}" task_json req_id topic topic_vi display_topic sensitive sensitive_note prompt still now reason rc
+  local want="${1:-}" task_json req_id topic topic_vi display_topic sensitive sensitive_note assign_note prompt still now reason rc
 
   # Kiểm lại mỗi vòng: một lượt deploy giữa chừng có thể vừa khởi động lại app,
   # mà bước lưu bài lại gọi HTTP vào chính app đó.
@@ -192,6 +192,15 @@ write_one() {
     sensitive_note=" [CHỦ ĐỀ NHẠY CẢM — khớp từ khoá \"$sensitive\". Chỉ dùng phát ngôn chính thức có nguồn rõ ràng, theo mục \"Chủ đề nhạy cảm\" trong CLAUDE.md.]"
   fi
 
+  # $want có giá trị đúng lúc đề tài này đến từ nút "Create Post" (qua
+  # newsroom-watch.sh) hoặc script được gọi thẳng với một id — cả hai đều là
+  # tổng biên tập TỰ CHỌN đúng đề tài này, khác hẳn lượt cron quét cả hàng đợi.
+  # Không có dấu này thì skill từng từ chối viết một đề tài đã được giao tận
+  # tay chỉ vì thấy "không liên quan tới Việt Nam" — bấm nút rồi mà máy vẫn tự
+  # quyết lại là sai, đó là quyết định của tổng biên tập, không phải của máy.
+  assign_note=""
+  [ -n "$want" ] && assign_note=" [GIAO TẬN TAY — tổng biên tập tự bấm Create Post cho đúng đề tài này, không phải máy tự nhặt. Đừng từ chối chỉ vì thấy \"không liên quan tới Việt Nam\".]"
+
   # Trả đề tài về hàng đợi để lượt sau còn làm lại, kèm lý do để màn hình
   # /admin/research nói được là lượt trước hỏng vì cái gì. Không có dòng lý do
   # này thì mục quay về "chờ xử lý" trông y hệt đề tài chưa ai đụng tới.
@@ -216,7 +225,7 @@ write_one() {
   # tải vào khi gọi tới. Trước đây prompt này dài hơn 200 dòng và lặp lại
   # NGUYÊN VĂN ở mọi lượt gọi claude -p, kể cả khi chỉ đổi có mỗi đề tài.
   prompt="$(cat <<PROMPTEOF
-Dùng skill "viet-bai-toa-soan" để xử lý đề tài sau trong hàng đợi toà soạn.$sensitive_note
+Dùng skill "viet-bai-toa-soan" để xử lý đề tài sau trong hàng đợi toà soạn.$sensitive_note$assign_note
 
 $task_json
 

@@ -33,6 +33,11 @@ Người gọi kỹ năng này (script hoặc chính bạn) sẽ cung cấp:
   bước 6.
 - **Cờ "ảnh báo chí"** (BẬT/TẮT) — truyền cho skill `lay-anh-bai-viet` ở bước 5.
   Không ai nói thì coi là BẬT.
+- **Dấu hiệu "giao tận tay"** (nếu có, ghi trong prompt là `[GIAO TẬN TAY]`
+  hoặc tương đương): đề tài này do tổng biên tập TỰ CHỌN — bấm "Create Post"
+  đúng đề tài đó trong `/admin/research`, hoặc gõ ra trong chat. Xem mục "Khi
+  không nên viết" — dấu hiệu này tắt hẳn lý do từ chối "không liên quan tới
+  Việt Nam".
 
 Nếu được gọi không kèm gì (tổng biên tập chỉ nói "viết bài về X" trong chat),
 tự coi `sensitive` = chưa rõ (tự dò theo mục "Chủ đề nhạy cảm") và không có
@@ -165,10 +170,31 @@ tổng biên tập id/slug bài vừa tạo và bỏ qua bước cập nhật h�
 
 ## Khi không nên viết
 
-Nếu không tìm đủ 1 nguồn độc lập đáng tin (bước 1) thì **đừng viết bài** — nói
-rõ là không đủ nguồn rồi dừng. Thà bỏ sót còn hơn đăng sai. Nếu chạy dưới vòng
-tự động, không lưu gì cả thì mục trong hàng đợi tự động được trả lại
-`pending` để lượt sau hoặc người thử lại.
+Chỉ hai lý do THẬT được từ chối:
+
+1. **Không tìm đủ 1 nguồn độc lập đáng tin** (bước 1) — nói rõ là không đủ
+   nguồn rồi dừng. Thà bỏ sót còn hơn đăng sai.
+2. **Đề tài nhạy cảm** mà không có phát ngôn chính thức có nguồn rõ ràng để
+   dựa vào (mục "Chủ đề nhạy cảm" trong `CLAUDE.md`) — kể cả khi đã "giao tận
+   tay", luật này KHÔNG bị tắt, vì đây là rủi ro pháp lý/biên tập, không phải
+   phán đoán độ liên quan.
+
+Nếu chạy dưới vòng tự động và không lưu gì cả, mục trong hàng đợi tự động
+được trả lại `pending` để lượt sau hoặc người thử lại.
+
+**KHÔNG được từ chối chỉ vì "đề tài này không liên quan/không dính gì tới
+Việt Nam"** khi có dấu hiệu "giao tận tay" (xem "Đầu vào") — nút bấm hay câu
+gõ trong chat đã LÀ quyết định biên tập, không cần bạn phán đoán lại độ liên
+quan. Cứ tìm nguồn, kiểm chứng, viết đúng chuyện; không có góc Việt Nam thật
+thì viết như một tin quốc tế thuần, đừng nặn ra một mối liên hệ giả, và cũng
+đừng dùng đó làm cớ để không viết. Câu hỏi "chuyện này dính gì tới bạn đọc
+Việt Nam" (bước 4) vẫn áp dụng cho CÁCH VIẾT khi có liên quan thật, nhưng
+không áp dụng như một cổng chặn khi tổng biên tập đã tự chọn đề tài.
+
+Chỉ khi đề tài được MÁY tự nhặt (không có dấu hiệu "giao tận tay", ví dụ lượt
+cron quét cả hàng đợi) mới được cân nhắc bỏ qua một đề tài rõ ràng lạc đề —
+đúng như `CLAUDE.md` mục "Chọn đề tài và góc nhìn" mô tả — và khi đó vẫn phải
+LƯU LẠI kết luận (reporterNote) để tổng biên tập thấy, không im lặng bỏ qua.
 
 ## An toàn
 
