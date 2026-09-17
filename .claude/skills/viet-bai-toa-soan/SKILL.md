@@ -132,8 +132,12 @@ thì dùng `/tmp/bai-<slug-tạm>.json`), rồi lưu bằng:
 genz-news-save-article <đường-dẫn-tệp>.json
 ```
 
-Dùng tệp, **không dùng ống dẫn** — quyền chỉ mở cho đúng lệnh trên với một
-tham số là đường dẫn tệp.
+Gọi **ĐÚNG NHƯ VẬY** — dùng tệp (không dùng ống dẫn), và **không thêm bất cứ
+thứ gì trước tên lệnh**, kể cả một biến môi trường (`VAR=... genz-news-save-article ...`).
+Quyền chỉ mở cho dòng lệnh bắt đầu đúng bằng `genz-news-save-article`; thêm
+tiền tố nào cũng khiến nó không khớp nữa và bạn sẽ bị treo ở một lời xin quyền
+mà không ai trong phiên chạy tự động này duyệt được. Lệnh tự lo mọi biến nó
+cần phía sau — bạn không cần và không được tự đặt biến nào cho nó.
 
 JSON gồm: `title`, `dek`, `category` (`the-gioi`|`cong-nghe`|`giai-tri`|
 `doi-song`|`kinh-doanh`|`the-thao`), `tags[]`, `body` (HTML), `language`
@@ -152,11 +156,12 @@ tự), `dek` rỗng, chuyên mục sai, hoặc không có tên miền nguồn đ
 bước 1). Bị từ chối thì viết dày thêm bằng thông tin thật, đừng độn chữ —
 không hạ chất lượng để lách qua bộ kiểm.
 
-Nếu có `requestId` (chạy dưới vòng tự động), lệnh lưu tự đóng mục trong hàng
-đợi (`status: done`, `articleIds`, `reporterNote`) qua biến môi trường
-`NEWSROOM_REQUEST_ID` — không cần tự làm thêm. Nếu KHÔNG có `requestId` (chat
-trực tiếp, đề tài không nằm trong hàng đợi), báo lại cho tổng biên tập id/slug
-bài vừa tạo và bỏ qua bước cập nhật hàng đợi.
+Nếu đề tài này đến từ hàng đợi (chạy dưới vòng tự động, có `requestId`), lệnh
+lưu **tự đóng mục trong hàng đợi** (`status: done`, `articleIds`,
+`reporterNote`) — việc này đã được xử lý sẵn ở lớp bao ngoài lệnh, không phải
+việc của bạn, và không có gì cho bạn làm thêm ở bước này. Nếu KHÔNG có
+`requestId` (chat trực tiếp, đề tài không nằm trong hàng đợi), báo lại cho
+tổng biên tập id/slug bài vừa tạo và bỏ qua bước cập nhật hàng đợi.
 
 ## Khi không nên viết
 
