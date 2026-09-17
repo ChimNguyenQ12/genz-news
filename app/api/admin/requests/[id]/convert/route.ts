@@ -98,7 +98,12 @@ export async function POST(
 
   const article = await createArticle({
     slug: "",
-    title: topic.topic,
+    // Dùng tít đã dịch nếu có — hàng đợi giờ dịch tít sang tiếng Việt để tổng
+    // biên tập đọc lướt được, nhưng "Empty draft" trước đây bỏ qua nó, chép
+    // thẳng topic.topic (thường là tiếng Anh) vào tít bài. Danh sách hàng đợi
+    // đã hiện đúng tiếng Việt, còn bản nháp mở ra lại hiện tiếng Anh — hai chỗ
+    // lệch nhau chỉ vì chỗ này quên đọc topicVi.
+    title: topic.topicVi || topic.topic,
     dek: "",
     category: "the-gioi",
     language: "vi",

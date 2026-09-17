@@ -107,11 +107,11 @@ function main() {
   // mà được làm ngay, không phải xếp sau hàng trăm mục cũ.
   const rows = wanted
     ? sql(
-      "SELECT id, topic, urls, notes, reporterNote FROM research_requests " +
+      "SELECT id, topic, topicVi, urls, notes, reporterNote FROM research_requests " +
       `WHERE id = ${quote(wanted)} AND status IN ('pending','in_progress');`,
     )
     : sql(
-      "SELECT id, topic, urls, notes, reporterNote FROM research_requests " +
+      "SELECT id, topic, topicVi, urls, notes, reporterNote FROM research_requests " +
       "WHERE status = 'pending' ORDER BY createdAt DESC LIMIT 50;",
     );
 
@@ -159,6 +159,10 @@ ${row.notes ?? ""}`);
       JSON.stringify({
         id: row.id,
         topic: row.topic,
+        // Kèm luôn tít đã dịch — newsroom-run.sh dùng nó để báo lên nhịp tim
+        // (tab "Đang viết"/RunBanner), thay cho tít gốc thường là tiếng Anh.
+        // null khi chưa dịch, để bên nhận biết mà rơi về tít gốc.
+        topicVi: row.topicVi || null,
         urls: parseUrls(row.urls),
         notes: row.notes ?? "",
         sensitive: hit ?? null,

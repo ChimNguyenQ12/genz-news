@@ -133,7 +133,7 @@ PRESS_LABEL="TẮT"
 [ "${PRESS_IMAGES:-1}" = "1" ] && PRESS_LABEL="BẬT"
 
 write_one() {
-  local want="${1:-}" task_json req_id topic sensitive sensitive_note prompt still now reason rc
+  local want="${1:-}" task_json req_id topic topic_vi display_topic sensitive sensitive_note prompt still now reason rc
 
   # Kiểm lại mỗi vòng: một lượt deploy giữa chừng có thể vừa khởi động lại app,
   # mà bước lưu bài lại gọi HTTP vào chính app đó.
@@ -164,13 +164,19 @@ write_one() {
 
   req_id="$(printf '%s' "$task_json" | sed -n 's/.*"id":"\([^"]*\)".*/\1/p')"
   topic="$(printf '%s' "$task_json" | sed -n 's/.*"topic":"\([^"]*\)".*/\1/p')"
+  # topicVi vắng mặt (chưa dịch) thì JSON ghi "topicVi":null — không có dấu
+  # nháy nên biểu thức dưới không khớp, topic_vi rỗng, và display_topic rơi về
+  # $topic. Đây là chỗ tab "Đang viết"/RunBanner lấy tít để hiện lên màn hình
+  # — trước đây luôn là $topic (thường tiếng Anh) dù hàng đợi đã dịch sẵn.
+  topic_vi="$(printf '%s' "$task_json" | sed -n 's/.*"topicVi":"\([^"]*\)".*/\1/p')"
+  display_topic="${topic_vi:-$topic}"
   [ -n "$req_id" ] || {
     log "không đọc được id đề tài"
     status finish --result=failed --error="Không đọc được id đề tài."
     return 1; }
 
-  log "nhận đề tài [$req_id] $topic"
-  status start --id="$req_id" --topic="$topic" --step=writing
+  log "nhận đề tài [$req_id] $display_topic"
+  status start --id="$req_id" --topic="$display_topic" --step=writing
   heartbeat_start
 
   # Đề tài nhạy cảm được tổng biên tập bấm nút giao tận tay (--id=) thì vẫn
@@ -251,13 +257,13 @@ PROMPTEOF
       log "lượt [$req_id] quá $ARTICLE_TIMEOUT, đã giết để nhả khoá"
       heartbeat_stop
       release "Lượt viết lúc $(date -Iseconds) bị giết vì chạy quá $ARTICLE_TIMEOUT. Thường là Claude dừng hỏi quyền một công cụ không nằm trong --allowed-tools."
-      status finish --result=failed --error="quá giờ ($ARTICLE_TIMEOUT): $topic"
+      status finish --result=failed --error="quá giờ ($ARTICLE_TIMEOUT): $display_topic"
       return 1
     fi
     log "lượt [$req_id] hỏng, trả đề tài về hàng đợi"
     heartbeat_stop
     release "Lượt viết lúc $(date -Iseconds) hỏng giữa chừng (claude thoát với mã lỗi). Xem /var/log/genz-news-newsroom.log."
-    status finish --result=failed --error="claude thoát với mã lỗi khi viết: $topic"
+    status finish --result=failed --error="claude thoát với mã lỗi khi viết: $display_topic"
     return 1
   fi
 
@@ -270,7 +276,7 @@ PROMPTEOF
     log "Claude không lưu bài nào — trả đề tài về hàng đợi. Xem các dòng ngay"
     log "trên để biết vì sao (thiếu nguồn, bị bộ kiểm từ chối, hay lỗi hệ thống)."
     release "Chạy xong nhưng không lưu được bài, hoặc bị bộ kiểm của lệnh lưu từ chối. Thử giao lại hoặc tự viết."
-    status finish --result=failed --error="Chạy xong nhưng không lưu bài nào: $topic"
+    status finish --result=failed --error="Chạy xong nhưng không lưu bài nào: $display_topic"
     return 1
   fi
 
