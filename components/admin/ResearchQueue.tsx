@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { RequestPage, RequestStatus, ResearchRequest } from "@/lib/queue";
+import type { RequestPage, RequestStatus, RequestTab, ResearchRequest } from "@/lib/queue";
 import type { NewsroomRunStatus } from "@/lib/newsroom";
 import type { NewsroomSettings } from "@/lib/settings";
 import Pagination from "@/components/admin/Pagination";
@@ -26,23 +26,29 @@ const STATUS_STYLE: Record<RequestStatus, string> = {
 };
 
 /**
- * Chỉ bốn tab, đúng bốn chặng của một đề tài: All → Queued → Writing → Drafted.
+ * Bốn chặng của một đề tài: All → Queued → Writing → Drafted. Cộng thêm
+ * "Errors" ở cuối — không phải một chặng, mà một ỐNG KÍNH gộp mọi đề tài đang
+ * cần chú ý ngay lại một chỗ: bị trả về hàng đợi sau một lượt hỏng (đang nằm
+ * ở Queued, dễ lướt qua giữa hàng chục mục bình thường khác), và bị kẹt giữa
+ * đường quá lâu (đang nằm ở Writing). Trước đây phải tự nhớ soi hai tab đó;
+ * giờ "Errors" gom sẵn để bấm Assign again / Requeue nhanh hơn.
  *
  * Bài đã đăng và đề tài bị bỏ qua không có tab riêng — chúng đã xong việc, để
  * thêm tab chỉ làm thanh tab dài ra. Muốn xem lại thì vào All, nhãn trạng thái
  * trên từng dòng vẫn nói rõ mục đó đang ở đâu.
  *
- * Bốn tab này luôn hiện, kể cả khi đang có 0 mục — số 0 cũng là một thông tin.
+ * Các tab này luôn hiện, kể cả khi đang có 0 mục — số 0 cũng là một thông tin.
  */
-const TABS: (RequestStatus | "all")[] = ["all", "pending", "in_progress", "done"];
+const TABS: RequestTab[] = ["all", "pending", "in_progress", "done", "error"];
 
-const TAB_LABEL: Record<RequestStatus | "all", string> = {
+const TAB_LABEL: Record<RequestTab, string> = {
   all: "All",
   pending: "Queued",
   in_progress: "Writing",
   done: "Drafted",
   published: "Published",
   rejected: "Skipped",
+  error: "Errors",
 };
 
 const fieldClass =
@@ -83,7 +89,7 @@ function shortUrl(raw: string, max = 72) {
 }
 
 interface Query {
-  tab: RequestStatus | "all";
+  tab: RequestTab;
   page: number;
   q: string;
   /** "" = mọi ngày. */
@@ -301,22 +307,39 @@ export default function ResearchQueue({
 
       <div className="mb-3 flex flex-col gap-2 lg:flex-row lg:items-center">
         <div className="no-scrollbar flex w-full gap-1 overflow-x-auto rounded-xl border border-border bg-surface p-1 lg:w-auto">
-          {TABS.map((key) => (
-            <button
-              key={key}
-              onClick={() => update({ tab: key })}
-              className={`shrink-0 rounded-lg px-3 py-1.5 text-sm font-semibold transition ${
-                query.tab === key
-                  ? "bg-accent text-white"
-                  : "text-foreground/70 hover:bg-surface-2"
-              }`}
-            >
-              {key === "in_progress" && data.counts.in_progress > 0 && (
-                <span className="mr-1.5 inline-block size-1.5 animate-pulse rounded-full bg-current align-middle" />
-              )}
-              {TAB_LABEL[key]} ({data.counts[key]})
-            </button>
-          ))}
+          {TABS.map((key) => {
+            const hasErrors = key === "error" && data.counts.error > 0;
+            return (
+              <button
+                key={key}
+                // Tab Errors bỏ luôn bộ lọc ngày: đây là một backlog, không phải
+                // việc của một ngày cụ thể. Giữ lọc theo "ngày gần nhất" (mặc
+                // định của mọi tab khác) thì một đề tài hỏng từ ba ngày trước
+                // biến mất khỏi tab được sinh ra để tìm đúng nó.
+                onClick={() => update(key === "error" ? { tab: key, date: "" } : { tab: key })}
+                className={`shrink-0 rounded-lg px-3 py-1.5 text-sm font-semibold transition ${
+                  query.tab === key
+                    ? hasErrors
+                      ? "bg-red-500 text-white"
+                      : "bg-accent text-white"
+                    : hasErrors
+                      ? "text-red-600 hover:bg-red-500/10 dark:text-red-400"
+                      : "text-foreground/70 hover:bg-surface-2"
+                }`}
+              >
+                {key === "in_progress" && data.counts.in_progress > 0 && (
+                  <span className="mr-1.5 inline-block size-1.5 animate-pulse rounded-full bg-current align-middle" />
+                )}
+                {/* Chấm đỏ TĨNH (không nhấp nháy): khác "in_progress" ở trên vốn báo
+                    việc đang chạy sống. Ở đây là báo "có việc đang chờ bạn", không
+                    phải "có việc đang diễn ra ngay giây này". */}
+                {hasErrors && (
+                  <span className="mr-1.5 inline-block size-1.5 rounded-full bg-current align-middle" />
+                )}
+                {TAB_LABEL[key]} ({data.counts[key]})
+              </button>
+            );
+          })}
         </div>
 
         {/* Điện thoại: ô tìm chiếm cả hàng, ngày và nút chia đôi hàng dưới. */}
@@ -379,11 +402,13 @@ export default function ResearchQueue({
 
       {data.items.length === 0 ? (
         <p className="rounded-2xl border border-border bg-surface p-8 text-center text-sm text-muted">
-          {query.tab === "in_progress"
-            ? "Nothing is being written right now."
-            : query.date
-              ? "No topics on this date. Try another day, or “All dates”."
-              : "No topics in this tab yet."}
+          {query.tab === "error"
+            ? "Nothing stuck or failed right now — nice."
+            : query.tab === "in_progress"
+              ? "Nothing is being written right now."
+              : query.date
+                ? "No topics on this date. Try another day, or “All dates”."
+                : "No topics in this tab yet."}
         </p>
       ) : (
         <div className={`space-y-2 transition-opacity ${loading ? "opacity-50" : ""}`}>

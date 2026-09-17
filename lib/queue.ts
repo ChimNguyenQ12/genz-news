@@ -7,6 +7,14 @@ export type RequestStatus =
   | "published"
   | "rejected";
 
+/**
+ * "error" không phải một status thật trong cột `status` — nó là một ống kính
+ * lọc, gộp hai loại đề tài đang cần tổng biên tập chú ý ngay lại một chỗ:
+ * bị trả về hàng đợi sau một lượt hỏng, và kẹt giữa đường quá lâu không xong.
+ * Xem `errorWhere()`.
+ */
+export type RequestTab = RequestStatus | "all" | "error";
+
 export interface ResearchRequest {
   id: string;
   /** Từ khoá, chủ đề, hoặc mô tả đề tài muốn làm. */
@@ -56,6 +64,31 @@ type RequestRow = {
  */
 export const STALE_AFTER_MIN = 45;
 
+/**
+ * Where-clause của tab "Errors": `pending` mà đã từng giao ít nhất một lần
+ * (lượt trước hỏng, bị trả lại hàng đợi — xem `releaseRequest`), HOẶC
+ * `in_progress` mà đã giao quá `STALE_AFTER_MIN` phút mà chưa xong (kẹt giữa
+ * đường, thường là máy chủ khởi động lại hoặc tiến trình bị giết ngoài ý
+ * muốn).
+ *
+ * Không bắt được ca "vừa chết, chưa tới 45 phút" — ca đó chỉ lộ ra qua nhịp
+ * tim SỐNG (`readRunStatus()`), không nằm trong DB nên không lọc/đếm/phân
+ * trang được ở đây. Ca đó tự "lớn" vào đúng nhóm này khi qua mốc
+ * STALE_AFTER_MIN, và trong lúc chờ vẫn thấy được qua nút Requeue viền đỏ ở
+ * tab All/Writing — không mất dấu, chỉ chưa cộng vào số đếm của tab này.
+ */
+function errorWhere() {
+  return {
+    OR: [
+      { status: "pending", attempts: { gt: 0 } },
+      {
+        status: "in_progress",
+        assignedAt: { lt: new Date(Date.now() - STALE_AFTER_MIN * 60_000) },
+      },
+    ],
+  };
+}
+
 /** SQLite không có kiểu mảng — danh sách lưu dưới dạng chuỗi JSON. */
 function parseList(value: string | null | undefined): string[] {
   if (!value) return [];
@@ -93,7 +126,7 @@ export async function listRequests(): Promise<ResearchRequest[]> {
 }
 
 export interface RequestPageOptions {
-  status?: RequestStatus | "all";
+  status?: RequestTab;
   /** Tìm trong chủ đề và ghi chú. */
   q?: string;
   /**
@@ -111,7 +144,7 @@ export interface RequestPage {
   page: number;
   perPage: number;
   /** Số mục theo từng trạng thái — dùng cho nhãn trên các tab. */
-  counts: Record<RequestStatus | "all", number>;
+  counts: Record<RequestTab, number>;
   /** Ngày đang lọc sau khi đã quy đổi "latest" thành ngày cụ thể. */
   date: string;
   /** Ngày gần nhất còn đề tài — để ô chọn ngày biết đâu là mốc mới nhất. */
@@ -182,12 +215,21 @@ export async function listRequestsPage(
     ...(date ? { createdAt: vietnamDayRange(date) } : {}),
   };
 
-  const where = {
-    ...filters,
-    ...(options.status && options.status !== "all" ? { status: options.status } : {}),
-  };
+  const statusFilter = options.status;
 
-  const [rows, total, grouped] = await Promise.all([
+  // errorWhere() cũng trả về một khoá `OR` — spread thẳng vào `filters` (khi
+  // tìm kiếm cũng đang dùng `OR` cho topic/topicVi/notes) thì khoá sau sẽ ghi
+  // đè khoá trước, âm thầm bỏ mất điều kiện tìm kiếm. Bọc trong `AND` để hai
+  // OR độc lập cộng lại đúng nghĩa, không đè nhau.
+  const where =
+    statusFilter === "error"
+      ? { AND: [filters, errorWhere()] }
+      : {
+          ...filters,
+          ...(statusFilter && statusFilter !== "all" ? { status: statusFilter } : {}),
+        };
+
+  const [rows, total, grouped, errorCount] = await Promise.all([
     prisma.researchRequest.findMany({
       where,
       // Mới nhất trước — đề tài nguội thì viết ra cũng không ai đọc.
@@ -201,15 +243,19 @@ export async function listRequestsPage(
       where: filters,
       _count: { _all: true },
     }),
+    // Cắt ngang hai bucket status nên không tính được từ groupBy ở trên —
+    // đếm riêng bằng đúng where của tab Errors (cũng bọc AND vì cùng lý do).
+    prisma.researchRequest.count({ where: { AND: [filters, errorWhere()] } }),
   ]);
 
-  const counts: Record<RequestStatus | "all", number> = {
+  const counts: Record<RequestTab, number> = {
     all: 0,
     pending: 0,
     in_progress: 0,
     done: 0,
     published: 0,
     rejected: 0,
+    error: errorCount,
   };
   for (const g of grouped) {
     const key = g.status as RequestStatus;

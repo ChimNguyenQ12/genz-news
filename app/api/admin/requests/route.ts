@@ -4,11 +4,16 @@ import {
   createRequest,
   listRequestsPage,
   STALE_AFTER_MIN,
-  type RequestStatus,
+  type RequestTab,
 } from "@/lib/queue";
 import { readRunStatus } from "@/lib/newsroom";
 
-const VALID_STATUS = new Set<string>(["pending", "in_progress", "done", "rejected"]);
+// "error" không phải status thật trong DB (xem errorWhere() trong lib/queue.ts)
+// nhưng vẫn phải nằm trong danh sách này — thiếu nó thì URL ?status=error rơi
+// về nhánh mặc định "all" một cách âm thầm, tab Errors trông như luôn rỗng.
+const VALID_STATUS = new Set<string>([
+  "pending", "in_progress", "done", "rejected", "error",
+]);
 
 /**
  * Một trang của hàng đợi đề tài.
@@ -29,7 +34,7 @@ export async function GET(request: Request) {
   // không" là thừa.
   const [page, run] = await Promise.all([
     listRequestsPage({
-      status: status && VALID_STATUS.has(status) ? (status as RequestStatus) : "all",
+      status: status && VALID_STATUS.has(status) ? (status as RequestTab) : "all",
       q: params.get("q") ?? undefined,
       // Không truyền date thì mặc định là ngày gần nhất còn đề tài: mở màn
       // hình lên là thấy việc mới nhất, không phải cuộn qua hàng trăm mục cũ.
