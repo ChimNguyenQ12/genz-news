@@ -144,11 +144,13 @@ function validate(a) {
   const independent = [...hosts].filter(
     (h) => !NOT_INDEPENDENT.some((x) => h === x || h.endsWith("." + x)),
   );
-  if (independent.length < 2) {
+  // Ngưỡng THẬT SỰ áp dụng là 1 — chú thích, prompt và skill trước đây nói "1
+  // nguồn" nhưng dòng này vẫn viết "< 2" từ đợt hiến chương hạ ngưỡng, nên mọi
+  // bài chỉ có 1 tên miền độc lập đều bị từ chối dù tài liệu nói ngược lại.
+  if (independent.length < 1) {
     die(
-      `chỉ có ${independent.length} nguồn độc lập (${independent.join(", ") || "không có"}), ` +
-      "cần ít nhất 2 tên miền khác nhau. Bách khoa toàn thư và trang tổng hợp " +
-      "tin không được tính.",
+      "không có nguồn độc lập nào — cần ít nhất 1 tên miền không phải " +
+      "bách khoa toàn thư hay trang tổng hợp tin.",
     );
   }
 

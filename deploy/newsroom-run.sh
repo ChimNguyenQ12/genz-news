@@ -101,6 +101,14 @@ command -v sqlite3 >/dev/null || { log "chưa cài sqlite3"; exit 1; }
 git -C "$REPO" fetch -q origin && git -C "$REPO" reset -q --hard origin/main || {
   log "không cập nhật được $REPO"; exit 1; }
 
+# claude -p tìm .claude/skills/ theo THƯ MỤC ĐANG ĐỨNG, không phải theo REPO
+# hay theo đường dẫn của chính script này. Lượt cron 06:00 vô tình đúng vì
+# dòng crontab có "cd /srv/genz-news/repo &&" trước khi gọi script — nhưng
+# lượt 18:00 (gọi thẳng, không cd) và mọi lượt bấm "Create Post" qua
+# newsroom-watch.sh thì không. Thiếu dòng này, "Dùng skill viet-bai-toa-soan"
+# trong prompt chỉ là lời nói vào khoảng không — không có skill nào để gọi.
+cd "$REPO" || { log "không cd được vào $REPO"; exit 1; }
+
 cleanup() {
   heartbeat_stop
   sed -i '/^NEWSROOM_REQUEST_ID=/d' "$ENV_FILE" 2>/dev/null

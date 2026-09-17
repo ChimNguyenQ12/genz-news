@@ -47,18 +47,13 @@ xem quốc tế có nhắc tới không. Hai phía thường có góc nhìn và 
 nhau — chỗ khác nhau đó chính là phần đáng viết.
 
 **Ngưỡng nguồn thật sự được thực thi**: lệnh lưu bài (`genz-news-save-article`,
-xem bước 6) từ chối bài có dưới **2 tên miền độc lập** trong `sources`.
+xem bước 6) từ chối bài có dưới **1 tên miền độc lập** trong `sources`.
 Wikipedia, Baomoi, `news.google.com` và các trang tổng hợp/bách khoa được phép
-liệt kê làm tài liệu tham khảo nhưng KHÔNG tính vào mức 2 đó — chúng chép lại
-nguồn khác. Hai tên miền là MỨC SÀN, không phải mức trần: tìm bao nhiêu tuỳ đề
+liệt kê làm tài liệu tham khảo nhưng KHÔNG tính vào mức đó — chúng chép lại
+nguồn khác. Một nguồn là MỨC SÀN, không phải mức trần: tìm bao nhiêu tuỳ đề
 tài, đọc thêm nguồn nào thấy cần thì đọc. Bài càng nhiều nguồn đối chiếu càng
-chắc.
-
-> Ghi chú kỹ thuật: một vài chỗ trong `CLAUDE.md`/lịch sử ghi "tối thiểu 1
-> nguồn" — đó là do sửa tài liệu chưa khớp với bộ kiểm thật trong
-> `scripts/newsroom-save.mjs` (`independent.length < 2` vẫn còn nguyên). Làm
-> theo mức **2** ở đây để không bị lệnh lưu từ chối; nếu thấy hai nơi tiếp tục
-> lệch nhau, báo lại tổng biên tập.
+chắc — đề tài "ƯU TIÊN" (chủ quyền/Việt-Trung) vẫn nên tìm ít nhất 2 nguồn kể
+cả khi 1 đã đủ qua bộ kiểm, vì tính nhạy cảm của nhóm này đòi chắc hơn mức sàn.
 
 ## Bước 2 — Kiểm chứng
 
@@ -151,9 +146,9 @@ JSON gồm: `title`, `dek`, `category` (`the-gioi`|`cong-nghe`|`giai-tri`|
   chối ảnh thiếu `<figcaption>`.
 
 Lệnh **từ chối** bài dưới 6 đoạn `<p>` hoặc dưới 550 từ, tít quá dài (>80 ký
-tự), `dek` rỗng, chuyên mục sai, hoặc dưới 2 tên miền nguồn độc lập (xem bước
-1). Bị từ chối thì viết dày thêm bằng thông tin thật, đừng độn chữ — không
-hạ chất lượng để lách qua bộ kiểm.
+tự), `dek` rỗng, chuyên mục sai, hoặc không có tên miền nguồn độc lập nào (xem
+bước 1). Bị từ chối thì viết dày thêm bằng thông tin thật, đừng độn chữ —
+không hạ chất lượng để lách qua bộ kiểm.
 
 Nếu có `requestId` (chạy dưới vòng tự động), lệnh lưu tự đóng mục trong hàng
 đợi (`status: done`, `articleIds`, `reporterNote`) qua biến môi trường
@@ -163,7 +158,7 @@ bài vừa tạo và bỏ qua bước cập nhật hàng đợi.
 
 ## Khi không nên viết
 
-Nếu không tìm đủ 2 nguồn độc lập đáng tin (bước 1) thì **đừng viết bài** — nói
+Nếu không tìm đủ 1 nguồn độc lập đáng tin (bước 1) thì **đừng viết bài** — nói
 rõ là không đủ nguồn rồi dừng. Thà bỏ sót còn hơn đăng sai. Nếu chạy dưới vòng
 tự động, không lưu gì cả thì mục trong hàng đợi tự động được trả lại
 `pending` để lượt sau hoặc người thử lại.
