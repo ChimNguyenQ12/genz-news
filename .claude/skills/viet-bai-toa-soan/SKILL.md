@@ -70,9 +70,11 @@ giữ nguyên gốc (đặt trong `<blockquote>`, xem bước 4).
 
 *Đây là chỗ hay làm sai nhất.*
 
-Bài tổng hợp, không phải tin vắn: **800–1400 từ, 8–14 đoạn**, gộp nhiều nguồn
-thành một mạch kể. Đừng tóm tắt một bài rồi gắn thêm link. Mỗi đoạn phải mang
-thêm một thông tin mới; thà 900 từ chắc còn hơn 1400 từ loãng.
+Bài tổng hợp, không phải tin vắn: **1000–1800 từ, 10–16 đoạn**, gộp nhiều
+nguồn thành một mạch kể. Đừng tóm tắt một bài rồi gắn thêm link. Mỗi đoạn phải
+mang thêm một thông tin mới; thà 1100 từ chắc còn hơn 1800 từ loãng. Dài hơn
+để có chỗ cho nhiều dữ kiện/số liệu/trích dẫn hơn — không phải để viết vòng vo
+hay lặp lại ý đã nói.
 
 **Không có khung cố định, và đừng bịa ra khung.** Bài nào cũng mở bằng "chuyện
 gì vừa xảy ra" rồi đóng bằng "sắp tới thì sao" thì đọc mười bài như một, và
@@ -145,7 +147,7 @@ JSON gồm: `title`, `dek`, `category` (`the-gioi`|`cong-nghe`|`giai-tri`|
   trả về (xem skill `lay-anh-bai-viet`) — lệnh lưu từ chối mọi ảnh khác, và từ
   chối ảnh thiếu `<figcaption>`.
 
-Lệnh **từ chối** bài dưới 6 đoạn `<p>` hoặc dưới 550 từ, tít quá dài (>80 ký
+Lệnh **từ chối** bài dưới 8 đoạn `<p>` hoặc dưới 750 từ, tít quá dài (>80 ký
 tự), `dek` rỗng, chuyên mục sai, hoặc không có tên miền nguồn độc lập nào (xem
 bước 1). Bị từ chối thì viết dày thêm bằng thông tin thật, đừng độn chữ —
 không hạ chất lượng để lách qua bộ kiểm.

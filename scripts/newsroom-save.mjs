@@ -110,22 +110,22 @@ function validate(a) {
   if (!body) die("thân bài rỗng");
 
   // Đây là bài tổng hợp nhiều nguồn, không phải tin vắn. Hiến chương đặt mốc
-  // 800–1400 từ; chặn ở mức thấp hơn để không trả về bài chỉ vì thiếu vài chục
-  // từ, nhưng đủ để loại những bài chỉ tóm tắt một nguồn rồi gắn link.
+  // 1000–1800 từ; chặn ở mức thấp hơn để không trả về bài chỉ vì thiếu vài
+  // chục từ, nhưng đủ để loại những bài chỉ tóm tắt một nguồn rồi gắn link.
   const paragraphs = (body.match(/<p[\s>]/gi) ?? []).length;
-  if (paragraphs < 6) {
-    die(`thân bài chỉ có ${paragraphs} đoạn <p>, cần ít nhất 6 (hiến chương: 8–14)`);
+  if (paragraphs < 8) {
+    die(`thân bài chỉ có ${paragraphs} đoạn <p>, cần ít nhất 8 (hiến chương: 10–16)`);
   }
   const words = body
     .replace(/<[^>]+>/g, " ")
     .replace(/&[a-z]+;/gi, " ")
     .split(/\s+/)
     .filter(Boolean).length;
-  if (words < 550) {
-    die(`thân bài chỉ ${words} từ, cần ít nhất 550 (hiến chương: 800–1400)`);
+  if (words < 750) {
+    die(`thân bài chỉ ${words} từ, cần ít nhất 750 (hiến chương: 1000–1800)`);
   }
-  if (words < 800) {
-    console.error(`[newsroom-save] LƯU Ý: bài ${words} từ, dưới mốc 800 của hiến chương.`);
+  if (words < 1000) {
+    console.error(`[newsroom-save] LƯU Ý: bài ${words} từ, dưới mốc 1000 của hiến chương.`);
   }
 
   // Tối thiểu 1 nguồn: khác tên miền, không phải cùng một báo.

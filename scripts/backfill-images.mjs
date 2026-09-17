@@ -33,7 +33,7 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 
 /**
  * Bao nhiêu ảnh là đủ cho một bài: tối thiểu 3, nhắm 5, trần 7.
- * Bài tổng hợp 800–1400 từ mà chỉ một tấm ảnh thì đọc rất khô.
+ * Bài tổng hợp 1000–1800 từ mà chỉ một tấm ảnh thì đọc rất khô.
  */
 const TARGET_MIN = 3;
 const TARGET_AIM = 5;

@@ -185,9 +185,10 @@ Chủ quyền/biển đảo, chính trị, tôn giáo, sắc tộc, vụ án đa
 - Không dùng "gen Z hoá" gượng ép (không chêm tiếng lóng vô tội vạ).
 - Tít: cụ thể, có thông tin thật, dưới ~75 ký tự.
 - `dek`: một câu tóm tắt cái mới nhất/quan trọng nhất, không lặp lại tít.
-- Độ dài thân bài: **800–1400 từ, khoảng 8–14 đoạn**. Đây là bài tổng hợp từ
+- Độ dài thân bài: **1000–1800 từ, khoảng 10–16 đoạn**. Đây là bài tổng hợp từ
   nhiều nguồn, không phải bản tin vắn — người đọc xong phải hiểu đủ chuyện mà
-  không cần mở nguồn gốc.
+  không cần mở nguồn gốc. Dài hơn để nhồi thêm dữ kiện/số liệu/trích dẫn thật,
+  không phải để viết vòng vo — mỗi đoạn thêm vẫn phải mang một thông tin mới.
 
 ## Dựng một bài tổng hợp
 
@@ -236,8 +237,8 @@ Vài điều cụ thể làm bài dày lên mà không loãng:
   kèm tên và chức danh. Trích ngắn, có dẫn nguồn — không chép cả đoạn.
 - **Tít `<h2>` đặt theo nội dung của chính phần đó**, đừng dùng đi dùng lại mấy
   cái nhãn chung chung giống nhau giữa các bài.
-- Đừng độn chữ. Thà 900 từ chắc còn hơn 1400 từ loãng. Mỗi đoạn phải mang thêm
-  một thông tin mới.
+- Đừng độn chữ. Thà 1100 từ chắc còn hơn 1800 từ loãng. Mỗi đoạn phải mang
+  thêm một thông tin mới.
 
 ## Kỹ thuật
 
