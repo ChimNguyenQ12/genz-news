@@ -1,0 +1,22 @@
+# Thiếu tệp này thì `COPY . .` kéo theo cả node_modules mà job lint để lại
+# trong thư mục checkout (~760MB, GIT_CLEAN_FLAGS không xoá tệp bị gitignore):
+# mỗi lần dựng phải gửi ngần ấy vào Docker, ghi đè node_modules của tầng deps,
+# và thêm một lớp gần 1GB vào build cache.
+node_modules
+.next
+out
+build
+coverage
+data
+.git
+*.tsbuildinfo
+next-env.d.ts
+
+# .env do job deploy sinh ra, chứa bí mật. Compose đọc nó ở máy chủ để thay
+# biến; nó không có lý do gì để nằm trong image.
+.env*
+
+# Tài liệu và công cụ không dùng lúc chạy.
+.claude
+*.md
+deploy

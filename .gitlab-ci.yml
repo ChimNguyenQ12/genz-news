@@ -13,11 +13,35 @@ stages:
   - lint
   - deploy
 
+# Những thay đổi cần dựng lại ảnh. Dùng chung cho cả hai job: có thay đổi loại
+# này thì chỉ chạy deploy (lint nằm sẵn trong bước dựng, xem Dockerfile), không
+# có thì chỉ chạy lint.
+.app_changes: &app_changes
+  - app/**/*
+  - components/**/*
+  - lib/**/*
+  - prisma/**/*
+  - public/**/*
+  - package.json
+  - package-lock.json
+  - Dockerfile
+  - .dockerignore
+  - docker-compose.yml
+  - next.config.*
+  - tsconfig.json
+  - prisma.config.ts
+  - eslint.config.mjs
+
 lint:
   stage: lint
   tags: [genz-news-deploy]
+  # Trên main, bỏ job này khi deploy sẽ chạy: runner dùng chung với
+  # concurrent = 1, nên mỗi job thêm là thêm ~5 phút chờ runner nhận việc.
   rules:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      changes: *app_changes
+      when: never
     - if: '$CI_COMMIT_BRANCH == "main"'
   script:
     # Chạy trong container Node để không phụ thuộc Node cài trên host.
@@ -37,19 +61,7 @@ deploy:
   tags: [genz-news-deploy]
   rules:
     - if: '$CI_COMMIT_BRANCH == "main"'
-      changes:
-        - app/**/*
-        - components/**/*
-        - lib/**/*
-        - prisma/**/*
-        - public/**/*
-        - package.json
-        - package-lock.json
-        - Dockerfile
-        - docker-compose.yml
-        - next.config.*
-        - tsconfig.json
-        - prisma.config.ts
+      changes: *app_changes
   script:
     # Bí mật tuỳ chọn. Để trống cũng chạy được: app tự sinh khoá phiên và
     # cất vào thư mục data.
@@ -60,6 +72,8 @@ deploy:
         printf 'S3_BUCKET=%s\n'            "${S3_BUCKET:-genz-news}"
         printf 'AWS_REGION=%s\n'           "${AWS_REGION:-us-east-1}"
         printf 'AWS_PROFILE=%s\n'          "${AWS_PROFILE:-s3-full-sandbox}"
+        printf 'FB_PAGE_ID=%s\n'           "${FB_PAGE_ID:-}"
+        printf 'FB_PAGE_ACCESS_TOKEN=%s\n' "${FB_PAGE_ACCESS_TOKEN:-}"
       } > .env
     - docker-compose up -d --build --remove-orphans
     - docker image prune -f

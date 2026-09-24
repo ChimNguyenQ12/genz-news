@@ -8,9 +8,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       python3 make g++ openssl ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 COPY package.json package-lock.json ./
-COPY prisma ./prisma
+# postinstall chạy prisma generate, cần schema có sẵn ở trên. Chỉ chép đúng
+# schema: chép cả prisma/ thì mỗi migration mới lại bắt npm ci + biên dịch
+# better-sqlite3 lại từ đầu, dù không đổi một gói nào.
+COPY prisma/schema.prisma ./prisma/schema.prisma
 COPY prisma.config.ts ./
-# postinstall chạy prisma generate, cần schema có sẵn ở trên.
 RUN npm ci --legacy-peer-deps
 
 # ---------- build ----------
@@ -24,7 +26,16 @@ COPY . .
 # là CPU chứ không phải bộ nhớ (xem setup.md mục L), nhưng trần heap giúp bản
 # dựng vỡ gọn trong chính nó thay vì lôi cả máy xuống theo.
 ENV NEXT_TELEMETRY_DISABLED=1 NODE_OPTIONS=--max-old-space-size=1536
-RUN npx prisma generate && npm run build
+# Lint chạy ngay ở đây thay cho job lint riêng trên main: node_modules đã có
+# sẵn từ tầng deps, khỏi npm ci lần hai, và khỏi chờ runner nhận thêm một job
+# (runner dùng chung, concurrent = 1, mỗi lần chờ ~5 phút). Kiểm kiểu thì
+# `next build` đã tự làm. Lint hỏng thì dựng dừng, bản đang chạy giữ nguyên.
+#
+# .next/cache là cache biên dịch của Next: giữ lại giữa các lần dựng nên lần
+# sau chỉ biên dịch lại phần đã đổi. Nó chỉ nằm trong cache mount, không vào
+# image.
+RUN --mount=type=cache,target=/app/.next/cache \
+    npx prisma generate && npm run lint && npm run build
 
 # ---------- migrator ----------
 # Prisma CLI kéo theo cả một cây phụ thuộc riêng (effect, ...) mà bản standalone
