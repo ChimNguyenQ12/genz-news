@@ -2,7 +2,10 @@
 # Sao lưu cơ sở dữ liệu SQLite lên S3, đã mã hoá.
 #
 #   sudo crontab -e
-#   0 3 * * * /srv/genz-news/repo/deploy/backup-to-s3.sh >> /var/log/genz-news-backup.log 2>&1
+#   0 3 */3 * * /usr/local/bin/genz-news-backup.sh >> /var/log/genz-news-backup.log 2>&1
+#
+# 3 ngày một lần (các ngày 1, 4, 7, … trong tháng; cuối tháng có khi chỉ cách
+# 1–2 ngày). Nghĩa là sự cố có thể mất tới 3 ngày bài mới.
 #
 # Mã hoá TRƯỚC khi đẩy đi: S3 chỉ nên nhìn thấy ciphertext.
 set -euo pipefail
