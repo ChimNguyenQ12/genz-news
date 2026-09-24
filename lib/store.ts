@@ -308,13 +308,19 @@ function foldVietnamese(s: string) {
  * LIKE, chỉ bỏ qua hoa/thường với chữ ASCII — gõ "đà nẵng" sẽ trượt tít
  * "Đà Nẵng", và gõ không dấu thì trượt hết. Chỉ đọc cột tít/dek, nên vài
  * nghìn bài vẫn nhẹ.
+ *
+ * Khớp cả cụm, tính từ đầu một từ: "hoang sa" phải đứng liền nhau, và "sa"
+ * không được khớp giữa chừng chữ "sạc". Tách từng từ ra khớp riêng thì bỏ dấu
+ * xong gần như bài nào cũng dính.
  */
 export async function searchPublishedArticles(
   q: string,
   limit = 60,
 ): Promise<ArticleSummary[]> {
-  const terms = foldVietnamese(q).split(/\s+/).filter(Boolean);
-  if (terms.length === 0) return [];
+  const words = (s: string) => foldVietnamese(s).replace(/[^a-z0-9]+/g, " ").trim();
+  const phrase = words(q);
+  if (!phrase) return [];
+  const needle = ` ${phrase}`;
 
   const rows = await prisma.article.findMany({
     where: { status: "published" },
@@ -322,10 +328,7 @@ export async function searchPublishedArticles(
     orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
   });
   const ids = rows
-    .filter((r) => {
-      const hay = foldVietnamese(`${r.title} ${r.dek}`);
-      return terms.every((t) => hay.includes(t));
-    })
+    .filter((r) => ` ${words(r.title)} ${words(r.dek)}`.includes(needle))
     .slice(0, limit)
     .map((r) => r.id);
   if (ids.length === 0) return [];
