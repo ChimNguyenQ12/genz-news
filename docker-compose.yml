@@ -60,3 +60,7 @@ services:
       ADMIN_SESSION_SECRET: ${ADMIN_SESSION_SECRET:-}
       ALLOW_REGISTRATION: ${ALLOW_REGISTRATION:-1}
       YOUTUBE_API_KEY: ${YOUTUBE_API_KEY:-}
+      # Facebook Page (lib/facebook.ts). Job deploy ghi hai biến này vào .env
+      # từ biến CI/CD của GitLab; để trống thì trang /admin/facebook báo chưa cấu hình.
+      FB_PAGE_ID: ${FB_PAGE_ID:-}
+      FB_PAGE_ACCESS_TOKEN: ${FB_PAGE_ACCESS_TOKEN:-}

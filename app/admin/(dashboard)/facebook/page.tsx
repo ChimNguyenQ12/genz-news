@@ -1,490 +1,496 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { mediaUrl } from "@/lib/media";
+
+type Status = "scheduled" | "publishing" | "published" | "failed";
 
 interface FacebookPost {
-  id: string;
-  articleId: string;
-  fbPostId: string;
-  fbCommentId?: string | null;
-  customCaption?: string | null;
-  customComment?: string | null;
-  postedAt: string;
+  status: Status;
+  caption: string;
+  comment: string;
+  scheduledAt: string | null;
+  fbPostId: string | null;
+  postedAt: string | null;
+  lastError: string | null;
 }
 
-interface Article {
+interface Row {
   id: string;
   slug: string;
   title: string;
   dek: string;
   category: string;
-  tags: string[];
-  coverImage?: string;
-  author: string;
+  coverImage: string | null;
   publishedAt: string;
-  createdAt: string;
-  facebookPost?: FacebookPost | null;
+  defaultCaption: string;
+  defaultComment: string;
+  facebookPost: FacebookPost | null;
+}
+
+interface ListResponse {
+  configured: boolean;
+  goldenHours: string[];
+  perDay: number;
+  nextSlot: string | null;
+  articles: Row[];
+}
+
+type Filter = "all" | "none" | "scheduled" | "published" | "failed";
+
+const vnTime = (iso: string | null) =>
+  iso
+    ? new Date(iso).toLocaleString("vi-VN", {
+        timeZone: "Asia/Ho_Chi_Minh",
+        hour: "2-digit",
+        minute: "2-digit",
+        day: "2-digit",
+        month: "2-digit",
+      })
+    : "";
+
+/** ISO → giá trị cho <input type="datetime-local"> theo giờ máy người dùng. */
+const toLocalInput = (iso: string | null) => {
+  if (!iso) return "";
+  const d = new Date(iso);
+  return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+};
+
+const statusOf = (r: Row): "none" | Status => r.facebookPost?.status ?? "none";
+
+const BADGE: Record<"none" | Status, { label: string; cls: string }> = {
+  none: { label: "Chưa lên Facebook", cls: "bg-surface-2 text-muted" },
+  scheduled: { label: "Đã lên lịch", cls: "bg-blue-500/15 text-blue-600 dark:text-blue-400" },
+  publishing: { label: "Đang đăng…", cls: "bg-amber-500/15 text-amber-600 dark:text-amber-400" },
+  published: { label: "Đã đăng", cls: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400" },
+  failed: { label: "Lỗi", cls: "bg-red-500/15 text-red-600 dark:text-red-400" },
+};
+
+async function api(url: string, init?: RequestInit) {
+  const res = await fetch(url, {
+    ...init,
+    headers: { "Content-Type": "application/json", ...init?.headers },
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `Lỗi ${res.status}`);
+  return data;
 }
 
 export default function FacebookAdminPage() {
-  const [articles, setArticles] = useState<Article[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [data, setData] = useState<ListResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [filter, setFilter] = useState<"all" | "posted" | "unposted">("all");
-  const [publishingToday, setPublishingToday] = useState(false);
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
+  const [filter, setFilter] = useState<Filter>("all");
+  const [busy, setBusy] = useState<string | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
 
-  // State cho Modal chỉnh sửa & đăng bài
-  const [selectedArticle, setSelectedArticle] = useState<Article | null>(null);
+  const [editing, setEditing] = useState<Row | null>(null);
   const [caption, setCaption] = useState("");
   const [comment, setComment] = useState("");
-  const [submitting, setSubmitting] = useState(false);
+  const [when, setWhen] = useState("");
 
-  const fetchArticles = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await fetch("/api/admin/facebook");
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Không thể tải danh sách bài viết");
-      setArticles(data.articles || []);
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setLoading(false);
-    }
-  };
-
+  // Tải qua promise: setState chỉ chạy khi có kết quả, không đồng bộ trong effect.
   useEffect(() => {
-    fetchArticles();
-  }, []);
+    let active = true;
+    api("/api/admin/facebook")
+      .then((d: ListResponse) => {
+        if (!active) return;
+        setData(d);
+        setError(null);
+      })
+      .catch((err: Error) => active && setError(err.message));
+    return () => {
+      active = false;
+    };
+  }, [reloadKey]);
 
-  // Thông báo Toast tự tắt
-  const showToast = (msg: string) => {
-    setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 4000);
+  const reload = useCallback(() => setReloadKey((k) => k + 1), []);
+
+  const notify = (msg: string) => {
+    setToast(msg);
+    setTimeout(() => setToast(null), 4000);
   };
 
-  // Mở modal chỉnh sửa
-  const openEditModal = (article: Article) => {
-    setSelectedArticle(article);
-    // Nếu có caption đã đăng trước đó thì dùng lại, không thì tạo caption mặc định
-    const defaultCaption = article.facebookPost?.customCaption || generateDefaultCaption(article);
-    const defaultComment =
-      article.facebookPost?.customComment ||
-      `👉 Đọc đầy đủ bài viết và thảo luận thêm tại: https://genz-news.site/bai-viet/${article.slug}`;
-
-    setCaption(defaultCaption);
-    setComment(defaultComment);
-  };
-
-  const closeModal = () => {
-    setSelectedArticle(null);
-    setCaption("");
-    setComment("");
-  };
-
-  // Tạo caption chuẩn phong cách Gen Z
-  const generateDefaultCaption = (article: Article): string => {
-    const hashtags = [
-      "#GenZNews",
-      `#${article.category.replace(/[\s-]+/g, "")}`,
-      ...article.tags.slice(0, 4).map((t) => `#${t.replace(/[\s-]+/g, "")}`),
-    ]
-      .filter(Boolean)
-      .join(" ");
-
-    return [
-      `⚡ ${article.title.toUpperCase()}`,
-      "",
-      article.dek ? `📌 ${article.dek}` : "",
-      "",
-      "👇 Chi tiết bài viết và nguồn trích dẫn được cập nhật ở bình luận bên dưới!",
-      "",
-      hashtags,
-    ].join("\n").trim();
-  };
-
-  // Thực hiện đăng bài cụ thể
-  const handlePublishSingle = async (articleId: string, customCap?: string, customCmt?: string) => {
-    setSubmitting(true);
+  const run = async (key: string, fn: () => Promise<{ message?: string }>) => {
+    setBusy(key);
     try {
-      const res = await fetch("/api/admin/facebook/post", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          articleId,
-          customCaption: customCap,
-          customComment: customCmt,
-        }),
-      });
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Đăng bài thất bại");
-
-      showToast(`🎉 ${data.message}`);
-      closeModal();
-      await fetchArticles();
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      alert(`Lỗi đăng bài: ${msg}`);
+      const out = await fn();
+      if (out?.message) notify(out.message);
+      reload();
+      return true;
+    } catch (err) {
+      alert((err as Error).message);
+      return false;
     } finally {
-      setSubmitting(false);
+      setBusy(null);
     }
   };
 
-  // Thực hiện tự động đăng tất cả bài hôm nay
-  const handlePublishTodayBatch = async () => {
-    if (!confirm("Bạn có chắc muốn tự động xuất bản tất cả bài mới hôm nay lên Facebook Fanpage?")) return;
-    setPublishingToday(true);
-    try {
-      const res = await fetch("/api/admin/facebook/publish-today", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ limit: 4 }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Tự động đăng bài thất bại");
-
-      showToast(`🚀 ${data.message}`);
-      await fetchArticles();
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      alert(`Lỗi: ${msg}`);
-    } finally {
-      setPublishingToday(false);
+  const rows = useMemo(() => data?.articles ?? [], [data]);
+  const counts = useMemo(() => {
+    const c: Record<Filter, number> = { all: rows.length, none: 0, scheduled: 0, published: 0, failed: 0 };
+    for (const r of rows) {
+      const s = statusOf(r);
+      if (s === "publishing") c.scheduled++;
+      else c[s]++;
     }
+    return c;
+  }, [rows]);
+  const visible = rows.filter((r) => {
+    if (filter === "all") return true;
+    const s = statusOf(r);
+    return filter === "scheduled" ? s === "scheduled" || s === "publishing" : s === filter;
+  });
+
+  const openEditor = (r: Row) => {
+    setEditing(r);
+    setCaption(r.facebookPost?.caption ?? r.defaultCaption);
+    setComment(r.facebookPost?.comment ?? r.defaultComment);
+    setWhen(toLocalInput(r.facebookPost?.scheduledAt ?? data?.nextSlot ?? null));
   };
 
-  // Lọc bài viết
-  const filteredArticles = useMemo(() => {
-    if (filter === "posted") return articles.filter((a) => !!a.facebookPost);
-    if (filter === "unposted") return articles.filter((a) => !a.facebookPost);
-    return articles;
-  }, [articles, filter]);
+  const scheduleToday = () =>
+    run("today", () =>
+      api("/api/admin/facebook/schedule-today", {
+        method: "POST",
+        body: JSON.stringify({ perDay: data?.perDay }),
+      }),
+    );
 
-  const postedCount = articles.filter((a) => !!a.facebookPost).length;
-  const unpostedCount = articles.length - postedCount;
+  const publishNow = (r: Row, text?: { caption: string; comment: string }) => {
+    if (!confirm(`Đăng ngay lên Facebook Page (bỏ qua giờ vàng)?\n\n${r.title}`)) return;
+    return run(r.id, () =>
+      api("/api/admin/facebook/post", {
+        method: "POST",
+        body: JSON.stringify({ articleId: r.id, mode: "now", ...text }),
+      }),
+    ).then((ok) => ok && setEditing(null));
+  };
+
+  const saveEditor = async () => {
+    if (!editing) return;
+    const s = statusOf(editing);
+    const scheduledAt = when ? new Date(when).toISOString() : undefined;
+    const ok =
+      s === "none"
+        ? await run(editing.id, () =>
+            api("/api/admin/facebook/post", {
+              method: "POST",
+              body: JSON.stringify({ articleId: editing.id, caption, comment, mode: "schedule", scheduledAt }),
+            }),
+          )
+        : await run(editing.id, () =>
+            api(`/api/admin/facebook/${editing.id}`, {
+              method: "PATCH",
+              body: JSON.stringify({ caption, comment, scheduledAt: s === "published" ? undefined : scheduledAt }),
+            }),
+          );
+    if (ok) setEditing(null);
+  };
+
+  const remove = (r: Row) => {
+    const published = statusOf(r) === "published";
+    const q = published
+      ? `GỠ bài này khỏi Facebook Page? Lượt thích và bình luận trên bài sẽ mất.\n\n${r.title}`
+      : `Huỷ lịch đăng Facebook của bài này?\n\n${r.title}`;
+    if (!confirm(q)) return;
+    return run(r.id, () => api(`/api/admin/facebook/${r.id}`, { method: "DELETE" }));
+  };
+
+  const editingStatus = editing ? statusOf(editing) : "none";
 
   return (
     <div className="space-y-6 pb-12">
-      {/* Toast Notification */}
-      {toastMessage && (
-        <div className="fixed top-5 right-5 z-50 animate-bounce rounded-xl bg-accent px-5 py-3 text-sm font-bold text-white shadow-2xl">
-          {toastMessage}
+      {toast && (
+        <div className="fixed top-5 right-5 z-50 rounded-xl bg-accent px-5 py-3 text-sm font-bold text-white shadow-2xl">
+          {toast}
         </div>
       )}
 
-      {/* Page Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-black tracking-tight text-foreground sm:text-3xl">
-            Quản lý Bài Đăng Facebook Fanpage
-          </h1>
+          <h1 className="text-2xl font-black tracking-tight sm:text-3xl">Facebook Page</h1>
           <p className="mt-1 text-sm text-muted">
-            Theo dõi, chỉnh sửa caption và quản lý xuất bản tin tức tự động lên Fanpage GenZ News
+            Lên lịch, đăng, sửa và gỡ bài trên Page. Bài mới đăng web được tự xếp vào giờ vàng kế tiếp.
           </p>
         </div>
-
-        <div className="flex flex-wrap items-center gap-2.5">
+        <div className="flex flex-wrap gap-2">
           <button
-            onClick={fetchArticles}
-            className="rounded-xl border border-border bg-surface px-4 py-2 text-sm font-semibold text-foreground transition hover:bg-surface-2"
+            onClick={reload}
+            className="rounded-xl border border-border bg-surface px-4 py-2 text-sm font-semibold hover:bg-surface-2"
           >
-            🔄 Làm mới
+            Làm mới
           </button>
           <button
-            onClick={handlePublishTodayBatch}
-            disabled={publishingToday}
-            className="flex items-center gap-2 rounded-xl bg-accent px-5 py-2 text-sm font-bold text-white shadow-md transition hover:opacity-90 disabled:opacity-50"
+            onClick={scheduleToday}
+            disabled={busy === "today" || !data?.configured}
+            className="rounded-xl bg-accent px-5 py-2 text-sm font-bold text-white shadow-md hover:opacity-90 disabled:opacity-50"
           >
-            {publishingToday ? "⏳ Đang xuất bản..." : "🚀 Tự động đăng bài hôm nay"}
+            {busy === "today" ? "Đang xếp lịch…" : "Xếp lịch bài hôm nay vào giờ vàng"}
           </button>
         </div>
       </div>
 
-      {/* Interactive Engagement Strategy Panel */}
-      <div className="rounded-2xl border border-accent/20 bg-gradient-to-r from-accent/5 via-surface to-accent/5 p-5 shadow-sm">
-        <div className="flex items-center justify-between">
-          <h2 className="text-base font-bold text-foreground flex items-center gap-2">
-            💡 Chiến Lược Tối Ưu Tương Tác Giờ Vàng
-          </h2>
-          <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-accent/10 text-accent">
-            Gen Z Optimization
-          </span>
-        </div>
-        <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-4">
-          <div className="rounded-xl border border-border/50 bg-surface/80 p-3">
-            <div className="text-xs font-bold text-accent">⏰ Khung giờ vàng</div>
-            <div className="mt-1 text-sm font-extrabold text-foreground">07:00 | 11:30 | 17:30 | 20:30</div>
-            <div className="mt-0.5 text-[11px] text-muted">Đăng 3-4 bài/ngày để đạt reach cao nhất</div>
-          </div>
-
-          <div className="rounded-xl border border-border/50 bg-surface/80 p-3">
-            <div className="text-xs font-bold text-emerald-500">📌 Chống Penalty Reach</div>
-            <div className="mt-1 text-sm font-extrabold text-foreground">Link ở Comment 1</div>
-            <div className="mt-0.5 text-[11px] text-muted">Không chèn link ngoài vào caption bài viết</div>
-          </div>
-
-          <div className="rounded-xl border border-border/50 bg-surface/80 p-3">
-            <div className="text-xs font-bold text-blue-500">⚡ Tone Giả Tưởng Người Thật</div>
-            <div className="mt-1 text-sm font-extrabold text-foreground"> headline emoji + dek</div>
-            <div className="mt-0.5 text-[11px] text-muted">Tuyệt đối không ghi từ khóa bot/auto/AI</div>
-          </div>
-
-          <div className="rounded-xl border border-border/50 bg-surface/80 p-3">
-            <div className="text-xs font-bold text-purple-500">🏷️ Hashtags Thương Hiệu</div>
-            <div className="mt-1 text-sm font-extrabold text-foreground">#GenZNews #DanhMuc</div>
-            <div className="mt-0.5 text-[11px] text-muted">Tối đa 4-5 hashtags ngắn gọn, dễ search</div>
-          </div>
-        </div>
-      </div>
-
-      {/* Filter Tabs */}
-      <div className="flex items-center gap-2 border-b border-border pb-3">
-        <button
-          onClick={() => setFilter("all")}
-          className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${
-            filter === "all" ? "bg-accent text-white" : "bg-surface text-muted hover:bg-surface-2"
-          }`}
-        >
-          Tất cả ({articles.length})
-        </button>
-        <button
-          onClick={() => setFilter("unposted")}
-          className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${
-            filter === "unposted" ? "bg-amber-500 text-white" : "bg-surface text-muted hover:bg-surface-2"
-          }`}
-        >
-          Chưa đăng FB ({unpostedCount})
-        </button>
-        <button
-          onClick={() => setFilter("posted")}
-          className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${
-            filter === "posted" ? "bg-emerald-600 text-white" : "bg-surface text-muted hover:bg-surface-2"
-          }`}
-        >
-          Đã đăng FB ({postedCount})
-        </button>
-      </div>
-
-      {/* Loading & Error States */}
-      {loading && (
-        <div className="py-12 text-center text-sm text-muted">
-          ⏳ Đang tải danh sách bài viết và trạng thái Facebook...
+      {data && !data.configured && (
+        <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-600 dark:text-red-400">
+          Máy chủ chưa có <code>FB_PAGE_ID</code> / <code>FB_PAGE_ACCESS_TOKEN</code>. Thêm vào biến CI/CD
+          của GitLab rồi deploy lại; trước lúc đó không đăng hay lên lịch được.
         </div>
       )}
+
+      {data && (
+        <div className="grid grid-cols-1 gap-3 rounded-2xl border border-border bg-surface p-4 text-sm sm:grid-cols-3">
+          <div>
+            <div className="text-xs font-bold text-accent">Giờ vàng (giờ VN)</div>
+            <div className="mt-1 font-extrabold">{data.goldenHours.join(" · ")}</div>
+            <div className="text-xs text-muted">Tối đa {data.perDay} bài/ngày, mỗi giờ một bài</div>
+          </div>
+          <div>
+            <div className="text-xs font-bold text-emerald-600">Link ở bình luận đầu</div>
+            <div className="mt-1 text-xs text-muted">
+              Caption không chứa link ngoài để không bị hạ tiếp cận; link bài nằm ở bình luận đầu tiên.
+            </div>
+          </div>
+          <div>
+            <div className="text-xs font-bold text-blue-600">Giờ trống kế tiếp</div>
+            <div className="mt-1 font-extrabold">{data.nextSlot ? vnTime(data.nextSlot) : "—"}</div>
+          </div>
+        </div>
+      )}
+
+      <div className="flex flex-wrap gap-2 border-b border-border pb-3">
+        {(
+          [
+            ["all", "Tất cả"],
+            ["none", "Chưa lên Facebook"],
+            ["scheduled", "Đã lên lịch"],
+            ["published", "Đã đăng"],
+            ["failed", "Lỗi"],
+          ] as [Filter, string][]
+        ).map(([key, label]) => (
+          <button
+            key={key}
+            onClick={() => setFilter(key)}
+            className={`rounded-lg px-3.5 py-1.5 text-sm font-semibold ${
+              filter === key ? "bg-accent text-white" : "bg-surface text-muted hover:bg-surface-2"
+            }`}
+          >
+            {label} ({counts[key]})
+          </button>
+        ))}
+      </div>
 
       {error && (
-        <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-center text-sm font-medium text-red-500">
-          ❌ {error}
-        </div>
+        <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-500">{error}</div>
+      )}
+      {!data && !error && <div className="py-12 text-center text-sm text-muted">Đang tải…</div>}
+      {data && visible.length === 0 && (
+        <div className="py-12 text-center text-sm text-muted">Không có bài nào.</div>
       )}
 
-      {!loading && !error && filteredArticles.length === 0 && (
-        <div className="py-12 text-center text-sm text-muted">Không tìm thấy bài viết nào.</div>
-      )}
-
-      {/* Article List Table / Cards */}
-      {!loading && !error && filteredArticles.length > 0 && (
-        <div className="space-y-3">
-          {filteredArticles.map((article) => {
-            const isPosted = !!article.facebookPost;
-            const fbPost = article.facebookPost;
-
-            return (
-              <div
-                key={article.id}
-                className="flex flex-col gap-4 rounded-2xl border border-border bg-surface p-4 transition hover:border-accent/40 md:flex-row md:items-center md:justify-between"
-              >
-                {/* Article Info */}
-                <div className="flex min-w-0 items-start gap-3.5">
-                  {article.coverImage ? (
-                    <img
-                      src={article.coverImage}
-                      alt={article.title}
-                      className="size-16 shrink-0 rounded-xl object-cover"
-                    />
-                  ) : (
-                    <div className="flex size-16 shrink-0 items-center justify-center rounded-xl bg-surface-2 text-xs font-bold text-muted">
-                      No Image
-                    </div>
-                  )}
-
-                  <div className="min-w-0 space-y-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="rounded-md bg-accent/10 px-2 py-0.5 text-xs font-bold text-accent">
-                        {article.category}
+      <div className="space-y-3">
+        {visible.map((r) => {
+          const s = statusOf(r);
+          const fb = r.facebookPost;
+          return (
+            <div
+              key={r.id}
+              className="flex flex-col gap-3 rounded-2xl border border-border bg-surface p-4 md:flex-row md:items-center md:justify-between"
+            >
+              <div className="flex min-w-0 items-start gap-3.5">
+                {r.coverImage ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={mediaUrl(r.coverImage)}
+                    alt=""
+                    loading="lazy"
+                    className="size-16 shrink-0 rounded-xl object-cover"
+                  />
+                ) : (
+                  <div className="size-16 shrink-0 rounded-xl bg-surface-2" />
+                )}
+                <div className="min-w-0 space-y-1">
+                  <div className="flex flex-wrap items-center gap-2 text-xs">
+                    <span className={`rounded-md px-2 py-0.5 font-bold ${BADGE[s].cls}`}>{BADGE[s].label}</span>
+                    {(s === "scheduled" || s === "publishing") && fb?.scheduledAt && (
+                      <span className="font-semibold text-blue-600 dark:text-blue-400">
+                        {vnTime(fb.scheduledAt)}
                       </span>
-                      <span className="text-xs text-muted">
-                        📅 {article.publishedAt || article.createdAt.slice(0, 10)}
-                      </span>
-                      {isPosted ? (
-                        <span className="rounded-md bg-emerald-500/15 px-2 py-0.5 text-xs font-bold text-emerald-600 dark:text-emerald-400">
-                          ✅ Đã đăng FB
-                        </span>
-                      ) : (
-                        <span className="rounded-md bg-amber-500/15 px-2 py-0.5 text-xs font-bold text-amber-600 dark:text-amber-400">
-                          ⏳ Chưa đăng FB
-                        </span>
-                      )}
-                    </div>
-
-                    <h3 className="truncate text-base font-bold text-foreground">
-                      <Link href={`/bai-viet/${article.slug}`} target="_blank" className="hover:underline">
-                        {article.title}
-                      </Link>
-                    </h3>
-
-                    <p className="line-clamp-1 text-xs text-muted">{article.dek || "Không có tóm tắt ngắn."}</p>
+                    )}
+                    {s === "published" && fb?.postedAt && <span className="text-muted">{vnTime(fb.postedAt)}</span>}
+                    <span className="text-muted">Web: {r.publishedAt}</span>
                   </div>
-                </div>
-
-                {/* Actions */}
-                <div className="flex shrink-0 items-center gap-2 self-end md:self-center">
-                  {isPosted && fbPost?.fbPostId && (
-                    <a
-                      href={`https://facebook.com/${fbPost.fbPostId}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="rounded-xl border border-border px-3 py-1.5 text-xs font-semibold text-foreground transition hover:border-accent hover:text-accent"
-                    >
-                      🔗 Xem FB ↗
-                    </a>
-                  )}
-
-                  <button
-                    onClick={() => openEditModal(article)}
-                    className="rounded-xl border border-border px-3.5 py-1.5 text-xs font-bold text-foreground transition hover:bg-surface-2"
-                  >
-                    ✏️ {isPosted ? "Sửa & Đăng lại" : "Chỉnh sửa"}
-                  </button>
-
-                  <button
-                    onClick={() => handlePublishSingle(article.id)}
-                    disabled={submitting}
-                    className="rounded-xl bg-accent px-4 py-1.5 text-xs font-bold text-white shadow transition hover:opacity-90 disabled:opacity-50"
-                  >
-                    🚀 {isPosted ? "Đăng lại ngay" : "Đăng ngay"}
-                  </button>
+                  <h3 className="truncate font-bold">
+                    <Link href={`/bai-viet/${r.slug}`} target="_blank" className="hover:underline">
+                      {r.title}
+                    </Link>
+                  </h3>
+                  {fb?.lastError && <p className="text-xs text-red-500">{fb.lastError}</p>}
                 </div>
               </div>
-            );
-          })}
-        </div>
-      )}
 
-      {/* Edit & Custom Publish Modal */}
-      {selectedArticle && (
+              <div className="flex shrink-0 flex-wrap items-center gap-2 self-end md:self-center">
+                {s === "published" && fb?.fbPostId && (
+                  <a
+                    href={`https://www.facebook.com/${fb.fbPostId}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="rounded-xl border border-border px-3 py-1.5 text-xs font-semibold hover:border-accent hover:text-accent"
+                  >
+                    Xem trên FB ↗
+                  </a>
+                )}
+                {s !== "publishing" && (
+                  <button
+                    onClick={() => openEditor(r)}
+                    disabled={!data?.configured}
+                    className="rounded-xl border border-border px-3 py-1.5 text-xs font-bold hover:bg-surface-2 disabled:opacity-50"
+                  >
+                    {s === "none" ? "Soạn & lên lịch" : "Sửa"}
+                  </button>
+                )}
+                {(s === "none" || s === "scheduled" || s === "failed") && (
+                  <button
+                    onClick={() => publishNow(r)}
+                    disabled={busy === r.id || !data?.configured}
+                    className="rounded-xl bg-accent px-3.5 py-1.5 text-xs font-bold text-white hover:opacity-90 disabled:opacity-50"
+                  >
+                    {busy === r.id ? "Đang đăng…" : "Đăng ngay"}
+                  </button>
+                )}
+                {s !== "none" && s !== "publishing" && (
+                  <button
+                    onClick={() => remove(r)}
+                    disabled={busy === r.id}
+                    className="rounded-xl border border-red-500/40 px-3 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-500/10 disabled:opacity-50"
+                  >
+                    {s === "published" ? "Gỡ khỏi Page" : "Huỷ lịch"}
+                  </button>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {editing && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
           <div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-3xl border border-border bg-surface p-6 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-border pb-4">
-              <div>
-                <h2 className="text-xl font-black text-foreground">Soạn Thảo Bài Đăng Facebook</h2>
-                <p className="text-xs text-muted">Tùy chỉnh nội dung Caption & Bình luận trước khi xuất bản</p>
+            <div className="flex items-start justify-between gap-4 border-b border-border pb-4">
+              <div className="min-w-0">
+                <h2 className="text-xl font-black">
+                  {editingStatus === "published" ? "Sửa bài trên Facebook" : "Soạn bài Facebook"}
+                </h2>
+                <p className="truncate text-xs text-muted">{editing.title}</p>
               </div>
-              <button
-                onClick={closeModal}
-                className="rounded-lg p-1.5 text-muted transition hover:bg-surface-2 hover:text-foreground"
-              >
+              <button onClick={() => setEditing(null)} className="rounded-lg p-1.5 text-muted hover:bg-surface-2">
                 ✕
               </button>
             </div>
 
             <div className="mt-5 grid grid-cols-1 gap-6 lg:grid-cols-2">
-              {/* Form Input */}
               <div className="space-y-4">
-                <div>
-                  <label className="block text-xs font-bold text-foreground mb-1">⚡ Facebook Caption</label>
+                <label className="block text-xs font-bold">
+                  Caption
                   <textarea
-                    rows={8}
+                    rows={9}
                     value={caption}
                     onChange={(e) => setCaption(e.target.value)}
-                    className="w-full rounded-xl border border-border bg-surface-2 p-3 text-xs text-foreground focus:border-accent focus:outline-none"
-                    placeholder="Nhập caption Facebook tại đây..."
+                    className="mt-1 w-full rounded-xl border border-border bg-surface-2 p-3 text-xs font-normal focus:border-accent focus:outline-none"
                   />
-                  <p className="mt-1 text-[11px] text-muted">
-                    Nên dùng emoji ⚡ cho tiêu đề, 📌 chodek ngắn, hashtag thương hiệu bên dưới.
-                  </p>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-foreground mb-1">
-                    💬 Bình Luận Đầu Tiên (Link Bài Viết)
-                  </label>
+                </label>
+                <button
+                  onClick={() => setCaption(editing.defaultCaption)}
+                  className="text-xs text-accent hover:underline"
+                >
+                  Dùng lại caption mặc định
+                </button>
+                <label className="block text-xs font-bold">
+                  Bình luận đầu tiên (chứa link bài)
                   <textarea
                     rows={3}
                     value={comment}
                     onChange={(e) => setComment(e.target.value)}
-                    className="w-full rounded-xl border border-border bg-surface-2 p-3 text-xs text-foreground focus:border-accent focus:outline-none"
-                    placeholder="Bình luận chứa link..."
+                    className="mt-1 w-full rounded-xl border border-border bg-surface-2 p-3 text-xs font-normal focus:border-accent focus:outline-none"
                   />
-                  <p className="mt-1 text-[11px] text-muted">
-                    Bình luận này sẽ tự động đăng ngay sau bài viết để giữ link.
+                </label>
+                {editingStatus !== "published" && (
+                  <label className="block text-xs font-bold">
+                    Giờ đăng
+                    <input
+                      type="datetime-local"
+                      value={when}
+                      onChange={(e) => setWhen(e.target.value)}
+                      className="mt-1 w-full rounded-xl border border-border bg-surface-2 p-2.5 text-sm font-normal focus:border-accent focus:outline-none"
+                    />
+                    <span className="mt-1 block font-normal text-muted">
+                      Để nguyên là giờ vàng trống kế tiếp. Giờ vàng: {data?.goldenHours.join(", ")}.
+                    </span>
+                  </label>
+                )}
+                {editingStatus === "published" && (
+                  <p className="text-xs text-muted">
+                    Lưu sẽ sửa trực tiếp bài và bình luận đang có trên Page, không đăng thêm bài mới.
                   </p>
-                </div>
+                )}
               </div>
 
-              {/* Live Preview Card */}
-              <div className="space-y-2">
-                <label className="block text-xs font-bold text-muted uppercase tracking-wider">
-                  👁️ Live Facebook Preview
-                </label>
-                <div className="rounded-2xl border border-border bg-white p-4 font-sans text-black shadow-md dark:bg-zinc-900 dark:text-zinc-100">
-                  {/* Header page info */}
+              <div>
+                <div className="text-xs font-bold uppercase tracking-wider text-muted">Xem trước</div>
+                <div className="mt-2 rounded-2xl border border-border bg-white p-4 text-black shadow-md dark:bg-zinc-900 dark:text-zinc-100">
                   <div className="flex items-center gap-2.5">
-                    <img src="/genz-news-logo.png" alt="GenZ News" className="size-10 rounded-full border" />
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src="/genz-news-logo.png" alt="" className="size-10 rounded-full border" />
                     <div>
-                      <div className="text-sm font-bold leading-tight">GenZ News</div>
-                      <div className="text-[11px] text-zinc-500 dark:text-zinc-400">Vừa xong · 🌐</div>
+                      <div className="text-sm font-bold">GenZ News</div>
+                      <div className="text-[11px] text-zinc-500">
+                        {editingStatus === "published" ? vnTime(editing.facebookPost?.postedAt ?? null) : "Sắp đăng"} · 🌐
+                      </div>
                     </div>
                   </div>
-
-                  {/* Caption */}
-                  <div className="mt-3 whitespace-pre-wrap text-xs leading-relaxed">
-                    {caption || "Nội dung caption sẽ hiển thị tại đây..."}
-                  </div>
-
-                  {/* Image Preview */}
-                  {selectedArticle.coverImage && (
-                    <div className="mt-3 overflow-hidden rounded-xl border border-zinc-200 dark:border-zinc-800">
-                      <img
-                        src={selectedArticle.coverImage}
-                        alt="Cover"
-                        className="max-h-48 w-full object-cover"
-                      />
-                    </div>
+                  <div className="mt-3 whitespace-pre-wrap text-xs leading-relaxed">{caption}</div>
+                  {editing.coverImage && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={mediaUrl(editing.coverImage)}
+                      alt=""
+                      className="mt-3 max-h-56 w-full rounded-xl object-cover"
+                    />
                   )}
-
-                  {/* First Comment Mockup */}
-                  <div className="mt-4 rounded-xl bg-zinc-100 p-2.5 dark:bg-zinc-800/60">
-                    <div className="text-[11px] font-bold text-zinc-500 dark:text-zinc-400 mb-1">
-                      💬 Bình luận đầu tiên từ Trang:
-                    </div>
-                    <div className="text-xs text-blue-600 dark:text-blue-400 break-all font-medium">
-                      {comment}
-                    </div>
+                  <div className="mt-3 rounded-xl bg-zinc-100 p-2.5 text-xs dark:bg-zinc-800/60">
+                    <span className="font-bold">GenZ News</span> <span className="break-all">{comment}</span>
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* Modal Actions */}
-            <div className="mt-6 flex items-center justify-end gap-3 border-t border-border pt-4">
+            <div className="mt-6 flex flex-wrap items-center justify-end gap-3 border-t border-border pt-4">
               <button
-                onClick={closeModal}
-                disabled={submitting}
-                className="rounded-xl border border-border px-4 py-2 text-xs font-semibold text-foreground transition hover:bg-surface-2"
+                onClick={() => setEditing(null)}
+                className="rounded-xl border border-border px-4 py-2 text-xs font-semibold hover:bg-surface-2"
               >
-                Hủy
+                Huỷ
               </button>
+              {editingStatus !== "published" && (
+                <button
+                  onClick={() => publishNow(editing, { caption, comment })}
+                  disabled={busy === editing.id}
+                  className="rounded-xl border border-accent px-4 py-2 text-xs font-bold text-accent hover:bg-accent/10 disabled:opacity-50"
+                >
+                  Đăng ngay
+                </button>
+              )}
               <button
-                onClick={() => handlePublishSingle(selectedArticle.id, caption, comment)}
-                disabled={submitting}
-                className="flex items-center gap-2 rounded-xl bg-accent px-6 py-2 text-xs font-bold text-white shadow-lg transition hover:opacity-90 disabled:opacity-50"
+                onClick={saveEditor}
+                disabled={busy === editing.id}
+                className="rounded-xl bg-accent px-6 py-2 text-xs font-bold text-white shadow-lg hover:opacity-90 disabled:opacity-50"
               >
-                {submitting ? "⏳ Đang gửi lên Facebook..." : "🚀 Đăng Ngay Lên Fanpage"}
+                {busy === editing.id
+                  ? "Đang lưu…"
+                  : editingStatus === "published"
+                    ? "Lưu & sửa trên Facebook"
+                    : "Lên lịch"}
               </button>
             </div>
           </div>

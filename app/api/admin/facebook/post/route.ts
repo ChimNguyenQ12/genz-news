@@ -1,46 +1,42 @@
 import { NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
-import { getArticleById } from "@/lib/store";
-import { postArticleToFacebook } from "@/lib/facebook";
+import { publishFacebookPostNow, scheduleFacebookPost } from "@/lib/facebook";
 
 export const dynamic = "force-dynamic";
 
+/**
+ * Đưa một bài lên Facebook Page.
+ * body: { articleId, caption?, comment?, mode: "now" | "schedule", scheduledAt? }
+ * Không có scheduledAt thì xếp vào giờ vàng trống kế tiếp.
+ */
 export async function POST(req: Request) {
   const user = await getSessionUser();
-  if (!user || user.role !== "admin") {
+  if (user?.role !== "admin") {
     return NextResponse.json({ error: "Không có quyền truy cập" }, { status: 403 });
   }
 
+  const body = await req.json().catch(() => ({}));
+  const { articleId, caption, comment, mode, scheduledAt } = body as {
+    articleId?: string;
+    caption?: string;
+    comment?: string;
+    mode?: "now" | "schedule";
+    scheduledAt?: string;
+  };
+  if (!articleId) return NextResponse.json({ error: "Thiếu articleId" }, { status: 400 });
+
   try {
-    const body = await req.json();
-    const { articleId, customCaption, customComment } = body;
-
-    if (!articleId) {
-      return NextResponse.json({ error: "Thiếu articleId" }, { status: 400 });
+    if (mode === "now") {
+      const post = await publishFacebookPostNow(articleId, { caption, comment });
+      return NextResponse.json({ post, message: "Đã đăng lên Facebook Page" });
     }
-
-    const article = await getArticleById(articleId);
-    if (!article) {
-      return NextResponse.json({ error: "Không tìm thấy bài viết" }, { status: 404 });
+    const at = scheduledAt ? new Date(scheduledAt) : undefined;
+    if (at && (Number.isNaN(at.getTime()) || at.getTime() < Date.now() - 60_000)) {
+      return NextResponse.json({ error: "Giờ đăng không hợp lệ hoặc đã qua" }, { status: 400 });
     }
-
-    const result = await postArticleToFacebook(article, customCaption, customComment);
-
-    if (!result.success) {
-      return NextResponse.json(
-        { error: result.error || "Đăng bài Facebook thất bại" },
-        { status: 500 }
-      );
-    }
-
-    return NextResponse.json({
-      success: true,
-      postId: result.postId,
-      commentId: result.commentId,
-      message: "Đã xuất bản lên Facebook Fanpage thành công!",
-    });
-  } catch (err: unknown) {
-    const errorMsg = err instanceof Error ? err.message : String(err);
-    return NextResponse.json({ error: errorMsg }, { status: 500 });
+    const post = await scheduleFacebookPost(articleId, { caption, comment, scheduledAt: at });
+    return NextResponse.json({ post, message: "Đã lên lịch đăng" });
+  } catch (err) {
+    return NextResponse.json({ error: (err as Error).message }, { status: 400 });
   }
 }

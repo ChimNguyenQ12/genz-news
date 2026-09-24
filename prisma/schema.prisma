@@ -152,18 +152,28 @@ model ResearchRequest {
   @@map("research_requests")
 }
 
+/// Một bài viết trên web ↔ một bài trên Facebook Page.
+///
+/// Vòng đời: scheduled → publishing → published, hoặc → failed (kèm lastError,
+/// sửa rồi lên lịch lại). "publishing" là khoá tạm: lượt chạy cron nào đổi được
+/// scheduled → publishing thì lượt đó đăng, nên hai lượt chồng nhau không đăng
+/// trùng một bài.
 model FacebookPost {
-  id            String   @id @default(uuid())
-  articleId     String   @unique
-  article       Article  @relation(fields: [articleId], references: [id], onDelete: Cascade)
-  fbPostId      String
-  fbCommentId   String?
-  customCaption String?
-  customComment String?
-  postedAt      DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id          String    @id @default(uuid())
+  articleId   String    @unique
+  article     Article   @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  status      String    @default("scheduled")
+  caption     String
+  comment     String
+  scheduledAt DateTime?
+  fbPostId    String?
+  fbPhotoId   String?
+  fbCommentId String?
+  postedAt    DateTime?
+  lastError   String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
-  @@index([articleId])
+  @@index([status, scheduledAt])
   @@map("facebook_posts")
 }
-

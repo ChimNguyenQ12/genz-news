@@ -5,7 +5,7 @@ import { closeRequestForArticle } from "@/lib/queue";
 import type { Article, ArticleStatus, CategorySlug } from "@/lib/types";
 import { categories } from "@/lib/data";
 import { normalizeArticleHtml } from "@/lib/html";
-import { postArticleToFacebook } from "@/lib/facebook";
+import { autoScheduleOnPublish } from "@/lib/facebook";
 
 const VALID_CATEGORIES = new Set(categories.map((c) => c.slug));
 
@@ -178,9 +178,12 @@ export async function PUT(
   // không phải nhật ký — bài đã đăng mà vẫn nằm đó thì mỗi ngày một dài thêm.
   if (patch.status === "published") {
     await closeRequestForArticle(id);
-    // Tự động đăng bài lên Facebook Fanpage (không chặn response nếu lỗi)
-    postArticleToFacebook(article).catch((err) => {
-      console.error("[Facebook AutoPost] Background post error:", err);
+    // Xếp bài vào giờ vàng trống kế tiếp trên Facebook Page (lib/facebook.ts),
+    // không đăng ngay: đăng dồn theo nhịp duyệt bài thì Page bị hạ tiếp cận.
+    // Bài đã có trong lịch / đã lên Page thì thôi. Lỗi ở đây không được làm
+    // hỏng việc đăng bài trên web.
+    await autoScheduleOnPublish(id).catch((err: Error) => {
+      console.error("[facebook] không xếp lịch được:", err.message);
     });
   }
 
