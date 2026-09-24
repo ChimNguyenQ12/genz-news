@@ -70,6 +70,10 @@ for (const r of rows) {
 }
 
 let map = readMap();
+// Ảnh do chính lệnh này tạo ra thì bài viết đã trỏ sang rồi: đừng coi là ảnh
+// cũ mà nén thêm lần nữa (WebP nén lại là mất chất lượng thêm mỗi lần).
+const produced = new Set([...map.values()].map((r) => r.new).filter(Boolean));
+for (const k of produced) used.delete(k);
 const pending = [...used].filter((k) => !map.get(k) || map.get(k).error).slice(0, limit);
 console.log(
   `${rows.length} bài, ${used.size} ảnh đang dùng; ` +
