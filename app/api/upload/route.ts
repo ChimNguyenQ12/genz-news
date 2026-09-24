@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
 import { uploadToS3 } from "@/lib/storage";
+import { toWebp } from "@/lib/image";
 
 /** Loại file cho phép → phần mở rộng do server tự đặt (không tin tên file client gửi). */
 const ALLOWED: Record<string, { ext: string; kind: "image" | "video"; maxMB: number }> = {
@@ -80,8 +81,14 @@ export async function POST(request: Request) {
     );
   }
 
+  // GIF để nguyên: gần như luôn là ảnh động.
+  const optimized =
+    rule.kind === "image" && declared !== "image/gif" ? await toWebp(buffer) : null;
+
   try {
-    const { url } = await uploadToS3(buffer, declared, rule.ext);
+    const { url } = optimized
+      ? await uploadToS3(optimized.buffer, optimized.contentType, optimized.ext)
+      : await uploadToS3(buffer, declared, rule.ext);
     return NextResponse.json({ url, kind: rule.kind }, { status: 201 });
   } catch (err) {
     console.error("[upload] S3 thất bại:", err);
