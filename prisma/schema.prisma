@@ -68,8 +68,9 @@ model Article {
   submittedAt DateTime?
   reviewNote  String?
 
-  sources  Source[]
-  comments Comment[]
+  sources      Source[]
+  comments     Comment[]
+  facebookPost FacebookPost?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -150,3 +151,19 @@ model ResearchRequest {
   @@index([assignedAt])
   @@map("research_requests")
 }
+
+model FacebookPost {
+  id            String   @id @default(uuid())
+  articleId     String   @unique
+  article       Article  @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  fbPostId      String
+  fbCommentId   String?
+  customCaption String?
+  customComment String?
+  postedAt      DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([articleId])
+  @@map("facebook_posts")
+}
+

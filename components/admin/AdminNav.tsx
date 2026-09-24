@@ -18,7 +18,12 @@ export default function AdminNav({ user }: { user: PublicUser }) {
 
   const links = [
     { href: "/admin", label: isAdmin ? "Articles" : "My articles" },
-    ...(isAdmin ? [{ href: "/admin/research", label: "Research" }] : []),
+    ...(isAdmin
+      ? [
+          { href: "/admin/facebook", label: "Facebook" },
+          { href: "/admin/research", label: "Research" },
+        ]
+      : []),
     { href: "/admin/tai-khoan", label: "Profile" },
   ];
 

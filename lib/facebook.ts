@@ -1,10 +1,31 @@
 import type { Article } from "@/lib/types";
 import { getCategory } from "@/lib/data";
+import { prisma } from "@/lib/prisma";
 
 const BASE_URL =
   process.env.NEXT_PUBLIC_BASE_URL ?? "https://genz-news.site";
 
 const FB_GRAPH_VERSION = "v20.0";
+
+export interface FacebookPostRecord {
+  id: string;
+  articleId: string;
+  fbPostId: string;
+  fbCommentId?: string | null;
+  customCaption?: string | null;
+  customComment?: string | null;
+  postedAt: Date;
+  updatedAt: Date;
+}
+
+/**
+ * Mẫu khung thời gian vàng tối ưu tương tác Facebook:
+ * - 07:00 (Buổi sáng đọc tin)
+ * - 11:30 (Nghỉ trưa)
+ * - 17:30 (Tan làm)
+ * - 20:30 (Giải trí buổi tối)
+ */
+export const FB_GOLDEN_HOURS = ["07:00", "11:30", "17:30", "20:30"];
 
 /**
  * Tạo caption Facebook chuẩn phong cách Gen Z và tối ưu tương tác.
@@ -30,7 +51,6 @@ export function formatFacebookCaption(article: Article): string {
     "",
     hashtags,
   ].filter((line, i, arr) => {
-    // Tránh để nhiều dòng trống liên tiếp
     if (line === "" && arr[i - 1] === "") return false;
     return true;
   });
@@ -39,9 +59,21 @@ export function formatFacebookCaption(article: Article): string {
 }
 
 /**
- * Tự động đăng bài lên Facebook Fanpage và chèn link bài báo vào Comment đầu tiên.
+ * Tạo bình luận mặc định chứa link bài viết để tránh penalty giảm reach của Facebook.
  */
-export async function postArticleToFacebook(article: Article): Promise<{
+export function formatFacebookComment(article: Article): string {
+  const articleUrl = `${BASE_URL}/bai-viet/${article.slug}`;
+  return `👉 Đọc đầy đủ bài viết và thảo luận thêm tại: ${articleUrl}`;
+}
+
+/**
+ * Tự động/Biên tập đăng bài lên Facebook Fanpage và chèn link bài báo vào Comment đầu tiên.
+ */
+export async function postArticleToFacebook(
+  article: Article,
+  customCaption?: string,
+  customComment?: string,
+): Promise<{
   success: boolean;
   postId?: string;
   commentId?: string;
@@ -60,8 +92,8 @@ export async function postArticleToFacebook(article: Article): Promise<{
     };
   }
 
-  const caption = formatFacebookCaption(article);
-  const articleUrl = `${BASE_URL}/bai-viet/${article.slug}`;
+  const caption = customCaption?.trim() || formatFacebookCaption(article);
+  const commentText = customComment?.trim() || formatFacebookComment(article);
 
   try {
     let postId: string | null = null;
@@ -117,7 +149,7 @@ export async function postArticleToFacebook(article: Article): Promise<{
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          message: `👉 Đọc đầy đủ bài viết tại: ${articleUrl}`,
+          message: commentText,
           access_token: accessToken,
         }),
       });
@@ -131,10 +163,59 @@ export async function postArticleToFacebook(article: Article): Promise<{
       console.error("[Facebook AutoPost] Lỗi khi tạo comment link:", err);
     }
 
+    // 4. Lưu lại lịch sử đăng vào CSDL SQLite qua Prisma
+    try {
+      await prisma.facebookPost.upsert({
+        where: { articleId: article.id },
+        create: {
+          articleId: article.id,
+          fbPostId: postId,
+          fbCommentId: commentId || null,
+          customCaption: caption,
+          customComment: commentText,
+        },
+        update: {
+          fbPostId: postId,
+          fbCommentId: commentId || null,
+          customCaption: caption,
+          customComment: commentText,
+          updatedAt: new Date(),
+        },
+      });
+    } catch (dbErr) {
+      console.error("[Facebook AutoPost] Lỗi khi lưu bản ghi FacebookPost vào DB:", dbErr);
+    }
+
     return { success: true, postId, commentId };
   } catch (err: unknown) {
     const errorMsg = err instanceof Error ? err.message : String(err);
     console.error(`[Facebook AutoPost] ❌ Đăng bài thất bại: ${errorMsg}`);
     return { success: false, error: errorMsg };
+  }
+}
+
+/**
+ * Lấy lịch sử đăng Facebook của một bài viết
+ */
+export async function getFacebookPost(articleId: string) {
+  try {
+    return await prisma.facebookPost.findUnique({
+      where: { articleId },
+    });
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Lấy toàn bộ danh sách các bài đăng Facebook đã được ghi nhận trong DB
+ */
+export async function listFacebookPosts() {
+  try {
+    return await prisma.facebookPost.findMany({
+      orderBy: { postedAt: "desc" },
+    });
+  } catch {
+    return [];
   }
 }

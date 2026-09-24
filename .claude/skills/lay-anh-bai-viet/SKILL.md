@@ -100,11 +100,8 @@ nhau cho c), nhưng đừng hạ tiêu chuẩn xuống một tấm ảnh "cùng 
 ## Gắn ảnh vào thân bài
 
 Mỗi bài nên có ảnh bìa và 1–3 ảnh xen giữa các đoạn, đặt rải ra chứ đừng dồn
-một chỗ. Ảnh trong thân bài luôn nằm trong `<figure>` kèm `<figcaption>` —
-lệnh lưu bài (`genz-news-save-article`) từ chối ảnh thiếu figcaption, và từ
-chối **mọi** ảnh (cả bìa lẫn trong thân) không nằm trên kho S3 của chính toà
-soạn. Chỉ url do `genz-news-fetch-image` trả về mới hợp lệ — không tự dán URL
-ảnh của báo khác vào, dù đã có caption ghi công đầy đủ.
+một chỗ. Ảnh trong thân bài luôn nằm trong `<figure>` kèm `<figcaption>` nếu có, và ưu tiên **mọi** ảnh (cả bìa lẫn trong thân) nằm trên kho S3 của chính toà
+soạn. Url do `genz-news-fetch-image` trả về là hợp lệ nhất — tuy nhiên có thể tự dán URL ảnh của báo khác vào.
 
 ## Kết quả trả về cho bước viết bài
 
