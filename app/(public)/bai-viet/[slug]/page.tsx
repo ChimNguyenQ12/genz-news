@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { getCategory } from "@/lib/data";
 import { categoryStyles } from "@/lib/categoryStyles";
 import { formatDate } from "@/lib/utils";
+import { mediaHtml, mediaUrl } from "@/lib/media";
 import { getArticleBySlug, listArticles } from "@/lib/store";
 import { getSessionUser } from "@/lib/auth";
 import { listComments } from "@/lib/comments";
@@ -207,7 +208,7 @@ export default async function ArticlePage({ params }: Props) {
         <figure className="my-8">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src={article.coverImage}
+            src={mediaUrl(article.coverImage)}
             alt={article.coverImageCaption ?? article.title}
             fetchPriority="high"
             decoding="async"
@@ -245,7 +246,7 @@ export default async function ArticlePage({ params }: Props) {
       {/* Nội dung đã được làm sạch bằng sanitize-html trước khi lưu. */}
       <div
         className="article-body text-[17px] leading-relaxed"
-        dangerouslySetInnerHTML={{ __html: article.body }}
+        dangerouslySetInnerHTML={{ __html: mediaHtml(article.body) }}
       />
 
       {article.tags.length > 0 && (

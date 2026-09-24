@@ -3,6 +3,7 @@ import type { Article } from "@/lib/types";
 import { getCategory } from "@/lib/data";
 import { categoryStyles } from "@/lib/categoryStyles";
 import { relativeTime } from "@/lib/utils";
+import { mediaUrl } from "@/lib/media";
 
 export default function ArticleCard({
   article,
@@ -23,7 +24,7 @@ export default function ArticleCard({
       {article.coverImage ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
-          src={article.coverImage}
+          src={mediaUrl(article.coverImage)}
           alt={article.title}
           loading="lazy"
           decoding="async"
