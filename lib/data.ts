@@ -8,6 +8,7 @@ export type SeedArticle = Omit<
 > & { body: string[]; language?: Article["language"] };
 
 export const categories: Category[] = [
+  { slug: "viet-nam", name: "Việt Nam", color: "red" },
   { slug: "the-gioi", name: "Thế Giới", color: "blue" },
   { slug: "cong-nghe", name: "Công Nghệ", color: "violet" },
   { slug: "giai-tri", name: "Giải Trí", color: "pink" },

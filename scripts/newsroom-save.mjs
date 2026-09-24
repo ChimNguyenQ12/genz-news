@@ -37,7 +37,7 @@ const MEDIA_BASE =
   process.env.MEDIA_BASE ?? "https://genz-news.s3.us-east-1.amazonaws.com/uploads/";
 
 const CATEGORIES = [
-  "the-gioi", "cong-nghe", "giai-tri", "doi-song", "kinh-doanh", "the-thao",
+  "viet-nam", "the-gioi", "cong-nghe", "giai-tri", "doi-song", "kinh-doanh", "the-thao",
 ];
 
 /**

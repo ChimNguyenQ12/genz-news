@@ -6,6 +6,12 @@ export const categoryStyles: Record<
   CategorySlug,
   { pill: string; text: string; dot: string; ring: string }
 > = {
+  "viet-nam": {
+    pill: "bg-red-500/10 text-red-600 dark:text-red-400",
+    text: "text-red-600 dark:text-red-400",
+    dot: "bg-red-500",
+    ring: "ring-red-500",
+  },
   "the-gioi": {
     pill: "bg-blue-500/10 text-blue-600 dark:text-blue-400",
     text: "text-blue-600 dark:text-blue-400",

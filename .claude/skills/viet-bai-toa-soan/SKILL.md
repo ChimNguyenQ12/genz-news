@@ -144,8 +144,9 @@ tiền tố nào cũng khiến nó không khớp nữa và bạn sẽ bị treo 
 mà không ai trong phiên chạy tự động này duyệt được. Lệnh tự lo mọi biến nó
 cần phía sau — bạn không cần và không được tự đặt biến nào cho nó.
 
-JSON gồm: `title`, `dek`, `category` (`the-gioi`|`cong-nghe`|`giai-tri`|
-`doi-song`|`kinh-doanh`|`the-thao`), `tags[]`, `body` (HTML), `language`
+JSON gồm: `title`, `dek`, `category` (`viet-nam`|`the-gioi`|`cong-nghe`|
+`giai-tri`|`doi-song`|`kinh-doanh`|`the-thao` — bài mà Việt Nam là
+chủ thể chính thì dùng `viet-nam`, xem CLAUDE.md mục "Kỹ thuật"), `tags[]`, `body` (HTML), `language`
 ("vi"), `sources[{name,url}]`, và `coverImage` + `coverImageCaption` nếu bước
 5 có ảnh.
 

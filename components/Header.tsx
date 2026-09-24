@@ -8,6 +8,7 @@ import ThemeToggle from "./ThemeToggle";
 
 export default function Header({ user }: { user: PublicUser | null }) {
   const [open, setOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
 
   const destination = user
     ? user.role === "admin"
@@ -34,7 +35,7 @@ export default function Header({ user }: { user: PublicUser | null }) {
           </span>
         </Link>
 
-        <nav className="hidden items-center gap-1 lg:flex">
+        <nav className="hidden items-center gap-0.5 xl:flex">
           {categories.map((c) => (
             <Link
               key={c.slug}
@@ -68,7 +69,12 @@ export default function Header({ user }: { user: PublicUser | null }) {
           </Link>
 
           <button
+            onClick={() => {
+              setSearchOpen((v) => !v);
+              setOpen(false);
+            }}
             aria-label="Tìm kiếm"
+            aria-expanded={searchOpen}
             className="flex size-9 items-center justify-center rounded-full border border-border bg-surface text-foreground transition hover:border-accent hover:text-accent"
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -80,9 +86,12 @@ export default function Header({ user }: { user: PublicUser | null }) {
           <ThemeToggle />
 
           <button
-            onClick={() => setOpen((v) => !v)}
+            onClick={() => {
+              setOpen((v) => !v);
+              setSearchOpen(false);
+            }}
             aria-label="Mở menu"
-            className="flex size-9 items-center justify-center rounded-full border border-border bg-surface text-foreground lg:hidden"
+            className="flex size-9 items-center justify-center rounded-full border border-border bg-surface text-foreground xl:hidden"
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               {open ? <path d="M18 6L6 18M6 6l12 12" /> : <path d="M3 6h18M3 12h18M3 18h18" />}
@@ -91,8 +100,36 @@ export default function Header({ user }: { user: PublicUser | null }) {
         </div>
       </div>
 
+      {searchOpen && (
+        <div className="border-t border-border px-4 py-3">
+          {/* Form GET thường: trình duyệt tự dựng /tim-kiem?q=..., không cần JS. */}
+          <form
+            action="/tim-kiem"
+            role="search"
+            onSubmit={() => setSearchOpen(false)}
+            className="mx-auto flex max-w-6xl gap-2"
+          >
+            <input
+              type="search"
+              name="q"
+              autoFocus
+              placeholder="Tìm theo tít hoặc tóm tắt bài…"
+              aria-label="Từ khoá tìm kiếm"
+              maxLength={100}
+              className="min-w-0 flex-1 rounded-full border border-border bg-surface px-4 py-2 text-sm outline-none focus:border-accent"
+            />
+            <button
+              type="submit"
+              className="shrink-0 rounded-full bg-accent px-4 py-2 text-sm font-bold text-white transition hover:opacity-90"
+            >
+              Tìm
+            </button>
+          </form>
+        </div>
+      )}
+
       {open && (
-        <nav className="flex flex-col gap-1 border-t border-border px-4 py-3 lg:hidden">
+        <nav className="flex flex-col gap-1 border-t border-border px-4 py-3 xl:hidden">
           {categories.map((c) => (
             <Link
               key={c.slug}

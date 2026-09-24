@@ -8,7 +8,11 @@ export default function ArticleCard({
   article,
   size = "md",
 }: {
-  article: Article;
+  article: Pick<
+    Article,
+    | "slug" | "title" | "dek" | "category" | "coverGradient" | "coverImage"
+    | "author" | "publishedAt" | "readingTimeMin"
+  >;
   size?: "sm" | "md" | "lg";
 }) {
   const category = getCategory(article.category);

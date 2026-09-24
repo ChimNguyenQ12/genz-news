@@ -258,7 +258,11 @@ Vài điều cụ thể làm bài dày lên mà không loãng:
 
 - Nội dung sống trong PostgreSQL, thao tác qua `lib/store.ts` (Prisma).
 - Kiểu dữ liệu bài viết: `lib/types.ts` → `Article`.
-- Chuyên mục hợp lệ: `the-gioi`, `cong-nghe`, `giai-tri`, `doi-song`,
-  `kinh-doanh`, `the-thao`.
+- Chuyên mục hợp lệ: `viet-nam`, `the-gioi`, `cong-nghe`, `giai-tri`,
+  `doi-song`, `kinh-doanh`, `the-thao`.
+  Bài mà Việt Nam là chủ thể chính (chuyện xảy ra ở Việt Nam, hoặc tác động
+  trực tiếp lên người/doanh nghiệp/chính sách Việt Nam — kể cả tin Việt–Trung,
+  Biển Đông) đặt vào `viet-nam`, bất kể mảng nào. Bài quốc tế chỉ nhắc Việt Nam
+  thoáng qua thì giữ chuyên mục theo mảng.
 - Sau khi sửa code: chạy `npm run lint` và `npx tsc --noEmit`.
 - Schema DB ở `prisma/schema.prisma`; đổi schema thì chạy `npm run db:migrate`.

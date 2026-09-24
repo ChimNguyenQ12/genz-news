@@ -1,4 +1,5 @@
 export type CategorySlug =
+  | "viet-nam"
   | "the-gioi"
   | "cong-nghe"
   | "giai-tri"

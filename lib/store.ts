@@ -291,6 +291,53 @@ export async function listArticlesPage(query: ArticleQuery = {}): Promise<Articl
   };
 }
 
+/** Bỏ dấu + chữ thường, để "viet nam" khớp "Việt Nam" và "đà nẵng" khớp "Đà Nẵng". */
+function foldVietnamese(s: string) {
+  return s
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/đ/g, "d")
+    .replace(/Đ/g, "D")
+    .toLowerCase();
+}
+
+/**
+ * Tìm bài đã đăng theo tít và dek, cho ô tìm kiếm ngoài trang công khai.
+ *
+ * Lọc trong JS chứ không dùng `contains` của Prisma: trên SQLite nó thành
+ * LIKE, chỉ bỏ qua hoa/thường với chữ ASCII — gõ "đà nẵng" sẽ trượt tít
+ * "Đà Nẵng", và gõ không dấu thì trượt hết. Chỉ đọc cột tít/dek, nên vài
+ * nghìn bài vẫn nhẹ.
+ */
+export async function searchPublishedArticles(
+  q: string,
+  limit = 60,
+): Promise<ArticleSummary[]> {
+  const terms = foldVietnamese(q).split(/\s+/).filter(Boolean);
+  if (terms.length === 0) return [];
+
+  const rows = await prisma.article.findMany({
+    where: { status: "published" },
+    select: { id: true, title: true, dek: true },
+    orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
+  });
+  const ids = rows
+    .filter((r) => {
+      const hay = foldVietnamese(`${r.title} ${r.dek}`);
+      return terms.every((t) => hay.includes(t));
+    })
+    .slice(0, limit)
+    .map((r) => r.id);
+  if (ids.length === 0) return [];
+
+  const found = await prisma.article.findMany({
+    where: { id: { in: ids } },
+    select: SUMMARY_SELECT,
+  });
+  const order = new Map(ids.map((id, i) => [id, i]));
+  return found.map(toSummary).sort((a, b) => order.get(a.id)! - order.get(b.id)!);
+}
+
 export async function getArticleById(id: string): Promise<Article | undefined> {
   const row = await prisma.article.findUnique({
     where: { id },
