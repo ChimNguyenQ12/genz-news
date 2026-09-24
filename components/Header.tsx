@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { categories } from "@/lib/data";
 import type { PublicUser } from "@/lib/users";
@@ -9,6 +10,18 @@ import ThemeToggle from "./ThemeToggle";
 export default function Header({ user }: { user: PublicUser | null }) {
   const [open, setOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const router = useRouter();
+
+  // Tự điều hướng rồi mới đóng thanh tìm kiếm. Đóng ngay trong onSubmit mà
+  // để trình duyệt tự gửi form thì React gỡ <form> ra trước, trình duyệt huỷ
+  // lượt gửi ("Form submission canceled because the form is not connected").
+  function submitSearch(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const q = String(new FormData(e.currentTarget).get("q") ?? "").trim();
+    if (!q) return;
+    router.push(`/tim-kiem?q=${encodeURIComponent(q)}`);
+    setSearchOpen(false);
+  }
 
   const destination = user
     ? user.role === "admin"
@@ -102,11 +115,11 @@ export default function Header({ user }: { user: PublicUser | null }) {
 
       {searchOpen && (
         <div className="border-t border-border px-4 py-3">
-          {/* Form GET thường: trình duyệt tự dựng /tim-kiem?q=..., không cần JS. */}
+          {/* action giữ lại cho lúc JS chưa tải xong: form GET thường vẫn tới được /tim-kiem. */}
           <form
             action="/tim-kiem"
             role="search"
-            onSubmit={() => setSearchOpen(false)}
+            onSubmit={submitSearch}
             className="mx-auto flex max-w-6xl gap-2"
           >
             <input
