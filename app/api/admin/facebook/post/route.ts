@@ -1,13 +1,14 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { getSessionUser } from "@/lib/auth";
-import { publishFacebookPostNow, scheduleFacebookPost } from "@/lib/facebook";
+import { queueFacebookPostsNow, runDueFacebookPosts, scheduleFacebookPost } from "@/lib/facebook";
 
 export const dynamic = "force-dynamic";
 
 /**
  * Đưa một bài lên Facebook Page.
  * body: { articleId, caption?, comment?, mode: "now" | "schedule", scheduledAt? }
- * Không có scheduledAt thì xếp vào giờ vàng trống kế tiếp.
+ * Không có scheduledAt thì xếp vào giờ vàng trống kế tiếp. "now" chỉ đưa vào
+ * hàng đợi rồi trả lời ngay; việc đăng chạy nền sau khi trả lời.
  */
 export async function POST(req: Request) {
   const user = await getSessionUser();
@@ -27,8 +28,10 @@ export async function POST(req: Request) {
 
   try {
     if (mode === "now") {
-      const post = await publishFacebookPostNow(articleId, { caption, comment });
-      return NextResponse.json({ post, message: "Đã đăng lên Facebook Page" });
+      const { queued, skipped } = await queueFacebookPostsNow([articleId], { caption, comment });
+      if (!queued.length) throw new Error(skipped[0]?.reason ?? "Không đưa được vào hàng đợi");
+      after(() => runDueFacebookPosts().catch(() => {}));
+      return NextResponse.json({ message: "Đã đưa vào hàng đợi, bài sẽ lên Page trong giây lát" });
     }
     const at = scheduledAt ? new Date(scheduledAt) : undefined;
     if (at && (Number.isNaN(at.getTime()) || at.getTime() < Date.now() - 60_000)) {

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import Modal from "@/components/admin/Modal";
 import { mediaUrl } from "@/lib/media";
 
 type Status = "scheduled" | "publishing" | "published" | "failed";
@@ -39,6 +40,19 @@ interface ListResponse {
 
 type Filter = "all" | "none" | "scheduled" | "published" | "failed";
 
+interface Confirm {
+  title: string;
+  body: React.ReactNode;
+  confirmLabel: string;
+  danger?: boolean;
+  onConfirm: () => void;
+}
+
+interface Toast {
+  text: string;
+  kind: "ok" | "error";
+}
+
 const vnTime = (iso: string | null) =>
   iso
     ? new Date(iso).toLocaleString("vi-VN", {
@@ -58,6 +72,18 @@ const toLocalInput = (iso: string | null) => {
 };
 
 const statusOf = (r: Row): "none" | Status => r.facebookPost?.status ?? "none";
+
+/** Đã tới giờ nhưng chưa đăng: đang trong hàng đợi, chờ lượt chạy nền. */
+const isDue = (r: Row) =>
+  r.facebookPost?.status === "scheduled" &&
+  !!r.facebookPost.scheduledAt &&
+  new Date(r.facebookPost.scheduledAt).getTime() <= Date.now();
+
+/** Chọn được để thao tác hàng loạt: chưa lên Page và không đang đăng dở. */
+const selectable = (r: Row) => {
+  const s = statusOf(r);
+  return s === "none" || s === "scheduled" || s === "failed";
+};
 
 const BADGE: Record<"none" | Status, { label: string; cls: string }> = {
   none: { label: "Chưa lên Facebook", cls: "bg-surface-2 text-muted" },
@@ -83,7 +109,9 @@ export default function FacebookAdminPage() {
   const [reloadKey, setReloadKey] = useState(0);
   const [filter, setFilter] = useState<Filter>("all");
   const [busy, setBusy] = useState<string | null>(null);
-  const [toast, setToast] = useState<string | null>(null);
+  const [toast, setToast] = useState<Toast | null>(null);
+  const [confirmBox, setConfirmBox] = useState<Confirm | null>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
 
   const [editing, setEditing] = useState<Row | null>(null);
   const [caption, setCaption] = useState("");
@@ -107,9 +135,21 @@ export default function FacebookAdminPage() {
 
   const reload = useCallback(() => setReloadKey((k) => k + 1), []);
 
-  const notify = (msg: string) => {
-    setToast(msg);
-    setTimeout(() => setToast(null), 4000);
+  // Còn bài chờ lượt đăng nền hoặc đang đăng dở thì tự làm mới, để thấy trạng
+  // thái chuyển sang "Đã đăng" mà không phải bấm.
+  const pending = useMemo(
+    () => (data?.articles ?? []).some((r) => statusOf(r) === "publishing" || isDue(r)),
+    [data],
+  );
+  useEffect(() => {
+    if (!pending) return;
+    const t = setTimeout(reload, 4000);
+    return () => clearTimeout(t);
+  }, [pending, reloadKey, reload]);
+
+  const notify = (text: string, kind: Toast["kind"] = "ok") => {
+    setToast({ text, kind });
+    setTimeout(() => setToast(null), kind === "error" ? 7000 : 4000);
   };
 
   const run = async (key: string, fn: () => Promise<{ message?: string }>) => {
@@ -120,7 +160,7 @@ export default function FacebookAdminPage() {
       reload();
       return true;
     } catch (err) {
-      alert((err as Error).message);
+      notify((err as Error).message, "error");
       return false;
     } finally {
       setBusy(null);
@@ -142,6 +182,16 @@ export default function FacebookAdminPage() {
     const s = statusOf(r);
     return filter === "scheduled" ? s === "scheduled" || s === "publishing" : s === filter;
   });
+  const visibleSelectable = visible.filter(selectable);
+  const allSelected = visibleSelectable.length > 0 && visibleSelectable.every((r) => selected.has(r.id));
+
+  const toggle = (id: string) =>
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
 
   const openEditor = (r: Row) => {
     setEditing(r);
@@ -158,14 +208,46 @@ export default function FacebookAdminPage() {
       }),
     );
 
-  const publishNow = (r: Row, text?: { caption: string; comment: string }) => {
-    if (!confirm(`Đăng ngay lên Facebook Page (bỏ qua giờ vàng)?\n\n${r.title}`)) return;
-    return run(r.id, () =>
-      api("/api/admin/facebook/post", {
-        method: "POST",
-        body: JSON.stringify({ articleId: r.id, mode: "now", ...text }),
-      }),
-    ).then((ok) => ok && setEditing(null));
+  const publishNow = (r: Row, text?: { caption: string; comment: string }) =>
+    setConfirmBox({
+      title: "Đăng ngay lên Facebook Page?",
+      body: (
+        <>
+          <p className="font-semibold">{r.title}</p>
+          <p className="mt-2 text-muted">Bài vào hàng đợi và lên Page trong giây lát, không đợi giờ vàng.</p>
+        </>
+      ),
+      confirmLabel: "Đăng ngay",
+      onConfirm: () =>
+        void run(r.id, () =>
+          api("/api/admin/facebook/post", {
+            method: "POST",
+            body: JSON.stringify({ articleId: r.id, mode: "now", ...text }),
+          }),
+        ).then((ok) => ok && setEditing(null)),
+    });
+
+  const bulk = (action: "now" | "golden" | "cancel") => {
+    const ids = [...selected];
+    const label = { now: "Đăng ngay", golden: "Xếp vào giờ vàng", cancel: "Huỷ lịch" }[action];
+    const explain = {
+      now: "Các bài vào hàng đợi rồi lần lượt lên Page, anh/chị không cần đợi ở trang này. Đăng dồn nhiều bài một lúc thì Facebook thường chỉ đẩy vài bài đầu.",
+      golden: `Mỗi bài vào một giờ vàng trống kế tiếp (tối đa ${data?.perDay ?? 4} bài/ngày).`,
+      cancel: "Huỷ lịch các bài chưa đăng. Bài đã lên Page giữ nguyên.",
+    }[action];
+    setConfirmBox({
+      title: `${label} ${ids.length} bài?`,
+      body: <p className="text-muted">{explain}</p>,
+      confirmLabel: label,
+      danger: action === "cancel",
+      onConfirm: () =>
+        void run("bulk", () =>
+          api("/api/admin/facebook/bulk", {
+            method: "POST",
+            body: JSON.stringify({ articleIds: ids, action }),
+          }),
+        ).then((ok) => ok && setSelected(new Set())),
+    });
   };
 
   const saveEditor = async () => {
@@ -191,11 +273,22 @@ export default function FacebookAdminPage() {
 
   const remove = (r: Row) => {
     const published = statusOf(r) === "published";
-    const q = published
-      ? `GỠ bài này khỏi Facebook Page? Lượt thích và bình luận trên bài sẽ mất.\n\n${r.title}`
-      : `Huỷ lịch đăng Facebook của bài này?\n\n${r.title}`;
-    if (!confirm(q)) return;
-    return run(r.id, () => api(`/api/admin/facebook/${r.id}`, { method: "DELETE" }));
+    setConfirmBox({
+      title: published ? "Gỡ bài khỏi Facebook Page?" : "Huỷ lịch đăng?",
+      body: (
+        <>
+          <p className="font-semibold">{r.title}</p>
+          {published && (
+            <p className="mt-2 text-red-600 dark:text-red-400">
+              Bài bị xoá khỏi Page, kèm toàn bộ lượt thích và bình luận. Không hoàn tác được.
+            </p>
+          )}
+        </>
+      ),
+      confirmLabel: published ? "Gỡ khỏi Page" : "Huỷ lịch",
+      danger: true,
+      onConfirm: () => void run(r.id, () => api(`/api/admin/facebook/${r.id}`, { method: "DELETE" })),
+    });
   };
 
   const editingStatus = editing ? statusOf(editing) : "none";
@@ -203,10 +296,21 @@ export default function FacebookAdminPage() {
   return (
     <div className="space-y-6 pb-12">
       {toast && (
-        <div className="fixed top-5 right-5 z-50 rounded-xl bg-accent px-5 py-3 text-sm font-bold text-white shadow-2xl">
-          {toast}
+        <div
+          role="status"
+          className={`fixed right-5 bottom-5 z-[60] flex max-w-sm items-start gap-3 rounded-xl border px-4 py-3 text-sm font-semibold shadow-2xl ${
+            toast.kind === "error"
+              ? "border-red-500/40 bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300"
+              : "border-emerald-500/40 bg-emerald-50 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
+          }`}
+        >
+          <span className="flex-1">{toast.text}</span>
+          <button onClick={() => setToast(null)} aria-label="Đóng" className="opacity-60 hover:opacity-100">
+            ×
+          </button>
         </div>
       )}
+
 
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
@@ -281,6 +385,54 @@ export default function FacebookAdminPage() {
         ))}
       </div>
 
+      {data && data.configured && (
+        <div className="sticky top-2 z-30 flex flex-wrap items-center gap-2 rounded-xl border border-border bg-background/95 px-3 py-2 text-sm shadow-sm backdrop-blur">
+          <label className="flex items-center gap-2 font-semibold">
+            <input
+              type="checkbox"
+              className="size-4"
+              disabled={!visibleSelectable.length}
+              checked={allSelected}
+              onChange={(e) =>
+                setSelected(e.target.checked ? new Set(visibleSelectable.map((r) => r.id)) : new Set())
+              }
+            />
+            {selected.size ? `Đã chọn ${selected.size} bài` : "Chọn tất cả"}
+          </label>
+          {selected.size > 0 && (
+            <div className="ml-auto flex flex-wrap gap-2">
+              <button
+                onClick={() => setSelected(new Set())}
+                className="rounded-lg px-3 py-1.5 text-xs font-semibold text-muted hover:bg-surface-2"
+              >
+                Bỏ chọn
+              </button>
+              <button
+                onClick={() => bulk("cancel")}
+                disabled={busy === "bulk"}
+                className="rounded-lg border border-red-500/40 px-3 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-500/10 disabled:opacity-50"
+              >
+                Huỷ lịch
+              </button>
+              <button
+                onClick={() => bulk("golden")}
+                disabled={busy === "bulk"}
+                className="rounded-lg border border-border px-3 py-1.5 text-xs font-bold hover:bg-surface-2 disabled:opacity-50"
+              >
+                Xếp vào giờ vàng
+              </button>
+              <button
+                onClick={() => bulk("now")}
+                disabled={busy === "bulk"}
+                className="rounded-lg bg-accent px-3 py-1.5 text-xs font-bold text-white hover:opacity-90 disabled:opacity-50"
+              >
+                {busy === "bulk" ? "Đang xử lý…" : `Đăng ngay (${selected.size})`}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
       {error && (
         <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-500">{error}</div>
       )}
@@ -293,12 +445,24 @@ export default function FacebookAdminPage() {
         {visible.map((r) => {
           const s = statusOf(r);
           const fb = r.facebookPost;
+          const due = isDue(r);
+          const badge = due ? { label: "Chờ đăng…", cls: BADGE.publishing.cls } : BADGE[s];
           return (
             <div
               key={r.id}
-              className="flex flex-col gap-3 rounded-2xl border border-border bg-surface p-4 md:flex-row md:items-center md:justify-between"
+              className={`flex flex-col gap-3 rounded-2xl border bg-surface p-4 md:flex-row md:items-center md:justify-between ${
+                selected.has(r.id) ? "border-accent" : "border-border"
+              }`}
             >
               <div className="flex min-w-0 items-start gap-3.5">
+                <input
+                  type="checkbox"
+                  aria-label={`Chọn: ${r.title}`}
+                  className="mt-6 size-4 shrink-0 disabled:opacity-30"
+                  disabled={!selectable(r) || !data?.configured}
+                  checked={selected.has(r.id)}
+                  onChange={() => toggle(r.id)}
+                />
                 {r.coverImage ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
@@ -312,11 +476,9 @@ export default function FacebookAdminPage() {
                 )}
                 <div className="min-w-0 space-y-1">
                   <div className="flex flex-wrap items-center gap-2 text-xs">
-                    <span className={`rounded-md px-2 py-0.5 font-bold ${BADGE[s].cls}`}>{BADGE[s].label}</span>
-                    {(s === "scheduled" || s === "publishing") && fb?.scheduledAt && (
-                      <span className="font-semibold text-blue-600 dark:text-blue-400">
-                        {vnTime(fb.scheduledAt)}
-                      </span>
+                    <span className={`rounded-md px-2 py-0.5 font-bold ${badge.cls}`}>{badge.label}</span>
+                    {s === "scheduled" && !due && fb?.scheduledAt && (
+                      <span className="font-semibold text-blue-600 dark:text-blue-400">{vnTime(fb.scheduledAt)}</span>
                     )}
                     {s === "published" && fb?.postedAt && <span className="text-muted">{vnTime(fb.postedAt)}</span>}
                     <span className="text-muted">Web: {r.publishedAt}</span>
@@ -341,7 +503,7 @@ export default function FacebookAdminPage() {
                     Xem trên FB ↗
                   </a>
                 )}
-                {s !== "publishing" && (
+                {s !== "publishing" && !due && (
                   <button
                     onClick={() => openEditor(r)}
                     disabled={!data?.configured}
@@ -350,16 +512,16 @@ export default function FacebookAdminPage() {
                     {s === "none" ? "Soạn & lên lịch" : "Sửa"}
                   </button>
                 )}
-                {(s === "none" || s === "scheduled" || s === "failed") && (
+                {(s === "none" || s === "failed" || (s === "scheduled" && !due)) && (
                   <button
                     onClick={() => publishNow(r)}
                     disabled={busy === r.id || !data?.configured}
                     className="rounded-xl bg-accent px-3.5 py-1.5 text-xs font-bold text-white hover:opacity-90 disabled:opacity-50"
                   >
-                    {busy === r.id ? "Đang đăng…" : "Đăng ngay"}
+                    Đăng ngay
                   </button>
                 )}
-                {s !== "none" && s !== "publishing" && (
+                {s !== "none" && s !== "publishing" && !due && (
                   <button
                     onClick={() => remove(r)}
                     disabled={busy === r.id}
@@ -496,6 +658,37 @@ export default function FacebookAdminPage() {
           </div>
         </div>
       )}
+
+      {/* Đặt cuối cùng: cùng z-index với khung soạn, phần tử sau nằm trên — hỏi
+          xác nhận từ trong khung soạn thì hộp này phải nổi lên trên nó. */}
+      <Modal open={!!confirmBox} title={confirmBox?.title ?? ""} onClose={() => setConfirmBox(null)}>
+        {confirmBox && (
+          <div className="space-y-5 text-sm">
+            <div>{confirmBox.body}</div>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setConfirmBox(null)}
+                className="rounded-xl border border-border px-4 py-2 text-xs font-semibold hover:bg-surface-2"
+              >
+                Thôi
+              </button>
+              <button
+                autoFocus
+                onClick={() => {
+                  const action = confirmBox.onConfirm;
+                  setConfirmBox(null);
+                  action();
+                }}
+                className={`rounded-xl px-5 py-2 text-xs font-bold text-white shadow ${
+                  confirmBox.danger ? "bg-red-600 hover:bg-red-700" : "bg-accent hover:opacity-90"
+                }`}
+              >
+                {confirmBox.confirmLabel}
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }

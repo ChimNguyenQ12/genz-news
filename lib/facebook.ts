@@ -288,13 +288,52 @@ export async function autoScheduleOnPublish(articleId: string) {
   return scheduleFacebookPost(articleId, {});
 }
 
-/** Đăng ngay, bỏ qua giờ vàng. */
-export async function publishFacebookPostNow(
-  articleId: string,
-  input: { caption?: string; comment?: string },
+/**
+ * Đưa các bài vào hàng đợi "đăng ngay" (scheduledAt = bây giờ) rồi trả về luôn;
+ * việc đăng chạy nền (route gọi runDueFacebookPosts sau khi trả lời, cron
+ * 5 phút cũng nhặt). Bài đã lên Page thì bỏ qua. Caption/bình luận chỉ áp khi
+ * đưa MỘT bài (từ khung soạn).
+ */
+export async function queueFacebookPostsNow(
+  articleIds: string[],
+  input: { caption?: string; comment?: string } = {},
 ) {
-  const rec = await scheduleFacebookPost(articleId, { ...input, scheduledAt: new Date() });
-  return publishRecord(rec.id, ["scheduled"]);
+  const queued: string[] = [];
+  const skipped: { articleId: string; reason: string }[] = [];
+  const now = new Date();
+  for (const articleId of articleIds) {
+    try {
+      await scheduleFacebookPost(articleId, {
+        ...(articleIds.length === 1 ? input : {}),
+        scheduledAt: now,
+      });
+      queued.push(articleId);
+    } catch (err) {
+      skipped.push({ articleId, reason: (err as Error).message });
+    }
+  }
+  return { queued, skipped };
+}
+
+/** Xếp nhiều bài vào các giờ vàng trống kế tiếp, mỗi bài một giờ. */
+export async function scheduleFacebookPostsGolden(articleIds: string[], perDay = POSTS_PER_DAY) {
+  const queued: { articleId: string; scheduledAt: Date }[] = [];
+  const skipped: { articleId: string; reason: string }[] = [];
+  for (const articleId of articleIds) {
+    // Tính lại giờ trống sau mỗi bài: bài vừa xếp đã chiếm một giờ.
+    const [slot] = await nextFreeSlots(1, new Date(), perDay);
+    if (!slot) {
+      skipped.push({ articleId, reason: "Hết giờ vàng trống trong 30 ngày tới" });
+      continue;
+    }
+    try {
+      await scheduleFacebookPost(articleId, { scheduledAt: slot });
+      queued.push({ articleId, scheduledAt: slot });
+    } catch (err) {
+      skipped.push({ articleId, reason: (err as Error).message });
+    }
+  }
+  return { queued, skipped };
 }
 
 /** Sửa caption / bình luận. Bài đã lên Page thì sửa luôn trên Facebook. */
@@ -341,9 +380,12 @@ export async function updateFacebookPost(
 }
 
 /** Gỡ bài khỏi Page (nếu đã đăng) hoặc huỷ lịch. */
-export async function removeFacebookPost(articleId: string) {
+export async function removeFacebookPost(articleId: string, opts: { onlyUnpublished?: boolean } = {}) {
   const rec = await prisma.facebookPost.findUnique({ where: { articleId } });
   if (!rec) return;
+  if (opts.onlyUnpublished && rec.status === "published") {
+    throw new Error("Bài đã lên Page, gỡ riêng từng bài");
+  }
   if (rec.status === "publishing") throw new Error("Bài đang được đăng, thử lại sau ít phút");
   if (rec.status === "published" && rec.fbPostId) {
     // Bài ảnh: có lúc chỉ xoá được qua id của tấm ảnh (đã thử trên Page thật).
@@ -380,7 +422,21 @@ export async function scheduleTodayArticles(perDay = POSTS_PER_DAY) {
  * Chạy theo cron (scripts/facebook-run-due.mjs, 5 phút một lần): đăng các bài
  * tới giờ. Bài trễ quá MAX_LATE_MS thì dời sang giờ vàng kế tiếp.
  */
-export async function runDueFacebookPosts(now = new Date()) {
+let running: Promise<{ articleId: string; outcome: string }[]> | null = null;
+
+export function runDueFacebookPosts(now = new Date()) {
+  // Nhiều request cùng gọi (mỗi lần bấm "đăng ngay" + cron): chờ chung một lượt.
+  // Bài vừa được đưa vào sau khi lượt đang chạy đã đọc danh sách thì lượt kế
+  // tiếp (hoặc cron 5 phút) sẽ nhặt; khoá "claim" ở publishRecord vẫn chặn đăng trùng.
+  if (!running) {
+    running = runDueOnce(now).finally(() => {
+      running = null;
+    });
+  }
+  return running;
+}
+
+async function runDueOnce(now: Date) {
   const results: { articleId: string; outcome: string }[] = [];
 
   // Tiến trình chết giữa lúc đăng: không biết bài đã lên Page hay chưa, nên
