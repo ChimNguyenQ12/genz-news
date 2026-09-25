@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { GOLDEN_HOURS, POSTS_PER_DAY, driverFor, nextFreeSlots } from "@/lib/social/core";
+import { GOLDEN_HOURS, POSTS_PER_DAY, articleScores, autoPickPreview, driverFor, nextFreeSlots } from "@/lib/social/core";
 import { guard } from "@/lib/social/http";
 import type { CategorySlug } from "@/lib/types";
 
@@ -31,6 +31,8 @@ export async function GET(_req: Request, { params }: Ctx) {
   });
   const configured = driver.configured();
   const [nextSlot] = configured ? await nextFreeSlots(g.platform, 1) : [];
+  const scores = await articleScores();
+  const autoNext = configured ? await autoPickPreview(g.platform) : null;
 
   return NextResponse.json({
     platform: g.platform,
@@ -38,6 +40,8 @@ export async function GET(_req: Request, { params }: Ctx) {
     accountName: driver.accountName,
     maxCaption: driver.maxCaption,
     canEditPublished: driver.canEditPublished,
+    autoPick: driver.autoPick,
+    autoNext,
     configured,
     goldenHours: GOLDEN_HOURS,
     perDay: POSTS_PER_DAY,
@@ -56,6 +60,7 @@ export async function GET(_req: Request, { params }: Ctx) {
         title: a.title,
         coverImage: a.coverImage,
         publishedAt: a.publishedAt,
+        score: scores.get(a.id) ?? null,
         defaultCaption: driver.formatCaption(view),
         defaultComment: driver.formatComment(view),
         post: a.socialPosts[0] ?? null,

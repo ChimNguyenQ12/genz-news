@@ -46,6 +46,7 @@ export const facebookDriver: SocialDriver = {
   accountName: "GenZ News",
   maxCaption: null,
   canEditPublished: true,
+  autoPick: true,
 
   configured: () => Boolean(process.env.FB_PAGE_ID && process.env.FB_PAGE_ACCESS_TOKEN),
 

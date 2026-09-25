@@ -5,7 +5,8 @@ export type Platform = (typeof PLATFORMS)[number];
 
 export const isPlatform = (x: string): x is Platform => (PLATFORMS as readonly string[]).includes(x);
 
-export type SocialPostStatus = "scheduled" | "publishing" | "published" | "failed";
+/** skipped: người biên tập loại bài khỏi danh sách tự chọn (chỉ có ý nghĩa với nền tảng autoPick). */
+export type SocialPostStatus = "scheduled" | "publishing" | "published" | "failed" | "skipped";
 
 /** Phần bài viết mà caption / bình luận cần. */
 export type ArticleView = Pick<Article, "title" | "dek" | "category" | "tags" | "slug">;
@@ -35,6 +36,8 @@ export interface SocialDriver {
   maxCaption: number | null;
   /** Nền tảng có cho sửa bài đã đăng không (Threads: không). */
   canEditPublished: boolean;
+  /** Tới giờ vàng mà trống thì tự chọn bài nóng nhất để đăng (Facebook: có; Threads: không, người tự đặt lịch). */
+  autoPick: boolean;
   configured(): boolean;
   formatCaption(a: ArticleView): string;
   formatComment(a: ArticleView): string;

@@ -1,11 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import Modal from "@/components/admin/Modal";
 import { mediaUrl } from "@/lib/media";
 
-type Status = "scheduled" | "publishing" | "published" | "failed";
+type Status = "scheduled" | "publishing" | "published" | "failed" | "skipped";
 
 interface Post {
   status: Status;
@@ -24,6 +24,8 @@ interface Row {
   title: string;
   coverImage: string | null;
   publishedAt: string;
+  /** Điểm nóng từ đề tài sinh ra bài; null = bài không gắn đề tài có điểm. */
+  score: number | null;
   defaultCaption: string;
   defaultComment: string;
   post: Post | null;
@@ -35,6 +37,8 @@ interface ListResponse {
   accountName: string;
   maxCaption: number | null;
   canEditPublished: boolean;
+  autoPick: boolean;
+  autoNext: { slot: string | null; article: { id: string; title: string; score: number } | null } | null;
   configured: boolean;
   goldenHours: string[];
   perDay: number;
@@ -42,7 +46,7 @@ interface ListResponse {
   articles: Row[];
 }
 
-type Filter = "all" | "none" | "scheduled" | "published" | "failed";
+type Filter = "all" | "none" | "scheduled" | "published" | "failed" | "skipped";
 
 interface Confirm {
   title: string;
@@ -84,7 +88,7 @@ const isDue = (r: Row) =>
 /** Chọn được để thao tác hàng loạt: chưa đăng và không đang đăng dở. */
 const selectable = (r: Row) => {
   const s = statusOf(r);
-  return s === "none" || s === "scheduled" || s === "failed";
+  return s === "none" || s === "scheduled" || s === "failed" || s === "skipped";
 };
 
 const BADGE: Record<"none" | Status, { label: string; cls: string }> = {
@@ -93,7 +97,10 @@ const BADGE: Record<"none" | Status, { label: string; cls: string }> = {
   publishing: { label: "Đang đăng…", cls: "bg-amber-500/15 text-amber-600 dark:text-amber-400" },
   published: { label: "Đã đăng", cls: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400" },
   failed: { label: "Lỗi", cls: "bg-red-500/15 text-red-600 dark:text-red-400" },
+  skipped: { label: "Bỏ qua", cls: "bg-zinc-500/15 text-zinc-500" },
 };
+
+const fire = (score: number | null) => (score === null ? null : `🔥 ${Math.round(score)}`);
 
 async function api(url: string, init?: RequestInit) {
   const res = await fetch(url, {
@@ -112,6 +119,7 @@ export default function SocialPostManager({ platform }: { platform: "facebook" |
   const [error, setError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
   const [filter, setFilter] = useState<Filter>("all");
+  const [byScore, setByScore] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [toast, setToast] = useState<Toast | null>(null);
   const [confirmBox, setConfirmBox] = useState<Confirm | null>(null);
@@ -121,6 +129,10 @@ export default function SocialPostManager({ platform }: { platform: "facebook" |
   const [caption, setCaption] = useState("");
   const [comment, setComment] = useState("");
   const [when, setWhen] = useState("");
+  const [drafting, setDrafting] = useState(false);
+  // Mỗi lần mở/đóng khung soạn tăng số này; vòng hỏi kết quả "Tạo bài GenZ"
+  // thấy số đổi thì dừng, không ghi đè nội dung của bài khác.
+  const editorSession = useRef(0);
 
   // Tải qua promise: setState chỉ chạy khi có kết quả, không đồng bộ trong effect.
   useEffect(() => {
@@ -174,7 +186,7 @@ export default function SocialPostManager({ platform }: { platform: "facebook" |
   const label = data?.label ?? (platform === "threads" ? "Threads" : "Facebook Page");
   const rows = useMemo(() => data?.articles ?? [], [data]);
   const counts = useMemo(() => {
-    const c: Record<Filter, number> = { all: rows.length, none: 0, scheduled: 0, published: 0, failed: 0 };
+    const c: Record<Filter, number> = { all: rows.length, none: 0, scheduled: 0, published: 0, failed: 0, skipped: 0 };
     for (const r of rows) {
       const s = statusOf(r);
       if (s === "publishing") c.scheduled++;
@@ -182,11 +194,13 @@ export default function SocialPostManager({ platform }: { platform: "facebook" |
     }
     return c;
   }, [rows]);
-  const visible = rows.filter((r) => {
-    if (filter === "all") return true;
-    const s = statusOf(r);
-    return filter === "scheduled" ? s === "scheduled" || s === "publishing" : s === filter;
-  });
+  const visible = rows
+    .filter((r) => {
+      if (filter === "all") return true;
+      const s = statusOf(r);
+      return filter === "scheduled" ? s === "scheduled" || s === "publishing" : s === filter;
+    })
+    .sort((a, b) => (byScore ? (b.score ?? -1) - (a.score ?? -1) : 0));
   const visibleSelectable = visible.filter(selectable);
   const allSelected = visibleSelectable.length > 0 && visibleSelectable.every((r) => selected.has(r.id));
 
@@ -201,11 +215,46 @@ export default function SocialPostManager({ platform }: { platform: "facebook" |
       return next;
     });
 
-  const openEditor = (r: Row) => {
+  const closeEditor = () => {
+    editorSession.current++;
+    setDrafting(false);
+    setEditing(null);
+  };
+
+  /** Nhờ Claude trên máy chủ viết 2–3 câu giọng GenZ; thường 20–60 giây. */
+  const generateDraft = async (r: Row) => {
+    const session = editorSession.current;
+    setDrafting(true);
+    try {
+      const { id } = await api(`${base}/draft`, { method: "POST", body: JSON.stringify({ articleId: r.id }) });
+      for (let i = 0; i < 110; i++) {
+        await new Promise((ok) => setTimeout(ok, 3000));
+        if (editorSession.current !== session) return;
+        const d = await api(`${base}/draft/${id}`);
+        if (editorSession.current !== session) return;
+        if (d.status === "done") {
+          setCaption(d.text);
+          notify("Đã viết xong, xem lại rồi lên lịch nhé");
+          return;
+        }
+        if (d.status === "error") throw new Error(d.error);
+      }
+      throw new Error("Chờ quá lâu, thử lại sau");
+    } catch (err) {
+      if (editorSession.current === session) notify((err as Error).message, "error");
+    } finally {
+      if (editorSession.current === session) setDrafting(false);
+    }
+  };
+
+  const openEditor = (r: Row, opts: { draft?: boolean } = {}) => {
+    editorSession.current++;
+    setDrafting(false);
     setEditing(r);
     setCaption(r.post?.caption ?? r.defaultCaption);
     setComment(r.post?.comment ?? r.defaultComment);
     setWhen(toLocalInput(r.post?.scheduledAt ?? data?.nextSlot ?? null));
+    if (opts.draft) void generateDraft(r);
   };
 
   const scheduleToday = () =>
@@ -229,16 +278,17 @@ export default function SocialPostManager({ platform }: { platform: "facebook" |
             method: "POST",
             body: JSON.stringify({ articleId: r.id, mode: "now", ...text }),
           }),
-        ).then((ok) => ok && setEditing(null)),
+        ).then((ok) => ok && closeEditor()),
     });
 
-  const bulk = (action: "now" | "golden" | "cancel") => {
+  const bulk = (action: "now" | "golden" | "cancel" | "skip") => {
     const ids = [...selected];
-    const actionLabel = { now: "Đăng ngay", golden: "Xếp vào giờ vàng", cancel: "Huỷ lịch" }[action];
+    const actionLabel = { now: "Đăng ngay", golden: "Xếp vào giờ vàng", cancel: "Huỷ lịch", skip: "Bỏ qua" }[action];
     const explain = {
       now: `Các bài vào hàng đợi rồi lần lượt lên ${label}, không cần đợi ở trang này. Đăng dồn nhiều bài một lúc thì thường chỉ vài bài đầu được đẩy.`,
       golden: `Mỗi bài vào một giờ vàng trống kế tiếp (tối đa ${data?.perDay ?? 4} bài/ngày).`,
-      cancel: "Huỷ lịch các bài chưa đăng. Bài đã lên giữ nguyên.",
+      cancel: "Huỷ lịch các bài chưa đăng (bài bỏ qua thì quay lại danh sách tự chọn). Bài đã lên giữ nguyên.",
+      skip: "Các bài này sẽ không được máy tự chọn vào giờ vàng. Vẫn đăng tay được bất cứ lúc nào.",
     }[action];
     setConfirmBox({
       title: `${actionLabel} ${ids.length} bài?`,
@@ -270,13 +320,14 @@ export default function SocialPostManager({ platform }: { platform: "facebook" |
               body: JSON.stringify({ caption, comment, scheduledAt: s === "published" ? undefined : scheduledAt }),
             }),
           );
-    if (ok) setEditing(null);
+    if (ok) closeEditor();
   };
 
   const remove = (r: Row) => {
     const published = statusOf(r) === "published";
+    const skippedRow = statusOf(r) === "skipped";
     setConfirmBox({
-      title: published ? `Gỡ bài khỏi ${label}?` : "Huỷ lịch đăng?",
+      title: published ? `Gỡ bài khỏi ${label}?` : skippedRow ? "Cho bài quay lại danh sách tự chọn?" : "Huỷ lịch đăng?",
       body: (
         <>
           <p className="font-semibold">{r.title}</p>
@@ -287,8 +338,8 @@ export default function SocialPostManager({ platform }: { platform: "facebook" |
           )}
         </>
       ),
-      confirmLabel: published ? `Gỡ khỏi ${label}` : "Huỷ lịch",
-      danger: true,
+      confirmLabel: published ? `Gỡ khỏi ${label}` : skippedRow ? "Bỏ đánh dấu" : "Huỷ lịch",
+      danger: !skippedRow,
       onConfirm: () => void run(r.id, () => api(`${base}/${r.id}`, { method: "DELETE" })),
     });
   };
@@ -318,7 +369,10 @@ export default function SocialPostManager({ platform }: { platform: "facebook" |
           <h1 className="text-2xl font-black tracking-tight sm:text-3xl">{label}</h1>
           <p className="mt-1 text-sm text-muted">
             Lên lịch, đăng{data?.canEditPublished ? ", sửa" : ""} và gỡ bài trên {label}
-            {data?.accountName ? ` (${data.accountName})` : ""}. Bài mới đăng web được tự xếp vào giờ vàng kế tiếp.
+            {data?.accountName ? ` (${data.accountName})` : ""}.{" "}
+            {data?.autoPick
+              ? `Tới mỗi giờ vàng còn trống, bài có điểm nóng cao nhất trong 2 ngày gần đây tự lên (tối đa ${data.perDay} bài/ngày).`
+              : "Chỉ đăng những bài bạn tự đặt lịch hoặc bấm đăng."}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -333,7 +387,7 @@ export default function SocialPostManager({ platform }: { platform: "facebook" |
             disabled={busy === "today" || !data?.configured}
             className="rounded-xl bg-accent px-5 py-2 text-sm font-bold text-white shadow-md hover:opacity-90 disabled:opacity-50"
           >
-            {busy === "today" ? "Đang xếp lịch…" : "Xếp lịch bài hôm nay vào giờ vàng"}
+            {busy === "today" ? "Đang xếp lịch…" : "Xếp bài nóng nhất vào giờ trống hôm nay"}
           </button>
         </div>
       </div>
@@ -359,10 +413,28 @@ export default function SocialPostManager({ platform }: { platform: "facebook" |
               {max ? ` Tối đa ${max} ký tự mỗi bài.` : ""}
             </div>
           </div>
-          <div>
-            <div className="text-xs font-bold text-blue-600">Giờ trống kế tiếp</div>
-            <div className="mt-1 font-extrabold">{data.nextSlot ? vnTime(data.nextSlot) : "—"}</div>
-          </div>
+          {data.autoPick ? (
+            <div>
+              <div className="text-xs font-bold text-blue-600">
+                Tự chọn lúc {data.autoNext?.slot ? vnTime(data.autoNext.slot) : "—"}
+              </div>
+              {data.autoNext?.article ? (
+                <div className="mt-1 text-xs">
+                  <span className="font-bold">{fire(data.autoNext.article.score)}</span>{" "}
+                  <span className="line-clamp-2">{data.autoNext.article.title}</span>
+                </div>
+              ) : (
+                <div className="mt-1 text-xs text-muted">
+                  {data.autoNext?.slot ? "Chưa có bài nào để chọn" : "Hôm nay đã đủ bài / hết giờ vàng"}
+                </div>
+              )}
+            </div>
+          ) : (
+            <div>
+              <div className="text-xs font-bold text-blue-600">Giờ vàng trống kế tiếp</div>
+              <div className="mt-1 font-extrabold">{data.nextSlot ? vnTime(data.nextSlot) : "—"}</div>
+            </div>
+          )}
         </div>
       )}
 
@@ -374,6 +446,7 @@ export default function SocialPostManager({ platform }: { platform: "facebook" |
             ["scheduled", "Đã lên lịch"],
             ["published", "Đã đăng"],
             ["failed", "Lỗi"],
+            ...(data?.autoPick ? [["skipped", "Bỏ qua"]] : []),
           ] as [Filter, string][]
         ).map(([key, text]) => (
           <button
@@ -386,6 +459,14 @@ export default function SocialPostManager({ platform }: { platform: "facebook" |
             {text} ({counts[key]})
           </button>
         ))}
+        <button
+          onClick={() => setByScore((v) => !v)}
+          className={`ml-auto rounded-lg px-3.5 py-1.5 text-sm font-semibold ${
+            byScore ? "bg-orange-500 text-white" : "bg-surface text-muted hover:bg-surface-2"
+          }`}
+        >
+          🔥 {byScore ? "Đang sắp theo điểm nóng" : "Sắp theo điểm nóng"}
+        </button>
       </div>
 
       {data?.configured && (
@@ -415,6 +496,15 @@ export default function SocialPostManager({ platform }: { platform: "facebook" |
               >
                 Huỷ lịch
               </button>
+              {data?.autoPick && (
+                <button
+                  onClick={() => bulk("skip")}
+                  disabled={busy === "bulk"}
+                  className="rounded-lg border border-border px-3 py-1.5 text-xs font-semibold hover:bg-surface-2 disabled:opacity-50"
+                >
+                  Bỏ qua
+                </button>
+              )}
               <button
                 onClick={() => bulk("golden")}
                 disabled={busy === "bulk"}
@@ -470,6 +560,7 @@ export default function SocialPostManager({ platform }: { platform: "facebook" |
                 <div className="min-w-0 space-y-1">
                   <div className="flex flex-wrap items-center gap-2 text-xs">
                     <span className={`rounded-md px-2 py-0.5 font-bold ${badge.cls}`}>{badge.label}</span>
+                    {fire(r.score) && <span className="font-bold text-orange-600">{fire(r.score)}</span>}
                     {s === "scheduled" && !due && p?.scheduledAt && (
                       <span className="font-semibold text-blue-600 dark:text-blue-400">{vnTime(p.scheduledAt)}</span>
                     )}
@@ -496,16 +587,25 @@ export default function SocialPostManager({ platform }: { platform: "facebook" |
                     Xem ↗
                   </a>
                 )}
+                {platform === "threads" && canEdit && s !== "published" && (
+                  <button
+                    onClick={() => openEditor(r, { draft: true })}
+                    disabled={!data?.configured}
+                    className="rounded-xl bg-gradient-to-r from-fuchsia-600 to-orange-500 px-3 py-1.5 text-xs font-bold text-white hover:opacity-90 disabled:opacity-50"
+                  >
+                    ✨ Tạo bài
+                  </button>
+                )}
                 {canEdit && (
                   <button
                     onClick={() => openEditor(r)}
                     disabled={!data?.configured}
                     className="rounded-xl border border-border px-3 py-1.5 text-xs font-bold hover:bg-surface-2 disabled:opacity-50"
                   >
-                    {s === "none" ? "Soạn & lên lịch" : "Sửa"}
+                    {s === "none" || s === "skipped" ? "Soạn & lên lịch" : "Sửa"}
                   </button>
                 )}
-                {(s === "none" || s === "failed" || (s === "scheduled" && !due)) && (
+                {(s === "none" || s === "failed" || s === "skipped" || (s === "scheduled" && !due)) && (
                   <button
                     onClick={() => publishNow(r)}
                     disabled={busy === r.id || !data?.configured}
@@ -520,7 +620,7 @@ export default function SocialPostManager({ platform }: { platform: "facebook" |
                     disabled={busy === r.id}
                     className="rounded-xl border border-red-500/40 px-3 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-500/10 disabled:opacity-50"
                   >
-                    {s === "published" ? "Gỡ bài" : "Huỷ lịch"}
+                    {s === "published" ? "Gỡ bài" : s === "skipped" ? "Bỏ đánh dấu" : "Huỷ lịch"}
                   </button>
                 )}
               </div>
@@ -539,7 +639,7 @@ export default function SocialPostManager({ platform }: { platform: "facebook" |
                 </h2>
                 <p className="truncate text-xs text-muted">{editing.title}</p>
               </div>
-              <button onClick={() => setEditing(null)} className="rounded-lg p-1.5 text-muted hover:bg-surface-2">
+              <button onClick={closeEditor} className="rounded-lg p-1.5 text-muted hover:bg-surface-2">
                 ✕
               </button>
             </div>
@@ -564,9 +664,20 @@ export default function SocialPostManager({ platform }: { platform: "facebook" |
                     }`}
                   />
                 </label>
-                <button onClick={() => setCaption(editing.defaultCaption)} className="text-xs text-accent hover:underline">
-                  Dùng lại nội dung mặc định
-                </button>
+                <div className="flex flex-wrap items-center gap-3">
+                  {platform === "threads" && editingStatus !== "published" && (
+                    <button
+                      onClick={() => void generateDraft(editing)}
+                      disabled={drafting}
+                      className="rounded-lg bg-gradient-to-r from-fuchsia-600 to-orange-500 px-3 py-1.5 text-xs font-bold text-white shadow hover:opacity-90 disabled:opacity-60"
+                    >
+                      {drafting ? "✨ Đang viết… (20–60 giây)" : "✨ Tạo bài GenZ"}
+                    </button>
+                  )}
+                  <button onClick={() => setCaption(editing.defaultCaption)} className="text-xs text-accent hover:underline">
+                    Dùng lại nội dung mặc định
+                  </button>
+                </div>
                 <label className="block text-xs font-bold">
                   Bình luận đầu tiên (chứa link bài)
                   <textarea
@@ -625,7 +736,7 @@ export default function SocialPostManager({ platform }: { platform: "facebook" |
             <div className="mt-6 flex flex-wrap items-center justify-end gap-3 border-t border-border pt-4">
               {tooLong && <span className="mr-auto text-xs font-semibold text-red-600">Nội dung vượt {max} ký tự</span>}
               <button
-                onClick={() => setEditing(null)}
+                onClick={closeEditor}
                 className="rounded-xl border border-border px-4 py-2 text-xs font-semibold hover:bg-surface-2"
               >
                 Huỷ
@@ -633,7 +744,7 @@ export default function SocialPostManager({ platform }: { platform: "facebook" |
               {editingStatus !== "published" && (
                 <button
                   onClick={() => publishNow(editing, { caption, comment })}
-                  disabled={busy === editing.id || tooLong}
+                  disabled={busy === editing.id || tooLong || drafting}
                   className="rounded-xl border border-accent px-4 py-2 text-xs font-bold text-accent hover:bg-accent/10 disabled:opacity-50"
                 >
                   Đăng ngay
@@ -641,7 +752,7 @@ export default function SocialPostManager({ platform }: { platform: "facebook" |
               )}
               <button
                 onClick={saveEditor}
-                disabled={busy === editing.id || tooLong}
+                disabled={busy === editing.id || tooLong || drafting}
                 className="rounded-xl bg-accent px-6 py-2 text-xs font-bold text-white shadow-lg hover:opacity-90 disabled:opacity-50"
               >
                 {busy === editing.id ? "Đang lưu…" : editingStatus === "published" ? `Lưu & sửa trên ${label}` : "Lên lịch"}

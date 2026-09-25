@@ -5,7 +5,6 @@ import { closeRequestForArticle } from "@/lib/queue";
 import type { Article, ArticleStatus, CategorySlug } from "@/lib/types";
 import { categories } from "@/lib/data";
 import { normalizeArticleHtml } from "@/lib/html";
-import { autoScheduleOnPublish } from "@/lib/social/core";
 
 const VALID_CATEGORIES = new Set(categories.map((c) => c.slug));
 
@@ -178,13 +177,8 @@ export async function PUT(
   // không phải nhật ký — bài đã đăng mà vẫn nằm đó thì mỗi ngày một dài thêm.
   if (patch.status === "published") {
     await closeRequestForArticle(id);
-    // Xếp bài vào giờ vàng trống kế tiếp trên Facebook Page / Threads (lib/social),
-    // không đăng ngay: đăng dồn theo nhịp duyệt bài thì Page bị hạ tiếp cận.
-    // Bài đã có trong lịch / đã lên Page thì thôi. Lỗi ở đây không được làm
-    // hỏng việc đăng bài trên web.
-    await autoScheduleOnPublish(id).catch((err: Error) => {
-      console.error("[facebook] không xếp lịch được:", err.message);
-    });
+    // Mạng xã hội không xếp lịch ở đây: Facebook tự chọn bài nóng nhất đúng
+    // lúc tới giờ vàng, Threads do người biên tập tự đặt (lib/social/core.ts).
   }
 
   return NextResponse.json({ article });

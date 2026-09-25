@@ -1,5 +1,5 @@
 import { NextResponse, after } from "next/server";
-import { queueNow, removePost, runDue, scheduleGolden } from "@/lib/social/core";
+import { queueNow, removePost, runDue, scheduleGolden, skipPost } from "@/lib/social/core";
 import { guard } from "@/lib/social/http";
 
 export const dynamic = "force-dynamic";
@@ -10,7 +10,8 @@ type Ctx = { params: Promise<{ platform: string }> };
  * Thao tác trên nhiều bài một lúc. Trả lời ngay, không đợi nền tảng:
  *   now    — vào hàng đợi đăng ngay; đăng nền sau khi trả lời (cron nhặt tiếp)
  *   golden — xếp mỗi bài vào một giờ vàng trống kế tiếp
- *   cancel — huỷ lịch bài chưa đăng (bài đã lên giữ nguyên)
+ *   cancel — huỷ lịch bài chưa đăng (bài đã lên giữ nguyên); bài "bỏ qua" quay lại danh sách tự chọn
+ *   skip   — loại khỏi danh sách tự chọn giờ vàng (Facebook)
  */
 export async function POST(req: Request, { params }: Ctx) {
   const g = await guard((await params).platform);
@@ -44,6 +45,19 @@ export async function POST(req: Request, { params }: Ctx) {
       }
     }
     return NextResponse.json({ skipped, message: `Đã huỷ lịch ${done} bài${tail(skipped)}` });
+  }
+  if (body.action === "skip") {
+    let done = 0;
+    const skipped: { articleId: string; reason: string }[] = [];
+    for (const id of ids) {
+      try {
+        await skipPost(g.platform, id);
+        done++;
+      } catch (err) {
+        skipped.push({ articleId: id, reason: (err as Error).message });
+      }
+    }
+    return NextResponse.json({ skipped, message: `Đã bỏ qua ${done} bài${tail(skipped)}` });
   }
   return NextResponse.json({ error: "Thao tác không hợp lệ" }, { status: 400 });
 }

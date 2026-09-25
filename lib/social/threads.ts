@@ -155,6 +155,7 @@ export const threadsDriver: SocialDriver = {
   accountName: "genznews.hi",
   maxCaption: THREADS_MAX,
   canEditPublished: false,
+  autoPick: false,
 
   configured: () => Boolean(process.env.THREAD_PAGE_ACCESS_TOKEN?.trim() || readStored()?.token),
 
