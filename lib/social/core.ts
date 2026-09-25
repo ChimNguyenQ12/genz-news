@@ -234,7 +234,7 @@ function checkLength(driver: SocialDriver, caption: string) {
 export async function schedulePost(
   platform: Platform,
   articleId: string,
-  input: { caption?: string; comment?: string; scheduledAt?: Date },
+  input: { caption?: string; comment?: string; topicTag?: string | null; scheduledAt?: Date },
 ) {
   const driver = driverFor(platform);
   if (!driver.configured()) throw new Error(`${driver.label} is not configured`);
@@ -248,9 +248,16 @@ export async function schedulePost(
 
   const caption = input.caption?.trim() || existing?.caption || driver.formatCaption(article);
   checkLength(driver, caption);
+  // undefined = giữ thẻ cũ (hoặc thẻ mặc định với bài mới); "" / null = không gắn thẻ.
+  const topicTag = !driver.topicTag
+    ? null
+    : input.topicTag === undefined
+      ? (existing?.topicTag ?? (driver.topicTag.default(article) || null))
+      : driver.topicTag.normalize(input.topicTag ?? "") || null;
   const data = {
     status: "scheduled",
     caption,
+    topicTag,
     comment: input.comment?.trim() || existing?.comment || driver.formatComment(article),
     scheduledAt,
     lastError: null,
@@ -288,7 +295,7 @@ export async function skipPost(platform: Platform, articleId: string) {
 export async function queueNow(
   platform: Platform,
   articleIds: string[],
-  input: { caption?: string; comment?: string } = {},
+  input: { caption?: string; comment?: string; topicTag?: string | null } = {},
 ) {
   const queued: string[] = [];
   const skipped: { articleId: string; reason: string }[] = [];
@@ -349,7 +356,7 @@ export async function scheduleToday(platform: Platform, perDay = POSTS_PER_DAY) 
 export async function updatePost(
   platform: Platform,
   articleId: string,
-  input: { caption?: string; comment?: string; scheduledAt?: Date },
+  input: { caption?: string; comment?: string; topicTag?: string | null; scheduledAt?: Date },
 ) {
   const driver = driverFor(platform);
   const rec = await findPost(platform, articleId);
@@ -361,6 +368,7 @@ export async function updatePost(
     return schedulePost(platform, articleId, {
       caption,
       comment,
+      topicTag: input.topicTag,
       scheduledAt: input.scheduledAt ?? rec.scheduledAt ?? undefined,
     });
   }
@@ -410,7 +418,7 @@ async function publishRecord(id: string) {
   const driver = driverFor(rec.platform as Platform);
   try {
     const article = await loadArticle(rec.articleId);
-    const out = await driver.create(article, rec.caption, rec.comment);
+    const out = await driver.create(article, rec.caption, rec.comment, { topicTag: rec.topicTag });
     return await prisma.socialPost.update({
       where: { id },
       data: {

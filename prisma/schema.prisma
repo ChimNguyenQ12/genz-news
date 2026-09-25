@@ -170,6 +170,8 @@ model SocialPost {
   status          String    @default("scheduled")
   caption         String
   comment         String
+  /// Thẻ chủ đề Threads (gửi qua tham số topic_tag, mỗi bài một thẻ). Nền tảng khác bỏ qua.
+  topicTag        String?
   scheduledAt     DateTime?
   /// id bài trên nền tảng (Facebook: pageId_postId; Threads: media id)
   remotePostId    String?

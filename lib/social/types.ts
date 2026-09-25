@@ -38,10 +38,17 @@ export interface SocialDriver {
   canEditPublished: boolean;
   /** Tới giờ vàng mà trống thì tự chọn bài nóng nhất để đăng (Facebook: có; Threads: không, người tự đặt lịch). */
   autoPick: boolean;
+  /** Nền tảng có thẻ chủ đề riêng (Threads topic_tag): mặc định, gợi ý, và kiểm tra. */
+  topicTag?: {
+    default(a: ArticleView): string;
+    suggestions(a: ArticleView): string[];
+    /** Trả về thẻ đã chuẩn hoá; ném lỗi nếu nền tảng không nhận. "" = không gắn thẻ. */
+    normalize(tag: string): string;
+  };
   configured(): boolean;
   formatCaption(a: ArticleView): string;
   formatComment(a: ArticleView): string;
-  create(article: Article, caption: string, comment: string): Promise<PublishResult>;
+  create(article: Article, caption: string, comment: string, opts?: { topicTag?: string | null }): Promise<PublishResult>;
   /** Sửa bài đã đăng; trả về id bình luận (có thể mới tạo). */
   update?(ref: RemoteRef, next: { caption?: string; comment?: string }): Promise<{ remoteCommentId: string | null }>;
   remove(ref: RemoteRef): Promise<void>;

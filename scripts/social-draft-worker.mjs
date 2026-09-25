@@ -22,8 +22,6 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.jso
 const MAX = 500; // Threads
 const log = (m) => console.log(`${new Date().toISOString()} [social-draft] ${m}`);
 
-const hashtag = (t) => `#${String(t).normalize("NFC").replace(/[^\p{L}\p{N}]+/gu, "")}`;
-
 function prompt(job) {
   return `Bạn là biên tập viên mạng xã hội của GenZ News, trang tin cho người 18–27 tuổi ở Việt Nam.
 Viết MỘT bài Threads dài 2–3 câu từ tin dưới đây.
@@ -43,13 +41,13 @@ Tóm tắt: ${job.dek}
 Chuyên mục: ${job.category}`;
 }
 
-function clean(text, category) {
+function clean(text) {
   let t = String(text).trim().replace(/^["“”']+|["“”']+$/g, "").trim();
   // Lỡ có hashtag / link thì bỏ: thẻ chủ đề do mình gắn, link nằm ở reply.
   t = t.replace(/https?:\/\/\S+/g, "").replace(/(^|\s)#[\p{L}\p{N}_]+/gu, "$1").replace(/[ \t]+\n/g, "\n").trim();
-  const tag = category ? `\n\n${hashtag(category)}` : "";
-  if (t.length + tag.length > MAX) t = `${t.slice(0, MAX - tag.length - 1).trimEnd()}…`;
-  return t + tag;
+  // Thẻ chủ đề Threads đi riêng (topic_tag, chọn trong khung soạn), không nằm trong nội dung.
+  if (t.length > MAX) t = `${t.slice(0, MAX - 1).trimEnd()}…`;
+  return t;
 }
 
 function write(id, data) {
@@ -89,11 +87,11 @@ for (const f of fs.readdirSync(INBOX)) {
     { cwd: os.tmpdir(), encoding: "utf8", maxBuffer: 1024 * 1024 },
   );
   if (r.status === 0 && r.stdout.trim()) {
-    write(id, { text: clean(r.stdout, job.category) });
+    write(id, { text: clean(r.stdout) });
     log(`xong ${id}`);
   } else {
-    const why = r.status === 124 ? "quá 150 giây" : (r.stderr || r.stdout || `mã ${r.status}`).trim().slice(0, 300);
-    write(id, { error: `Không viết được: ${why}` });
+    const why = r.status === 124 ? "took over 150 s" : (r.stderr || r.stdout || `exit ${r.status}`).trim().slice(0, 300);
+    write(id, { error: `Could not write a draft: ${why}` });
     log(`hỏng ${id}: ${why}`);
   }
 }

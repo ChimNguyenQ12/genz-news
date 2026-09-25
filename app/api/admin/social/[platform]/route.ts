@@ -95,6 +95,7 @@ export async function GET(req: Request, { params }: Ctx) {
     maxCaption: driver.maxCaption,
     canEditPublished: driver.canEditPublished,
     autoPick: driver.autoPick,
+    supportsTopicTag: Boolean(driver.topicTag),
     autoNext,
     configured,
     goldenHours: GOLDEN_HOURS,
@@ -122,6 +123,8 @@ export async function GET(req: Request, { params }: Ctx) {
         publishedAt: a.publishedAt,
         score: scores.get(a.id) ?? null,
         defaultCaption: driver.formatCaption(view),
+        defaultTopicTag: driver.topicTag?.default(view) ?? null,
+        topicSuggestions: driver.topicTag?.suggestions(view) ?? [],
         defaultComment: driver.formatComment(view),
         post: a.socialPosts[0] ?? null,
       };

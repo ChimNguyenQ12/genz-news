@@ -3,7 +3,8 @@ import fs from "fs";
 import path from "path";
 import type { Article } from "@/lib/types";
 import { uploadToS3 } from "@/lib/storage";
-import { articleUrl, categoryTag, coverAsJpeg } from "./format";
+import { getCategory } from "@/lib/data";
+import { articleUrl, coverAsJpeg } from "./format";
 import type { ArticleView, RemoteRef, SocialDriver } from "./types";
 
 /**
@@ -20,6 +21,23 @@ import type { ArticleView, RemoteRef, SocialDriver } from "./types";
 
 const API = "https://graph.threads.net/v1.0";
 export const THREADS_MAX = 500;
+
+/**
+ * Thẻ chủ đề (topic tag): mỗi bài MỘT thẻ, gửi qua tham số topic_tag — bài hiện
+ * trong luồng của thẻ đó. Đã thử trên API thật: nhận tiếng Việt có dấu và dấu
+ * cách ("Tin nóng"); thẻ có "." hoặc "&" bị từ chối ("Topic Tag Not Permitted").
+ */
+const TOPIC_MAX = 50;
+/** Thẻ hay dùng, bày sẵn cho người biên tập bấm. */
+const POPULAR_TOPICS = ["Viral", "Tin nóng", "GenZ", "Tin tức", "Drama", "Xu hướng"];
+
+function normalizeTopicTag(raw: string) {
+  const tag = raw.replace(/^#+/, "").replace(/\s+/g, " ").trim();
+  if (!tag) return "";
+  if (/[.&]/.test(tag)) throw new Error("Topic tags can’t contain “.” or “&”");
+  if (tag.length > TOPIC_MAX) throw new Error(`Topic tag is ${tag.length} characters; the limit is ${TOPIC_MAX}`);
+  return tag;
+}
 
 // ---------- token ----------
 //
@@ -156,14 +174,27 @@ export const threadsDriver: SocialDriver = {
   maxCaption: THREADS_MAX,
   canEditPublished: false,
   autoPick: false,
+  topicTag: {
+    default: (a: ArticleView) => getCategory(a.category)?.name ?? "",
+    suggestions: (a: ArticleView) => {
+      const out = [...POPULAR_TOPICS, getCategory(a.category)?.name ?? "", ...a.tags.slice(0, 4)];
+      const seen = new Set<string>();
+      return out.filter((t) => {
+        const k = t.trim().toLowerCase();
+        if (!k || /[.&]/.test(k) || k.length > TOPIC_MAX || seen.has(k)) return false;
+        seen.add(k);
+        return true;
+      });
+    },
+    normalize: normalizeTopicTag,
+  },
 
   configured: () => Boolean(process.env.THREAD_PAGE_ACCESS_TOKEN?.trim() || readStored()?.token),
 
-  /** Tít, câu tóm tắt (cắt bớt cho vừa 500 ký tự), lời mời đọc tiếp, một thẻ chủ đề. */
+  /** Tít, câu tóm tắt (cắt bớt cho vừa 500 ký tự), lời mời đọc tiếp. Thẻ chủ đề đi riêng (topic_tag). */
   formatCaption(a: ArticleView) {
-    const tag = categoryTag(a.category);
     const cta = "👇 Link đọc đầy đủ ở bình luận";
-    const build = (dek: string) => [a.title, dek, cta, tag].filter(Boolean).join("\n\n");
+    const build = (dek: string) => [a.title, dek, cta].filter(Boolean).join("\n\n");
     let dek = a.dek ?? "";
     let text = build(dek);
     while (text.length > THREADS_MAX && dek.length > 0) {
@@ -175,7 +206,7 @@ export const threadsDriver: SocialDriver = {
 
   formatComment: (a: ArticleView) => `Đọc đầy đủ tại đây 👉 ${articleUrl(a.slug)}`,
 
-  async create(article: Article, caption: string, comment: string) {
+  async create(article: Article, caption: string, comment: string, opts: { topicTag?: string | null } = {}) {
     if (caption.length > THREADS_MAX) {
       throw new Error(`Threads post is ${caption.length} characters; the limit is ${THREADS_MAX}`);
     }
@@ -183,6 +214,8 @@ export const threadsDriver: SocialDriver = {
     const params: Record<string, string> = jpeg
       ? { media_type: "IMAGE", image_url: (await uploadToS3(jpeg, "image/jpeg", "jpg", "social")).url, text: caption }
       : { media_type: "TEXT", text: caption };
+    const topic = opts.topicTag ? normalizeTopicTag(opts.topicTag) : "";
+    if (topic) params.topic_tag = topic;
 
     const remotePostId = await createAndPublish(params);
 

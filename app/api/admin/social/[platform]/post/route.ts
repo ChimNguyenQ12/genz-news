@@ -20,6 +20,7 @@ export async function POST(req: Request, { params }: Ctx) {
     articleId?: string;
     caption?: string;
     comment?: string;
+    topicTag?: string | null;
     mode?: "now" | "schedule";
     scheduledAt?: string;
   };
@@ -36,7 +37,12 @@ export async function POST(req: Request, { params }: Ctx) {
     if (at && (Number.isNaN(at.getTime()) || at.getTime() < Date.now() - 60_000)) {
       return NextResponse.json({ error: "Invalid or past time" }, { status: 400 });
     }
-    await schedulePost(g.platform, body.articleId, { caption: body.caption, comment: body.comment, scheduledAt: at });
+    await schedulePost(g.platform, body.articleId, {
+      caption: body.caption,
+      comment: body.comment,
+      topicTag: body.topicTag,
+      scheduledAt: at,
+    });
     return NextResponse.json({ message: "Scheduled" });
   } catch (err) {
     return fail(err);

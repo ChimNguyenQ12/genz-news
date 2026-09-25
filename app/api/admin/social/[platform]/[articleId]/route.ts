@@ -11,13 +11,23 @@ export async function PATCH(req: Request, { params }: Ctx) {
   const { platform, articleId } = await params;
   const g = await guard(platform);
   if (g.error) return g.error;
-  const body = (await req.json().catch(() => ({}))) as { caption?: string; comment?: string; scheduledAt?: string };
+  const body = (await req.json().catch(() => ({}))) as {
+    caption?: string;
+    comment?: string;
+    topicTag?: string | null;
+    scheduledAt?: string;
+  };
   const at = body.scheduledAt ? new Date(body.scheduledAt) : undefined;
   if (at && Number.isNaN(at.getTime())) {
     return NextResponse.json({ error: "Invalid time" }, { status: 400 });
   }
   try {
-    await updatePost(g.platform, articleId, { caption: body.caption, comment: body.comment, scheduledAt: at });
+    await updatePost(g.platform, articleId, {
+      caption: body.caption,
+      comment: body.comment,
+      topicTag: body.topicTag,
+      scheduledAt: at,
+    });
     return NextResponse.json({ message: "Saved" });
   } catch (err) {
     return fail(err);

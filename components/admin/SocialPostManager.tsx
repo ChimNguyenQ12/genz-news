@@ -13,6 +13,7 @@ interface Post {
   status: Status;
   caption: string;
   comment: string;
+  topicTag: string | null;
   scheduledAt: string | null;
   remotePostId: string | null;
   permalink: string | null;
@@ -30,6 +31,8 @@ interface Row {
   score: number | null;
   defaultCaption: string;
   defaultComment: string;
+  defaultTopicTag: string | null;
+  topicSuggestions: string[];
   post: Post | null;
 }
 
@@ -40,6 +43,7 @@ interface ListResponse {
   maxCaption: number | null;
   canEditPublished: boolean;
   autoPick: boolean;
+  supportsTopicTag: boolean;
   autoNext: { slot: string | null; article: { id: string; title: string; score: number } | null } | null;
   configured: boolean;
   goldenHours: string[];
@@ -156,6 +160,7 @@ export default function SocialPostManager({ platform }: { platform: "facebook" |
   const [caption, setCaption] = useState("");
   const [comment, setComment] = useState("");
   const [when, setWhen] = useState("");
+  const [topicTag, setTopicTag] = useState("");
   const [drafting, setDrafting] = useState(false);
   // Bumped whenever the editor opens or closes; a running "GenZ rewrite" poll
   // that sees a different number stops, so it never overwrites another post.
@@ -231,6 +236,7 @@ export default function SocialPostManager({ platform }: { platform: "facebook" |
 
   const max = data?.maxCaption ?? null;
   const tooLong = max !== null && caption.length > max;
+  const badTag = !!data?.supportsTopicTag && /[.&]/.test(topicTag);
 
   const toggle = (id: string) =>
     setSelected((prev) => {
@@ -278,6 +284,7 @@ export default function SocialPostManager({ platform }: { platform: "facebook" |
     setEditing(r);
     setCaption(r.post?.caption ?? r.defaultCaption);
     setComment(r.post?.comment ?? r.defaultComment);
+    setTopicTag(r.post ? (r.post.topicTag ?? "") : (r.defaultTopicTag ?? ""));
     setWhen(toLocalInput(r.post?.scheduledAt ?? data?.nextSlot ?? null));
     if (opts.draft) void generateDraft(r);
   };
@@ -287,7 +294,7 @@ export default function SocialPostManager({ platform }: { platform: "facebook" |
       api(`${base}/schedule-today`, { method: "POST", body: JSON.stringify({ perDay: data?.perDay }) }),
     );
 
-  const publishNow = (r: Row, text?: { caption: string; comment: string }) =>
+  const publishNow = (r: Row, text?: { caption: string; comment: string; topicTag?: string }) =>
     setConfirmBox({
       title: `Post to ${label} now?`,
       body: (
@@ -336,13 +343,25 @@ export default function SocialPostManager({ platform }: { platform: "facebook" |
         ? await run(editing.id, () =>
             api(`${base}/post`, {
               method: "POST",
-              body: JSON.stringify({ articleId: editing.id, caption, comment, mode: "schedule", scheduledAt }),
+              body: JSON.stringify({
+                articleId: editing.id,
+                caption,
+                comment,
+                mode: "schedule",
+                scheduledAt,
+                ...(data?.supportsTopicTag ? { topicTag } : {}),
+              }),
             }),
           )
         : await run(editing.id, () =>
             api(`${base}/${editing.id}`, {
               method: "PATCH",
-              body: JSON.stringify({ caption, comment, scheduledAt: s === "published" ? undefined : scheduledAt }),
+              body: JSON.stringify({
+                caption,
+                comment,
+                scheduledAt: s === "published" ? undefined : scheduledAt,
+                ...(data?.supportsTopicTag && s !== "published" ? { topicTag } : {}),
+              }),
             }),
           );
     if (ok) closeEditor();
@@ -630,6 +649,11 @@ export default function SocialPostManager({ platform }: { platform: "facebook" |
                   <div className="flex flex-wrap items-center gap-2 text-xs">
                     <span className={`rounded-md px-2 py-0.5 font-bold ${badge.cls}`}>{badge.label}</span>
                     {fire(r.score) && <span className="font-bold text-orange-600">{fire(r.score)}</span>}
+                    {p?.topicTag && (
+                      <span className="rounded-md bg-fuchsia-500/10 px-1.5 py-0.5 font-semibold text-fuchsia-600 dark:text-fuchsia-400">
+                        # {p.topicTag}
+                      </span>
+                    )}
                     {s === "scheduled" && !due && p?.scheduledAt && (
                       <span className="font-semibold text-blue-600 dark:text-blue-400">{vnTime(p.scheduledAt)}</span>
                     )}
@@ -749,6 +773,52 @@ export default function SocialPostManager({ platform }: { platform: "facebook" |
                     Reset to default text
                   </button>
                 </div>
+                {data?.supportsTopicTag && editingStatus !== "published" && (
+                  <div className="text-xs">
+                    <label className="block font-bold">
+                      Topic tag
+                      <span className="ml-1 font-normal text-muted">(one per post — it lists the post under that topic)</span>
+                      <div className="mt-1 flex gap-2">
+                        <span className="flex flex-1 items-center rounded-xl border border-border bg-surface-2 focus-within:border-accent">
+                          <span className="pl-3 text-muted">#</span>
+                          <input
+                            value={topicTag}
+                            maxLength={50}
+                            onChange={(e) => setTopicTag(e.target.value.replace(/^#+/, ""))}
+                            placeholder="e.g. Viral"
+                            className="min-w-0 flex-1 bg-transparent p-2.5 text-sm font-normal outline-none"
+                          />
+                        </span>
+                        {topicTag && (
+                          <button
+                            onClick={() => setTopicTag("")}
+                            className="rounded-xl border border-border px-3 font-semibold text-muted hover:border-accent hover:text-accent"
+                          >
+                            No tag
+                          </button>
+                        )}
+                      </div>
+                    </label>
+                    {/[.&]/.test(topicTag) && (
+                      <p className="mt-1 font-semibold text-red-600">Threads doesn’t accept “.” or “&” in topic tags.</p>
+                    )}
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {editing.topicSuggestions.map((t) => (
+                        <button
+                          key={t}
+                          onClick={() => setTopicTag(t)}
+                          className={`rounded-full border px-2.5 py-1 font-semibold transition ${
+                            topicTag.trim().toLowerCase() === t.toLowerCase()
+                              ? "border-fuchsia-500 bg-fuchsia-500 text-white"
+                              : "border-border hover:border-fuchsia-500 hover:text-fuchsia-600"
+                          }`}
+                        >
+                          # {t}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 <label className="block text-xs font-bold">
                   First comment (article link)
                   <textarea
@@ -793,6 +863,11 @@ export default function SocialPostManager({ platform }: { platform: "facebook" |
                     </div>
                   </div>
                   <div className="mt-3 whitespace-pre-wrap text-xs leading-relaxed">{caption}</div>
+                  {data?.supportsTopicTag && topicTag.trim() && (
+                    <div className="mt-2 inline-block rounded-full bg-zinc-100 px-2.5 py-1 text-[11px] font-semibold text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
+                      # {topicTag.trim()}
+                    </div>
+                  )}
                   {editing.coverImage && (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={mediaUrl(editing.coverImage)} alt="" className="mt-3 max-h-56 w-full rounded-xl object-cover" />
@@ -814,8 +889,8 @@ export default function SocialPostManager({ platform }: { platform: "facebook" |
               </button>
               {editingStatus !== "published" && (
                 <button
-                  onClick={() => publishNow(editing, { caption, comment })}
-                  disabled={busy === editing.id || tooLong || drafting}
+                  onClick={() => publishNow(editing, { caption, comment, ...(data?.supportsTopicTag ? { topicTag } : {}) })}
+                  disabled={busy === editing.id || tooLong || badTag || drafting}
                   className="rounded-xl border border-accent px-4 py-2 text-xs font-bold text-accent hover:bg-accent/10 disabled:opacity-50"
                 >
                   Post now
@@ -823,7 +898,7 @@ export default function SocialPostManager({ platform }: { platform: "facebook" |
               )}
               <button
                 onClick={saveEditor}
-                disabled={busy === editing.id || tooLong || drafting}
+                disabled={busy === editing.id || tooLong || badTag || drafting}
                 className="rounded-xl bg-accent px-6 py-2 text-xs font-bold text-white shadow-lg hover:opacity-90 disabled:opacity-50"
               >
                 {busy === editing.id ? "Saving…" : editingStatus === "published" ? `Save & update on ${label}` : "Schedule"}
