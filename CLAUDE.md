@@ -91,7 +91,8 @@ sạch HTML và đúng lớp phân quyền như người thật.
 
 - Dữ kiện/sự kiện không có bản quyền — cách diễn đạt thì có. Luôn viết lại.
 - Mỗi bài **bắt buộc** có mảng `sources` trỏ về nguồn gốc thật (URL thật, đã
-  kiểm tra tồn tại). Không bịa nguồn, không bịa URL.
+  kiểm tra tồn tại). Không bịa nguồn, không bịa URL, trừ khi đến từ Thread thì
+  ghi từ Thread.
 - Wikipedia, Baomoi, Google News và các trang tổng hợp/bách khoa được phép
   liệt kê làm tài liệu tham khảo
 - **Ảnh và video: đúng vụ việc, hoặc không có.** Người đọc mặc định ảnh trong
@@ -128,8 +129,6 @@ sạch HTML và đúng lớp phân quyền như người thật.
   Không có gì đúng thì để `coverGradient` — bỏ trống là một lựa chọn đúng.
   Lệnh lưu bài từ chối **mọi** ảnh không nằm trên kho của mình (cả ảnh bìa lẫn
   ảnh trong thân bài) và từ chối ảnh trong bài không có `<figcaption>` ghi công.
-
-- Scrape các nền tảng mạng xã hội (Threads, Facebook, Instagram).
 
 ## Chọn đề tài và góc nhìn
 
