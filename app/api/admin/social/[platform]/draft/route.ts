@@ -12,9 +12,9 @@ export async function POST(req: Request, { params }: Ctx) {
   const g = await guard((await params).platform);
   if (g.error) return g.error;
   const { articleId } = (await req.json().catch(() => ({}))) as { articleId?: string };
-  if (!articleId) return NextResponse.json({ error: "Thiếu articleId" }, { status: 400 });
+  if (!articleId) return NextResponse.json({ error: "Missing articleId" }, { status: 400 });
   const article = await getArticleById(articleId);
-  if (!article) return NextResponse.json({ error: "Không tìm thấy bài viết" }, { status: 404 });
+  if (!article) return NextResponse.json({ error: "Article not found" }, { status: 404 });
   try {
     return NextResponse.json({ id: requestDraft(g.platform, article) });
   } catch (err) {

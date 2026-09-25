@@ -204,9 +204,9 @@ async function autoPick(platform: Platform, now: Date) {
     if (!top) continue;
     try {
       await schedulePost(platform, top.id, { scheduledAt: slot });
-      out.push({ platform, articleId: top.id, outcome: `tự chọn cho ${hhmm} (điểm ${top.score})` });
+      out.push({ platform, articleId: top.id, outcome: `auto-picked for ${hhmm} (score ${top.score})` });
     } catch (err) {
-      out.push({ platform, articleId: top.id, outcome: `tự chọn lỗi: ${(err as Error).message}` });
+      out.push({ platform, articleId: top.id, outcome: `auto-pick failed: ${(err as Error).message}` });
     }
   }
   return out;
@@ -216,8 +216,8 @@ async function autoPick(platform: Platform, now: Date) {
 
 async function loadArticle(articleId: string) {
   const article = await getArticleById(articleId);
-  if (!article) throw new Error("Không tìm thấy bài viết");
-  if (article.status !== "published") throw new Error("Bài chưa đăng trên web");
+  if (!article) throw new Error("Article not found");
+  if (article.status !== "published") throw new Error("Article is not published on the site yet");
   return article;
 }
 
@@ -226,7 +226,7 @@ const findPost = (platform: Platform, articleId: string) =>
 
 function checkLength(driver: SocialDriver, caption: string) {
   if (driver.maxCaption && caption.length > driver.maxCaption) {
-    throw new Error(`Bài ${driver.label} dài ${caption.length} ký tự, tối đa ${driver.maxCaption}`);
+    throw new Error(`${driver.label} post is ${caption.length} characters; the limit is ${driver.maxCaption}`);
   }
 }
 
@@ -237,14 +237,14 @@ export async function schedulePost(
   input: { caption?: string; comment?: string; scheduledAt?: Date },
 ) {
   const driver = driverFor(platform);
-  if (!driver.configured()) throw new Error(`Chưa cấu hình ${driver.label}`);
+  if (!driver.configured()) throw new Error(`${driver.label} is not configured`);
   const article = await loadArticle(articleId);
   const existing = await findPost(platform, articleId);
   if (existing && (existing.status === "published" || existing.status === "publishing")) {
-    throw new Error(`Bài này đã lên ${driver.label}.`);
+    throw new Error(`Already posted on ${driver.label}.`);
   }
   const scheduledAt = input.scheduledAt ?? (await nextFreeSlots(platform, 1))[0];
-  if (!scheduledAt) throw new Error("Không còn giờ vàng trống trong 30 ngày tới");
+  if (!scheduledAt) throw new Error("No free golden hour in the next 30 days");
 
   const caption = input.caption?.trim() || existing?.caption || driver.formatCaption(article);
   checkLength(driver, caption);
@@ -268,7 +268,7 @@ export async function skipPost(platform: Platform, articleId: string) {
   const article = await loadArticle(articleId);
   const existing = await findPost(platform, articleId);
   if (existing && (existing.status === "published" || existing.status === "publishing")) {
-    throw new Error(`Bài này đã lên ${driver.label}.`);
+    throw new Error(`Already posted on ${driver.label}.`);
   }
   const data = {
     status: "skipped",
@@ -312,7 +312,7 @@ export async function scheduleGolden(platform: Platform, articleIds: string[], p
   for (const articleId of articleIds) {
     const [slot] = await nextFreeSlots(platform, 1, new Date(), perDay);
     if (!slot) {
-      skipped.push({ articleId, reason: "Hết giờ vàng trống trong 30 ngày tới" });
+      skipped.push({ articleId, reason: "No free golden hour in the next 30 days" });
       continue;
     }
     try {
@@ -353,7 +353,7 @@ export async function updatePost(
 ) {
   const driver = driverFor(platform);
   const rec = await findPost(platform, articleId);
-  if (!rec) throw new Error(`Bài này chưa có trên ${driver.label} hay trong lịch đăng`);
+  if (!rec) throw new Error(`Not on ${driver.label} and not scheduled`);
   const caption = input.caption?.trim() || rec.caption;
   const comment = input.comment?.trim() || rec.comment;
 
@@ -365,7 +365,7 @@ export async function updatePost(
     });
   }
   if (!driver.canEditPublished || !driver.update) {
-    throw new Error(`${driver.label} không cho sửa bài đã đăng. Gỡ bài rồi đăng lại nếu cần.`);
+    throw new Error(`${driver.label} does not allow editing a published post. Remove it and post again if needed.`);
   }
   checkLength(driver, caption);
   const { remoteCommentId } = await driver.update(rec, {
@@ -387,9 +387,9 @@ export async function removePost(
   const driver = driverFor(platform);
   const rec = await findPost(platform, articleId);
   if (!rec) return;
-  if (rec.status === "publishing") throw new Error("Bài đang được đăng, thử lại sau ít phút");
+  if (rec.status === "publishing") throw new Error("This post is being published right now; try again in a few minutes");
   if (rec.status === "published") {
-    if (opts.onlyUnpublished) throw new Error("Bài đã lên, gỡ riêng từng bài");
+    if (opts.onlyUnpublished) throw new Error("Already published; remove it individually");
     await driver.remove(rec);
   }
   await prisma.socialPost.delete({ where: { id: rec.id } });
@@ -404,7 +404,7 @@ async function publishRecord(id: string) {
     where: { id, status: "scheduled" },
     data: { status: "publishing", lastError: null },
   });
-  if (claimed.count !== 1) throw new Error("Bài đang được đăng ở một lượt khác");
+  if (claimed.count !== 1) throw new Error("Already being published by another run");
 
   const rec = await prisma.socialPost.findUniqueOrThrow({ where: { id } });
   const driver = driverFor(rec.platform as Platform);
@@ -441,7 +441,7 @@ async function runDueOnce(now: Date) {
     try {
       await driver.maintenance?.();
     } catch (err) {
-      results.push({ platform, articleId: "-", outcome: `bảo trì lỗi: ${(err as Error).message}` });
+      results.push({ platform, articleId: "-", outcome: `maintenance failed: ${(err as Error).message}` });
     }
   }
 
@@ -449,7 +449,7 @@ async function runDueOnce(now: Date) {
   // đăng lại — đánh dấu lỗi để người kiểm tra trên nền tảng rồi quyết.
   await prisma.socialPost.updateMany({
     where: { status: "publishing", updatedAt: { lt: new Date(now.getTime() - STUCK_MS) } },
-    data: { status: "failed", lastError: "Lượt đăng bị ngắt giữa chừng. Kiểm tra trên nền tảng trước khi đăng lại." },
+    data: { status: "failed", lastError: "Publishing was interrupted midway. Check the platform before posting again." },
   });
 
   for (const platform of PLATFORMS) {
@@ -467,15 +467,15 @@ async function runDueOnce(now: Date) {
       const [slot] = await nextFreeSlots(platform, 1, now);
       if (slot) {
         await prisma.socialPost.update({ where: { id: rec.id }, data: { scheduledAt: slot } });
-        results.push({ platform, articleId: rec.articleId, outcome: `dời sang ${slot.toISOString()}` });
+        results.push({ platform, articleId: rec.articleId, outcome: `moved to ${slot.toISOString()}` });
         continue;
       }
     }
     try {
       const out = await publishRecord(rec.id);
-      results.push({ platform, articleId: rec.articleId, outcome: `đã đăng ${out.remotePostId}` });
+      results.push({ platform, articleId: rec.articleId, outcome: `posted ${out.remotePostId}` });
     } catch (err) {
-      results.push({ platform, articleId: rec.articleId, outcome: `lỗi: ${(err as Error).message}` });
+      results.push({ platform, articleId: rec.articleId, outcome: `error: ${(err as Error).message}` });
     }
   }
   return results;

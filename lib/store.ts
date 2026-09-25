@@ -292,7 +292,7 @@ export async function listArticlesPage(query: ArticleQuery = {}): Promise<Articl
 }
 
 /** Bỏ dấu + chữ thường, để "viet nam" khớp "Việt Nam" và "đà nẵng" khớp "Đà Nẵng". */
-function foldVietnamese(s: string) {
+export function foldVietnamese(s: string) {
   return s
     .normalize("NFD")
     .replace(/[̀-ͯ]/g, "")

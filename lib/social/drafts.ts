@@ -47,20 +47,20 @@ export type DraftState =
   | { status: "error"; error: string };
 
 export function readDraft(id: string): DraftState {
-  if (!UUID.test(id)) return { status: "error", error: "Mã yêu cầu không hợp lệ" };
+  if (!UUID.test(id)) return { status: "error", error: "Invalid request id" };
   try {
     const out = JSON.parse(fs.readFileSync(path.join(OUT, `${id}.json`), "utf8")) as {
       text?: string;
       error?: string;
     };
-    return out.text ? { status: "done", text: out.text } : { status: "error", error: out.error ?? "Không viết được" };
+    return out.text ? { status: "done", text: out.text } : { status: "error", error: out.error ?? "Could not write a draft" };
   } catch {
     // chưa có kết quả
   }
   try {
     const job = JSON.parse(fs.readFileSync(path.join(INBOX, `${id}.json`), "utf8")) as { createdAt: number };
     if (Date.now() - job.createdAt > GIVE_UP_MS) {
-      return { status: "error", error: "Máy chủ chưa xử lý sau 5 phút. Kiểm tra cron social-draft-watch trên host." };
+      return { status: "error", error: "Not picked up after 5 minutes. Check the social-draft-worker cron on the host." };
     }
   } catch {
     // watcher đã nhặt, đang viết

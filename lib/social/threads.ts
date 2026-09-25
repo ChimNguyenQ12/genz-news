@@ -85,7 +85,7 @@ async function refreshTokenIfDue() {
     error?: { message?: string };
   };
   if (!res.ok || !data.access_token) {
-    throw new Error(`Không gia hạn được token Threads: ${data.error?.message ?? `HTTP ${res.status}`}`);
+    throw new Error(`Could not refresh the Threads token: ${data.error?.message ?? `HTTP ${res.status}`}`);
   }
   writeStored({
     ...stored,
@@ -103,7 +103,7 @@ async function api<T = Record<string, unknown>>(
   params: Record<string, string> = {},
 ): Promise<T> {
   const token = currentToken();
-  if (!token) throw new Error("Chưa cấu hình THREAD_PAGE_ACCESS_TOKEN");
+  if (!token) throw new Error("THREAD_PAGE_ACCESS_TOKEN not configured");
   const search = new URLSearchParams({ ...params, access_token: token });
   const url = method === "POST" ? `${API}/${pathPart}` : `${API}/${pathPart}?${search}`;
   const res = await fetch(url, {
@@ -113,9 +113,9 @@ async function api<T = Record<string, unknown>>(
   });
   const data = (await res.json().catch(() => ({}))) as T & { error?: { message?: string } };
   if (!res.ok || data.error) {
-    const msg = data.error?.message ?? `Threads trả HTTP ${res.status}`;
+    const msg = data.error?.message ?? `Threads returned HTTP ${res.status}`;
     if (/permission/i.test(msg) && method === "DELETE") {
-      throw new Error("Token Threads chưa có quyền threads_delete. Tạo lại token có quyền này rồi thử lại.");
+      throw new Error("The Threads token lacks the threads_delete permission. Generate a token with it and try again.");
     }
     throw new Error(msg);
   }
@@ -141,7 +141,7 @@ async function createAndPublish(params: Record<string, string>) {
     });
     if (st.status === "FINISHED") break;
     if (st.status === "ERROR" || st.status === "EXPIRED") {
-      throw new Error(`Threads không xử lý được bài: ${st.error_message ?? st.status}`);
+      throw new Error(`Threads could not process the post: ${st.error_message ?? st.status}`);
     }
     await new Promise((r) => setTimeout(r, 3000));
   }
@@ -177,7 +177,7 @@ export const threadsDriver: SocialDriver = {
 
   async create(article: Article, caption: string, comment: string) {
     if (caption.length > THREADS_MAX) {
-      throw new Error(`Bài Threads dài ${caption.length} ký tự, tối đa ${THREADS_MAX}`);
+      throw new Error(`Threads post is ${caption.length} characters; the limit is ${THREADS_MAX}`);
     }
     const jpeg = await coverAsJpeg(article);
     const params: Record<string, string> = jpeg
@@ -198,7 +198,7 @@ export const threadsDriver: SocialDriver = {
     try {
       remoteCommentId = await createAndPublish({ media_type: "TEXT", text: comment, reply_to_id: remotePostId });
     } catch (err) {
-      commentError = `Đã đăng bài nhưng chưa đăng được reply chứa link: ${(err as Error).message}`;
+      commentError = `Posted, but the link reply failed: ${(err as Error).message}`;
     }
     return { remotePostId, remoteMediaId: null, remoteCommentId, permalink, commentError };
   },

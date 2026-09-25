@@ -14,7 +14,7 @@ const GRAPH = "https://graph.facebook.com/v20.0";
 function credentials() {
   const pageId = process.env.FB_PAGE_ID;
   const token = process.env.FB_PAGE_ACCESS_TOKEN;
-  if (!pageId || !token) throw new Error("Chưa cấu hình FB_PAGE_ID / FB_PAGE_ACCESS_TOKEN");
+  if (!pageId || !token) throw new Error("FB_PAGE_ID / FB_PAGE_ACCESS_TOKEN not configured");
   return { pageId, token };
 }
 
@@ -36,7 +36,7 @@ async function graph<T = Record<string, unknown>>(
   }
   const res = await fetch(url, { method, body, signal: AbortSignal.timeout(60_000) });
   const data = (await res.json().catch(() => ({}))) as T & { error?: { message?: string } };
-  if (!res.ok || data.error) throw new Error(data.error?.message ?? `Facebook trả HTTP ${res.status}`);
+  if (!res.ok || data.error) throw new Error(data.error?.message ?? `Facebook returned HTTP ${res.status}`);
   return data;
 }
 
@@ -89,7 +89,7 @@ export const facebookDriver: SocialDriver = {
     try {
       remoteCommentId = (await graph<{ id: string }>(`${remotePostId}/comments`, "POST", { message: comment })).id;
     } catch (err) {
-      commentError = `Đã đăng bài nhưng chưa đăng được bình luận link: ${(err as Error).message}`;
+      commentError = `Posted, but the link comment failed: ${(err as Error).message}`;
     }
     const [, postPart] = remotePostId.split("_");
     const permalink = postPart ? `https://www.facebook.com/${pageId}/posts/${postPart}` : null;

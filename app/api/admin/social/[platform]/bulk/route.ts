@@ -20,18 +20,18 @@ export async function POST(req: Request, { params }: Ctx) {
   const ids = Array.isArray(body.articleIds)
     ? [...new Set(body.articleIds.filter((x): x is string => typeof x === "string"))].slice(0, 100)
     : [];
-  if (!ids.length) return NextResponse.json({ error: "Chưa chọn bài nào" }, { status: 400 });
+  if (!ids.length) return NextResponse.json({ error: "Nothing selected" }, { status: 400 });
 
-  const tail = (skipped: unknown[]) => (skipped.length ? `, bỏ qua ${skipped.length}` : "");
+  const tail = (skipped: unknown[]) => (skipped.length ? `, ${skipped.length} not applicable` : "");
 
   if (body.action === "now") {
     const { queued, skipped } = await queueNow(g.platform, ids);
     if (queued.length) after(() => runDue().catch(() => {}));
-    return NextResponse.json({ skipped, message: `Đã đưa ${queued.length} bài vào hàng đợi đăng${tail(skipped)}` });
+    return NextResponse.json({ skipped, message: `Queued ${queued.length} for posting${tail(skipped)}` });
   }
   if (body.action === "golden") {
     const { queued, skipped } = await scheduleGolden(g.platform, ids);
-    return NextResponse.json({ skipped, message: `Đã xếp ${queued.length} bài vào giờ vàng${tail(skipped)}` });
+    return NextResponse.json({ skipped, message: `Scheduled ${queued.length} into golden hours${tail(skipped)}` });
   }
   if (body.action === "cancel") {
     let done = 0;
@@ -44,7 +44,7 @@ export async function POST(req: Request, { params }: Ctx) {
         skipped.push({ articleId: id, reason: (err as Error).message });
       }
     }
-    return NextResponse.json({ skipped, message: `Đã huỷ lịch ${done} bài${tail(skipped)}` });
+    return NextResponse.json({ skipped, message: `Unscheduled ${done}${tail(skipped)}` });
   }
   if (body.action === "skip") {
     let done = 0;
@@ -57,7 +57,7 @@ export async function POST(req: Request, { params }: Ctx) {
         skipped.push({ articleId: id, reason: (err as Error).message });
       }
     }
-    return NextResponse.json({ skipped, message: `Đã bỏ qua ${done} bài${tail(skipped)}` });
+    return NextResponse.json({ skipped, message: `Skipped ${done}${tail(skipped)}` });
   }
-  return NextResponse.json({ error: "Thao tác không hợp lệ" }, { status: 400 });
+  return NextResponse.json({ error: "Unknown action" }, { status: 400 });
 }

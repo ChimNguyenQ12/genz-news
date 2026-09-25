@@ -14,11 +14,11 @@ export async function PATCH(req: Request, { params }: Ctx) {
   const body = (await req.json().catch(() => ({}))) as { caption?: string; comment?: string; scheduledAt?: string };
   const at = body.scheduledAt ? new Date(body.scheduledAt) : undefined;
   if (at && Number.isNaN(at.getTime())) {
-    return NextResponse.json({ error: "Giờ đăng không hợp lệ" }, { status: 400 });
+    return NextResponse.json({ error: "Invalid time" }, { status: 400 });
   }
   try {
     await updatePost(g.platform, articleId, { caption: body.caption, comment: body.comment, scheduledAt: at });
-    return NextResponse.json({ message: "Đã lưu thay đổi" });
+    return NextResponse.json({ message: "Saved" });
   } catch (err) {
     return fail(err);
   }
@@ -31,7 +31,7 @@ export async function DELETE(_req: Request, { params }: Ctx) {
   if (g.error) return g.error;
   try {
     await removePost(g.platform, articleId);
-    return NextResponse.json({ message: "Đã gỡ" });
+    return NextResponse.json({ message: "Removed" });
   } catch (err) {
     return fail(err);
   }

@@ -8,10 +8,10 @@ export async function guard(
 ): Promise<{ platform: Platform; error?: never } | { platform?: never; error: NextResponse }> {
   const user = await getSessionUser();
   if (user?.role !== "admin") {
-    return { error: NextResponse.json({ error: "Không có quyền truy cập" }, { status: 403 }) };
+    return { error: NextResponse.json({ error: "Forbidden" }, { status: 403 }) };
   }
   if (platformParam !== undefined && !isPlatform(platformParam)) {
-    return { error: NextResponse.json({ error: "Nền tảng không hợp lệ" }, { status: 404 }) };
+    return { error: NextResponse.json({ error: "Unknown platform" }, { status: 404 }) };
   }
   return { platform: platformParam as Platform };
 }

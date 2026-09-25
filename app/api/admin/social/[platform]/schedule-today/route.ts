@@ -17,10 +17,10 @@ export async function POST(req: Request, { params }: Ctx) {
     return NextResponse.json({
       ...r,
       message: !r.freeSlots
-        ? "Hôm nay không còn giờ vàng trống"
+        ? "No free golden hours left today"
         : r.scheduled.length
-          ? `Đã xếp ${r.scheduled.length} bài nóng nhất vào ${r.freeSlots} giờ vàng còn trống hôm nay`
-          : "Không còn bài nào chưa lên",
+          ? `Scheduled the ${r.scheduled.length} hottest into today's ${r.freeSlots} free golden hours`
+          : "Nothing left to schedule",
     });
   } catch (err) {
     return fail(err);

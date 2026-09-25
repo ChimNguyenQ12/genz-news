@@ -23,21 +23,21 @@ export async function POST(req: Request, { params }: Ctx) {
     mode?: "now" | "schedule";
     scheduledAt?: string;
   };
-  if (!body.articleId) return NextResponse.json({ error: "Thiếu articleId" }, { status: 400 });
+  if (!body.articleId) return NextResponse.json({ error: "Missing articleId" }, { status: 400 });
 
   try {
     if (body.mode === "now") {
       const { queued, skipped } = await queueNow(g.platform, [body.articleId], body);
-      if (!queued.length) throw new Error(skipped[0]?.reason ?? "Không đưa được vào hàng đợi");
+      if (!queued.length) throw new Error(skipped[0]?.reason ?? "Could not queue");
       after(() => runDue().catch(() => {}));
-      return NextResponse.json({ message: "Đã đưa vào hàng đợi, bài sẽ lên trong giây lát" });
+      return NextResponse.json({ message: "Queued — it will go live in a moment" });
     }
     const at = body.scheduledAt ? new Date(body.scheduledAt) : undefined;
     if (at && (Number.isNaN(at.getTime()) || at.getTime() < Date.now() - 60_000)) {
-      return NextResponse.json({ error: "Giờ đăng không hợp lệ hoặc đã qua" }, { status: 400 });
+      return NextResponse.json({ error: "Invalid or past time" }, { status: 400 });
     }
     await schedulePost(g.platform, body.articleId, { caption: body.caption, comment: body.comment, scheduledAt: at });
-    return NextResponse.json({ message: "Đã lên lịch đăng" });
+    return NextResponse.json({ message: "Scheduled" });
   } catch (err) {
     return fail(err);
   }
