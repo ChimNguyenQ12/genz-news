@@ -14,6 +14,8 @@ interface Post {
   caption: string;
   comment: string;
   topicTag: string | null;
+  /** JSON [{type,url}]; null = article cover, "[]" = text only. */
+  media: string | null;
   scheduledAt: string | null;
   remotePostId: string | null;
   permalink: string | null;
@@ -78,6 +80,66 @@ interface Confirm {
 interface Toast {
   text: string;
   kind: "ok" | "error";
+}
+
+interface MediaItem {
+  type: "image" | "video";
+  url: string;
+}
+type MediaMode = "cover" | "custom" | "none";
+const MAX_IMAGES = 10;
+
+const EMOJIS = [
+  "🔥", "⚡", "📌", "👇", "👉", "✨", "💯", "🚨", "📢", "❗", "❓", "💥",
+  "😂", "🤣", "😍", "🥰", "😎", "🤔", "😱", "😭", "😅", "🤯", "👀", "🫣",
+  "👏", "🙏", "👍", "❤️", "💔", "🎉", "🎯", "🏆", "⚽", "🎬", "🎵", "📱",
+  "💻", "🤖", "💰", "💸", "📈", "📉", "🌏", "🇻🇳", "🗞️", "📰", "⏰", "✅",
+];
+
+/** Small emoji palette that inserts at the caret of the given textarea. */
+function EmojiButton({ target, onInsert }: { target: React.RefObject<HTMLTextAreaElement | null>; onInsert: (next: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const insert = (emoji: string) => {
+    const el = target.current;
+    if (!el) return;
+    const start = el.selectionStart ?? el.value.length;
+    const end = el.selectionEnd ?? start;
+    onInsert(el.value.slice(0, start) + emoji + el.value.slice(end));
+    requestAnimationFrame(() => {
+      el.focus();
+      el.setSelectionRange(start + emoji.length, start + emoji.length);
+    });
+  };
+  return (
+    <span className="relative inline-block">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="rounded-lg border border-border px-2 py-1 text-xs font-semibold hover:border-accent"
+        aria-label="Insert emoji"
+      >
+        😊 Emoji
+      </button>
+      {open && (
+        <span className="absolute left-0 z-10 mt-1 grid w-72 grid-cols-8 gap-1 rounded-xl border border-border bg-background p-2 shadow-xl">
+          {EMOJIS.map((e) => (
+            <button key={e} type="button" onClick={() => insert(e)} className="rounded p-1 text-lg hover:bg-surface-2">
+              {e}
+            </button>
+          ))}
+        </span>
+      )}
+    </span>
+  );
+}
+
+function parseStoredMedia(stored: string | null): MediaItem[] {
+  try {
+    const v = JSON.parse(stored ?? "[]");
+    return Array.isArray(v) ? v : [];
+  } catch {
+    return [];
+  }
 }
 
 const fieldClass =
@@ -161,6 +223,11 @@ export default function SocialPostManager({ platform }: { platform: "facebook" |
   const [comment, setComment] = useState("");
   const [when, setWhen] = useState("");
   const [topicTag, setTopicTag] = useState("");
+  const [mediaMode, setMediaMode] = useState<MediaMode>("cover");
+  const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const captionRef = useRef<HTMLTextAreaElement>(null);
+  const commentRef = useRef<HTMLTextAreaElement>(null);
   const [drafting, setDrafting] = useState(false);
   // Bumped whenever the editor opens or closes; a running "GenZ rewrite" poll
   // that sees a different number stops, so it never overwrites another post.
@@ -285,8 +352,47 @@ export default function SocialPostManager({ platform }: { platform: "facebook" |
     setCaption(r.post?.caption ?? r.defaultCaption);
     setComment(r.post?.comment ?? r.defaultComment);
     setTopicTag(r.post ? (r.post.topicTag ?? "") : (r.defaultTopicTag ?? ""));
+    const stored = r.post?.media ?? null;
+    setMediaItems(parseStoredMedia(stored));
+    setMediaMode(stored === null ? (r.coverImage ? "cover" : "none") : stored === "[]" ? "none" : "custom");
     setWhen(toLocalInput(r.post?.scheduledAt ?? data?.nextSlot ?? null));
     if (opts.draft) void generateDraft(r);
+  };
+
+  /** What goes to the API: null = article cover, [] = text only, list = custom. */
+  const mediaPayload = () =>
+    mediaMode === "cover" ? null : mediaMode === "none" ? [] : mediaItems;
+
+  const uploadFiles = async (files: FileList | null) => {
+    if (!files?.length) return;
+    const picked = [...files];
+    const hasVideo = mediaItems.some((m) => m.type === "video") || picked.some((f) => f.type.startsWith("video/"));
+    if (hasVideo && mediaItems.length + picked.length > 1) {
+      notify("Use either one video or images, not both", "error");
+      return;
+    }
+    if (mediaItems.length + picked.length > MAX_IMAGES) {
+      notify(`At most ${MAX_IMAGES} images per post`, "error");
+      return;
+    }
+    setUploading(true);
+    try {
+      const added: MediaItem[] = [];
+      for (const file of picked) {
+        const form = new FormData();
+        form.append("file", file);
+        const res = await fetch("/api/upload", { method: "POST", body: form });
+        const out = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(out.error || `Upload failed (${res.status})`);
+        added.push({ type: out.kind === "video" ? "video" : "image", url: out.url });
+      }
+      setMediaItems((cur) => [...cur, ...added]);
+      setMediaMode("custom");
+    } catch (err) {
+      notify((err as Error).message, "error");
+    } finally {
+      setUploading(false);
+    }
   };
 
   const scheduleToday = () =>
@@ -294,7 +400,10 @@ export default function SocialPostManager({ platform }: { platform: "facebook" |
       api(`${base}/schedule-today`, { method: "POST", body: JSON.stringify({ perDay: data?.perDay }) }),
     );
 
-  const publishNow = (r: Row, text?: { caption: string; comment: string; topicTag?: string }) =>
+  const publishNow = (
+    r: Row,
+    text?: { caption: string; comment: string; topicTag?: string; media?: MediaItem[] | null },
+  ) =>
     setConfirmBox({
       title: `Post to ${label} now?`,
       body: (
@@ -349,6 +458,7 @@ export default function SocialPostManager({ platform }: { platform: "facebook" |
                 comment,
                 mode: "schedule",
                 scheduledAt,
+                media: mediaPayload(),
                 ...(data?.supportsTopicTag ? { topicTag } : {}),
               }),
             }),
@@ -360,6 +470,7 @@ export default function SocialPostManager({ platform }: { platform: "facebook" |
                 caption,
                 comment,
                 scheduledAt: s === "published" ? undefined : scheduledAt,
+                ...(s !== "published" ? { media: mediaPayload() } : {}),
                 ...(data?.supportsTopicTag && s !== "published" ? { topicTag } : {}),
               }),
             }),
@@ -771,6 +882,7 @@ export default function SocialPostManager({ platform }: { platform: "facebook" |
                     )}
                   </span>
                   <textarea
+                    ref={captionRef}
                     rows={9}
                     value={caption}
                     onChange={(e) => setCaption(e.target.value)}
@@ -780,6 +892,7 @@ export default function SocialPostManager({ platform }: { platform: "facebook" |
                   />
                 </label>
                 <div className="flex flex-wrap items-center gap-3">
+                  <EmojiButton target={captionRef} onInsert={setCaption} />
                   {platform === "threads" && editingStatus !== "published" && (
                     <button
                       onClick={() => void generateDraft(editing)}
@@ -839,9 +952,92 @@ export default function SocialPostManager({ platform }: { platform: "facebook" |
                     </div>
                   </div>
                 )}
+                {editingStatus !== "published" && (
+                  <div className="text-xs">
+                    <div className="font-bold">Media</div>
+                    <div className="mt-1 flex flex-wrap gap-1.5">
+                      {(
+                        [
+                          ["cover", "Article cover", !editing.coverImage],
+                          ["custom", "Custom upload", false],
+                          ["none", "No media", false],
+                        ] as [MediaMode, string, boolean][]
+                      ).map(([mode, text, disabled]) => (
+                        <button
+                          key={mode}
+                          type="button"
+                          disabled={disabled}
+                          onClick={() => setMediaMode(mode)}
+                          className={`rounded-full border px-3 py-1 font-semibold transition disabled:opacity-40 ${
+                            mediaMode === mode ? "border-accent bg-accent text-white" : "border-border hover:border-accent"
+                          }`}
+                        >
+                          {text}
+                        </button>
+                      ))}
+                    </div>
+                    {mediaMode === "custom" && (
+                      <div className="mt-2 space-y-2">
+                        <div className="flex flex-wrap gap-2">
+                          {mediaItems.map((m, i) => (
+                            <span key={m.url} className="relative size-16 overflow-hidden rounded-lg border border-border bg-surface-2">
+                              {m.type === "video" ? (
+                                <video src={m.url} muted className="size-full object-cover" />
+                              ) : (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img src={mediaUrl(m.url)} alt="" className="size-full object-cover" />
+                              )}
+                              <span className="absolute top-0.5 left-0.5 rounded bg-black/60 px-1 text-[10px] text-white">
+                                {m.type === "video" ? "▶" : i + 1}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => setMediaItems((cur) => cur.filter((x) => x.url !== m.url))}
+                                aria-label="Remove"
+                                className="absolute top-0.5 right-0.5 rounded bg-black/60 px-1 text-[10px] text-white hover:bg-red-600"
+                              >
+                                ✕
+                              </button>
+                            </span>
+                          ))}
+                          {!mediaItems.some((m) => m.type === "video") && mediaItems.length < MAX_IMAGES && (
+                            <label
+                              className={`flex size-16 cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed border-border text-center text-[10px] text-muted hover:border-accent hover:text-accent ${
+                                uploading ? "pointer-events-none opacity-50" : ""
+                              }`}
+                            >
+                              <span className="text-lg leading-none">+</span>
+                              {uploading ? "Uploading…" : "Add"}
+                              <input
+                                type="file"
+                                multiple
+                                accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm"
+                                className="hidden"
+                                onChange={(e) => {
+                                  void uploadFiles(e.target.files);
+                                  e.target.value = "";
+                                }}
+                              />
+                            </label>
+                          )}
+                        </div>
+                        <p className="text-muted">
+                          Up to {MAX_IMAGES} images (posted as an album / carousel) or one video (MP4/WebM, max 200 MB).
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
+                {editingStatus === "published" && (
+                  <p className="text-xs text-muted">Media can’t be changed after posting; only the text and comment.</p>
+                )}
                 <label className="block text-xs font-bold">
-                  First comment (article link)
+                  <span className="flex items-center justify-between">
+                    First comment (article link)
+                    <EmojiButton target={commentRef} onInsert={setComment} />
+                  </span>
                   <textarea
+                    ref={commentRef}
                     rows={3}
                     value={comment}
                     onChange={(e) => setComment(e.target.value)}
@@ -888,10 +1084,39 @@ export default function SocialPostManager({ platform }: { platform: "facebook" |
                       # {topicTag.trim()}
                     </div>
                   )}
-                  {editing.coverImage && (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={mediaUrl(editing.coverImage)} alt="" className="mt-3 max-h-56 w-full rounded-xl object-cover" />
-                  )}
+                  {(() => {
+                    const shown: MediaItem[] =
+                      mediaMode === "cover"
+                        ? editing.coverImage
+                          ? [{ type: "image", url: editing.coverImage }]
+                          : []
+                        : mediaMode === "custom"
+                          ? mediaItems
+                          : [];
+                    if (!shown.length) return null;
+                    if (shown[0].type === "video") {
+                      return <video src={shown[0].url} controls className="mt-3 max-h-64 w-full rounded-xl bg-black" />;
+                    }
+                    return (
+                      <div className={`mt-3 grid gap-1 ${shown.length > 1 ? "grid-cols-2" : ""}`}>
+                        {shown.slice(0, 4).map((m, i) => (
+                          <span key={m.url} className="relative">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={mediaUrl(m.url)}
+                              alt=""
+                              className={`w-full rounded-lg object-cover ${shown.length > 1 ? "aspect-square" : "max-h-56"}`}
+                            />
+                            {i === 3 && shown.length > 4 && (
+                              <span className="absolute inset-0 flex items-center justify-center rounded-lg bg-black/50 text-lg font-bold text-white">
+                                +{shown.length - 4}
+                              </span>
+                            )}
+                          </span>
+                        ))}
+                      </div>
+                    );
+                  })()}
                   <div className="mt-3 rounded-xl bg-zinc-100 p-2.5 text-xs dark:bg-zinc-800/60">
                     <span className="font-bold">{data?.accountName}</span> <span className="break-all">{comment}</span>
                   </div>
@@ -909,8 +1134,15 @@ export default function SocialPostManager({ platform }: { platform: "facebook" |
               </button>
               {editingStatus !== "published" && (
                 <button
-                  onClick={() => publishNow(editing, { caption, comment, ...(data?.supportsTopicTag ? { topicTag } : {}) })}
-                  disabled={busy === editing.id || tooLong || badTag || drafting}
+                  onClick={() =>
+                    publishNow(editing, {
+                      caption,
+                      comment,
+                      media: mediaPayload(),
+                      ...(data?.supportsTopicTag ? { topicTag } : {}),
+                    })
+                  }
+                  disabled={busy === editing.id || tooLong || badTag || drafting || uploading}
                   className="rounded-xl border border-accent px-4 py-2 text-xs font-bold text-accent hover:bg-accent/10 disabled:opacity-50"
                 >
                   Post now
@@ -918,7 +1150,7 @@ export default function SocialPostManager({ platform }: { platform: "facebook" |
               )}
               <button
                 onClick={saveEditor}
-                disabled={busy === editing.id || tooLong || badTag || drafting}
+                disabled={busy === editing.id || tooLong || badTag || drafting || uploading}
                 className="rounded-xl bg-accent px-6 py-2 text-xs font-bold text-white shadow-lg hover:opacity-90 disabled:opacity-50"
               >
                 {busy === editing.id ? "Saving…" : editingStatus === "published" ? `Save & update on ${label}` : "Schedule"}

@@ -4,8 +4,8 @@ import path from "path";
 import type { Article } from "@/lib/types";
 import { uploadToS3 } from "@/lib/storage";
 import { getCategory } from "@/lib/data";
-import { articleUrl, coverAsJpeg } from "./format";
-import type { ArticleView, RemoteRef, SocialDriver } from "./types";
+import { articleUrl, imageAsJpeg } from "./format";
+import type { ArticleView, MediaItem, RemoteRef, SocialDriver } from "./types";
 
 /**
  * Threads (tài khoản genznews.hi).
@@ -149,11 +149,9 @@ async function userId() {
   return me.id;
 }
 
-/** Tạo container, chờ Threads xử lý xong (ảnh cần vài giây tới vài chục giây), rồi publish. */
-async function createAndPublish(params: Record<string, string>) {
-  const uid = await userId();
-  const { id: containerId } = await api<{ id: string }>(`${uid}/threads`, "POST", params);
-  for (let i = 0; i < 30; i++) {
+/** Chờ container xử lý xong. Ảnh: vài giây; video: có thể vài phút. */
+async function waitReady(containerId: string, tries: number) {
+  for (let i = 0; i < tries; i++) {
     const st = await api<{ status?: string; error_message?: string }>(containerId, "GET", {
       fields: "status,error_message",
     });
@@ -163,8 +161,22 @@ async function createAndPublish(params: Record<string, string>) {
     }
     await new Promise((r) => setTimeout(r, 3000));
   }
+}
+
+/** Tạo container, chờ Threads xử lý xong, rồi publish. */
+async function createAndPublish(params: Record<string, string>) {
+  const uid = await userId();
+  const { id: containerId } = await api<{ id: string }>(`${uid}/threads`, "POST", params);
+  await waitReady(containerId, params.media_type === "VIDEO" || params.media_type === "CAROUSEL" ? 100 : 30);
   const { id } = await api<{ id: string }>(`${uid}/threads_publish`, "POST", { creation_id: containerId });
   return id;
+}
+
+/** Threads tự tải ảnh về từ URL công khai, và chỉ nhận JPEG/PNG — kho mình là WebP. */
+async function publicJpegUrl(url: string) {
+  const jpeg = await imageAsJpeg(url);
+  if (!jpeg) throw new Error("Could not load the image");
+  return (await uploadToS3(jpeg, "image/jpeg", "jpg", "social")).url;
 }
 
 export const threadsDriver: SocialDriver = {
@@ -209,14 +221,34 @@ export const threadsDriver: SocialDriver = {
 
   formatComment: (a: ArticleView) => `Đọc đầy đủ tại đây 👉 ${articleUrl(a.slug)}`,
 
-  async create(article: Article, caption: string, comment: string, opts: { topicTag?: string | null } = {}) {
+  // Đã thử container thật (không publish): ảnh, carousel nhiều ảnh, video đều FINISHED.
+  async create(_article: Article, caption: string, comment: string, opts: { topicTag?: string | null; media: MediaItem[] }) {
     if (caption.length > THREADS_MAX) {
       throw new Error(`Threads post is ${caption.length} characters; the limit is ${THREADS_MAX}`);
     }
-    const jpeg = await coverAsJpeg(article);
-    const params: Record<string, string> = jpeg
-      ? { media_type: "IMAGE", image_url: (await uploadToS3(jpeg, "image/jpeg", "jpg", "social")).url, text: caption }
-      : { media_type: "TEXT", text: caption };
+    const images = opts.media.filter((m) => m.type === "image");
+    const video = opts.media.find((m) => m.type === "video");
+    let params: Record<string, string>;
+    if (video) {
+      params = { media_type: "VIDEO", video_url: video.url, text: caption };
+    } else if (images.length === 1) {
+      params = { media_type: "IMAGE", image_url: await publicJpegUrl(images[0].url), text: caption };
+    } else if (images.length > 1) {
+      const uid = await userId();
+      const children: string[] = [];
+      for (const img of images) {
+        const { id } = await api<{ id: string }>(`${uid}/threads`, "POST", {
+          media_type: "IMAGE",
+          image_url: await publicJpegUrl(img.url),
+          is_carousel_item: "true",
+        });
+        await waitReady(id, 30);
+        children.push(id);
+      }
+      params = { media_type: "CAROUSEL", children: children.join(","), text: caption };
+    } else {
+      params = { media_type: "TEXT", text: caption };
+    }
     const topic = opts.topicTag ? normalizeTopicTag(opts.topicTag) : "";
     if (topic) params.topic_tag = topic;
 

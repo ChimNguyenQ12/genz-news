@@ -8,6 +8,15 @@ export const isPlatform = (x: string): x is Platform => (PLATFORMS as readonly s
 /** skipped: người biên tập loại bài khỏi danh sách tự chọn (chỉ có ý nghĩa với nền tảng autoPick). */
 export type SocialPostStatus = "scheduled" | "publishing" | "published" | "failed" | "skipped";
 
+/** Một tệp đăng kèm bài. URL luôn nằm trên kho S3 của mình. */
+export interface MediaItem {
+  type: "image" | "video";
+  url: string;
+}
+
+/** Tối đa ảnh trong một bài (album Facebook / carousel Threads). */
+export const MAX_IMAGES = 10;
+
 /** Phần bài viết mà caption / bình luận cần. */
 export type ArticleView = Pick<Article, "title" | "dek" | "category" | "tags" | "slug">;
 
@@ -48,7 +57,12 @@ export interface SocialDriver {
   configured(): boolean;
   formatCaption(a: ArticleView): string;
   formatComment(a: ArticleView): string;
-  create(article: Article, caption: string, comment: string, opts?: { topicTag?: string | null }): Promise<PublishResult>;
+  create(
+    article: Article,
+    caption: string,
+    comment: string,
+    opts: { topicTag?: string | null; media: MediaItem[] },
+  ): Promise<PublishResult>;
   /** Sửa bài đã đăng; trả về id bình luận (có thể mới tạo). */
   update?(ref: RemoteRef, next: { caption?: string; comment?: string }): Promise<{ remoteCommentId: string | null }>;
   remove(ref: RemoteRef): Promise<void>;

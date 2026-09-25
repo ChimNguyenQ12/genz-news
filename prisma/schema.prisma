@@ -172,6 +172,9 @@ model SocialPost {
   comment         String
   /// Thẻ chủ đề Threads (gửi qua tham số topic_tag, mỗi bài một thẻ). Nền tảng khác bỏ qua.
   topicTag        String?
+  /// Media đăng kèm, JSON [{type:"image"|"video", url}]. NULL = dùng ảnh bìa của
+  /// bài (mặc định); "[]" = chỉ đăng chữ. URL phải nằm trên kho S3 của mình.
+  media           String?
   scheduledAt     DateTime?
   /// id bài trên nền tảng (Facebook: pageId_postId; Threads: media id)
   remotePostId    String?

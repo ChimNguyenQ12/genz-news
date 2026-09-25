@@ -21,6 +21,7 @@ export async function POST(req: Request, { params }: Ctx) {
     caption?: string;
     comment?: string;
     topicTag?: string | null;
+    media?: unknown;
     mode?: "now" | "schedule";
     scheduledAt?: string;
   };
@@ -41,6 +42,7 @@ export async function POST(req: Request, { params }: Ctx) {
       caption: body.caption,
       comment: body.comment,
       topicTag: body.topicTag,
+      media: body.media,
       scheduledAt: at,
     });
     return NextResponse.json({ message: "Scheduled" });

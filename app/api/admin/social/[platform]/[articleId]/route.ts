@@ -15,6 +15,7 @@ export async function PATCH(req: Request, { params }: Ctx) {
     caption?: string;
     comment?: string;
     topicTag?: string | null;
+    media?: unknown;
     scheduledAt?: string;
   };
   const at = body.scheduledAt ? new Date(body.scheduledAt) : undefined;
@@ -26,6 +27,7 @@ export async function PATCH(req: Request, { params }: Ctx) {
       caption: body.caption,
       comment: body.comment,
       topicTag: body.topicTag,
+      media: body.media,
       scheduledAt: at,
     });
     return NextResponse.json({ message: "Saved" });
