@@ -18,6 +18,8 @@ export interface User {
   passwordHash: string;
   salt: string;
   role: Role;
+  /** Bị admin khoá (ISO). Không có = đang hoạt động. */
+  disabledAt?: string;
   createdAt: string;
 }
 
@@ -40,6 +42,7 @@ type UserRow = {
   passwordHash: string;
   salt: string;
   role: string;
+  disabledAt: Date | null;
   createdAt: Date;
 };
 
@@ -51,6 +54,7 @@ function toUser(row: UserRow): User {
     passwordHash: row.passwordHash,
     salt: row.salt,
     role: row.role as Role,
+    disabledAt: row.disabledAt?.toISOString(),
     createdAt: row.createdAt.toISOString(),
   };
 }

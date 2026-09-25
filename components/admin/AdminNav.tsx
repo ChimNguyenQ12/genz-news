@@ -23,6 +23,7 @@ export default function AdminNav({ user }: { user: PublicUser }) {
           { href: "/admin/facebook", label: "Facebook" },
           { href: "/admin/threads", label: "Threads" },
           { href: "/admin/research", label: "Research" },
+          { href: "/admin/users", label: "Users" },
         ]
       : []),
     { href: "/admin/tai-khoan", label: "Profile" },

@@ -40,7 +40,8 @@ export async function getSessionUser(): Promise<PublicUser | null> {
   const userId = verifySessionToken(store.get(SESSION_COOKIE)?.value);
   if (!userId) return null;
   const user = await findById(userId);
-  return user ? toPublicUser(user) : null;
+  // Tài khoản bị khoá: phiên đang mở mất hiệu lực ngay, không đợi cookie hết hạn.
+  return user && !user.disabledAt ? toPublicUser(user) : null;
 }
 
 export async function requireRole(role: Role): Promise<PublicUser | null> {

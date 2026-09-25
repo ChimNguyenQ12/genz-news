@@ -21,6 +21,13 @@ export async function POST(request: Request) {
   );
   if (!user) return failed;
   if (!(await verifyPassword(user, password))) return failed;
+  // Báo rõ chỉ SAU khi đúng mật khẩu: người lạ không dò được tài khoản nào bị khoá.
+  if (user.disabledAt) {
+    return NextResponse.json(
+      { error: "Tài khoản này đã bị khoá. Liên hệ ban biên tập nếu bạn nghĩ đây là nhầm lẫn." },
+      { status: 403 },
+    );
+  }
 
   const publicUser = toPublicUser(user);
   const redirectUrl = publicUser.role === "admin" ? "/admin" : "/dashboard";

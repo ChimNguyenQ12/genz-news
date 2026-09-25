@@ -24,6 +24,9 @@ model User {
   salt         String
   /// "admin" | "contributor"
   role         String   @default("contributor")
+  /// Khoá bởi admin (/admin/users): không đăng nhập được, phiên đang mở mất
+  /// hiệu lực ngay. NULL = đang hoạt động.
+  disabledAt   DateTime?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
