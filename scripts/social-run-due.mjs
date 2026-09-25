@@ -1,10 +1,10 @@
 /**
- * Đăng các bài Facebook đã tới giờ trong lịch (xem lib/facebook.ts).
+ * Đăng các bài mạng xã hội (Facebook, Threads) đã tới giờ (lib/social/core.ts).
  *
- *   0-59/5 * * * * flock -n /var/lock/genz-news-facebook.lock node /srv/genz-news/repo/scripts/facebook-run-due.mjs >> /var/log/genz-news-facebook.log 2>&1
+ *   0-59/5 * * * * flock -n /var/lock/genz-news-social.lock node /srv/genz-news/repo/scripts/social-run-due.mjs >> /var/log/genz-news-social.log 2>&1
  *
- * Việc đăng nằm trong app (nó có token Facebook, sharp để đổi ảnh sang JPEG, và
- * Prisma); script này chỉ gõ cửa /api/admin/facebook/run-due bằng một phiên
+ * Việc đăng nằm trong app (nó có các token, sharp để đổi ảnh sang JPEG, và
+ * Prisma); script này chỉ gõ cửa /api/admin/social/run-due bằng một phiên
  * admin tự ký bằng session-secret — đúng cách các script bảo trì khác làm.
  * Không có gì tới giờ thì im lặng, để log chỉ có dòng khi thật sự đăng.
  */
@@ -33,7 +33,7 @@ function adminCookie() {
   return `genz_session=${payload}.${signature}`;
 }
 
-const res = await fetch(`${APP_URL}/api/admin/facebook/run-due`, {
+const res = await fetch(`${APP_URL}/api/admin/social/run-due`, {
   method: "POST",
   headers: { Cookie: adminCookie() },
   signal: AbortSignal.timeout(4 * 60 * 1000),

@@ -21,6 +21,7 @@ export default function AdminNav({ user }: { user: PublicUser }) {
     ...(isAdmin
       ? [
           { href: "/admin/facebook", label: "Facebook" },
+          { href: "/admin/threads", label: "Threads" },
           { href: "/admin/research", label: "Research" },
         ]
       : []),

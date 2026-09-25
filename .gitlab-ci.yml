@@ -74,6 +74,7 @@ deploy:
         printf 'AWS_PROFILE=%s\n'          "${AWS_PROFILE:-s3-full-sandbox}"
         printf 'FB_PAGE_ID=%s\n'           "${FB_PAGE_ID:-}"
         printf 'FB_PAGE_ACCESS_TOKEN=%s\n' "${FB_PAGE_ACCESS_TOKEN:-}"
+        printf 'THREAD_PAGE_ACCESS_TOKEN=%s\n' "${THREAD_PAGE_ACCESS_TOKEN:-}"
       } > .env
     - docker-compose up -d --build --remove-orphans
     - docker image prune -f

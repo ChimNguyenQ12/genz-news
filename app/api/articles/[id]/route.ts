@@ -5,7 +5,7 @@ import { closeRequestForArticle } from "@/lib/queue";
 import type { Article, ArticleStatus, CategorySlug } from "@/lib/types";
 import { categories } from "@/lib/data";
 import { normalizeArticleHtml } from "@/lib/html";
-import { autoScheduleOnPublish } from "@/lib/facebook";
+import { autoScheduleOnPublish } from "@/lib/social/core";
 
 const VALID_CATEGORIES = new Set(categories.map((c) => c.slug));
 
@@ -178,7 +178,7 @@ export async function PUT(
   // không phải nhật ký — bài đã đăng mà vẫn nằm đó thì mỗi ngày một dài thêm.
   if (patch.status === "published") {
     await closeRequestForArticle(id);
-    // Xếp bài vào giờ vàng trống kế tiếp trên Facebook Page (lib/facebook.ts),
+    // Xếp bài vào giờ vàng trống kế tiếp trên Facebook Page / Threads (lib/social),
     // không đăng ngay: đăng dồn theo nhịp duyệt bài thì Page bị hạ tiếp cận.
     // Bài đã có trong lịch / đã lên Page thì thôi. Lỗi ở đây không được làm
     // hỏng việc đăng bài trên web.

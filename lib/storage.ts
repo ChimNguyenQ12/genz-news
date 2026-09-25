@@ -35,10 +35,13 @@ export async function uploadToS3(
   buffer: Buffer,
   contentType: string,
   extension: string,
+  /** Thư mục gốc. "social/" cho ảnh JPEG tạm gửi Threads — tách khỏi uploads/
+   *  để lệnh dọn ảnh không dùng của uploads/ không phải biết tới chúng. */
+  prefix = "uploads",
 ): Promise<UploadResult> {
   const now = new Date();
   const key = [
-    "uploads",
+    prefix,
     String(now.getFullYear()),
     String(now.getMonth() + 1).padStart(2, "0"),
     `${crypto.randomUUID()}.${extension}`,

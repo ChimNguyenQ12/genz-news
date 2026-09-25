@@ -70,7 +70,7 @@ model Article {
 
   sources      Source[]
   comments     Comment[]
-  facebookPost FacebookPost?
+  socialPosts  SocialPost[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -152,28 +152,35 @@ model ResearchRequest {
   @@map("research_requests")
 }
 
-/// Một bài viết trên web ↔ một bài trên Facebook Page.
+/// Một bài viết trên web ↔ một bài trên một mạng xã hội (Facebook Page, Threads).
 ///
 /// Vòng đời: scheduled → publishing → published, hoặc → failed (kèm lastError,
-/// sửa rồi lên lịch lại). "publishing" là khoá tạm: lượt chạy cron nào đổi được
+/// sửa rồi lên lịch lại). "publishing" là khoá tạm: lượt chạy nào đổi được
 /// scheduled → publishing thì lượt đó đăng, nên hai lượt chồng nhau không đăng
 /// trùng một bài.
-model FacebookPost {
-  id          String    @id @default(uuid())
-  articleId   String    @unique
-  article     Article   @relation(fields: [articleId], references: [id], onDelete: Cascade)
-  status      String    @default("scheduled")
-  caption     String
-  comment     String
-  scheduledAt DateTime?
-  fbPostId    String?
-  fbPhotoId   String?
-  fbCommentId String?
-  postedAt    DateTime?
-  lastError   String?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+model SocialPost {
+  id              String    @id @default(uuid())
+  articleId       String
+  article         Article   @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  /// "facebook" | "threads"
+  platform        String
+  status          String    @default("scheduled")
+  caption         String
+  comment         String
+  scheduledAt     DateTime?
+  /// id bài trên nền tảng (Facebook: pageId_postId; Threads: media id)
+  remotePostId    String?
+  /// Facebook: id tấm ảnh — có thao tác chỉ làm được qua id này
+  remoteMediaId   String?
+  /// bình luận / reply đầu tiên chứa link bài
+  remoteCommentId String?
+  permalink       String?
+  postedAt        DateTime?
+  lastError       String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
-  @@index([status, scheduledAt])
-  @@map("facebook_posts")
+  @@unique([articleId, platform])
+  @@index([platform, status, scheduledAt])
+  @@map("social_posts")
 }

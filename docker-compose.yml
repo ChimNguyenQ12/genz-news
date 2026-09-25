@@ -64,3 +64,6 @@ services:
       # từ biến CI/CD của GitLab; để trống thì trang /admin/facebook báo chưa cấu hình.
       FB_PAGE_ID: ${FB_PAGE_ID:-}
       FB_PAGE_ACCESS_TOKEN: ${FB_PAGE_ACCESS_TOKEN:-}
+      # Threads (lib/social/threads.ts). Chỉ để nạp lần đầu: token gia hạn được
+      # ghi vào data/threads-token.json, biến này đổi sang token khác thì nạp lại.
+      THREAD_PAGE_ACCESS_TOKEN: ${THREAD_PAGE_ACCESS_TOKEN:-}
