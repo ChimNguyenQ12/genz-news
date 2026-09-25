@@ -177,7 +177,10 @@ export const threadsDriver: SocialDriver = {
   topicTag: {
     default: (a: ArticleView) => getCategory(a.category)?.name ?? "",
     suggestions: (a: ArticleView) => {
-      const out = [...POPULAR_TOPICS, getCategory(a.category)?.name ?? "", ...a.tags.slice(0, 4)];
+      // Bài bot viết gần đây lưu tag dạng slug ("bong-da-nu") — không dấu, có gạch
+      // nối, không ai dùng làm thẻ trên Threads. Chỉ gợi ý tag viết như chữ thường.
+      const readable = a.tags.filter((t) => !/^[a-z0-9]+(-[a-z0-9]+)+$/.test(t));
+      const out = [...POPULAR_TOPICS, getCategory(a.category)?.name ?? "", ...readable.slice(0, 4)];
       const seen = new Set<string>();
       return out.filter((t) => {
         const k = t.trim().toLowerCase();
