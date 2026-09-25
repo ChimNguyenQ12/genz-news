@@ -477,64 +477,84 @@ export default function SocialPostManager({ platform }: { platform: "facebook" |
         </div>
       )}
 
-      <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
-        <div className="no-scrollbar flex w-full gap-1 overflow-x-auto rounded-xl border border-border bg-surface p-1 lg:w-auto">
+      {/* Two rows on purpose: six tabs plus search, date and sort don't fit on one
+          line, and letting them wrap freely made the controls pile up. */}
+      <div className="space-y-2">
+        <div className="no-scrollbar flex gap-1 overflow-x-auto rounded-xl border border-border bg-surface p-1">
           {TABS.filter((t) => !t.autoPickOnly || data?.autoPick).map((t) => (
             <button
               key={t.key}
               onClick={() => update({ tab: t.key })}
-              className={`shrink-0 rounded-lg px-3 py-1.5 text-sm font-semibold transition ${
+              className={`shrink-0 whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-semibold transition sm:flex-1 ${
                 query.tab === t.key ? "bg-accent text-white" : "text-foreground/70 hover:bg-surface-2"
               }`}
             >
-              {t.label} ({data?.counts[t.key] ?? 0})
+              {t.label} <span className="opacity-70">({data?.counts[t.key] ?? 0})</span>
             </button>
           ))}
         </div>
 
-        <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center">
-          <input
-            value={query.q}
-            onChange={(e) => update({ q: e.target.value })}
-            placeholder="Search titles (all dates)…"
-            className={`${fieldClass} col-span-2 min-w-0 sm:w-56`}
-          />
-          <input
-            type="date"
-            value={query.date}
-            disabled={!!query.q.trim()}
-            max={data?.latestDate || undefined}
-            onChange={(e) => update({ date: e.target.value })}
-            className={`${fieldClass} min-w-0 disabled:opacity-40`}
-            title={query.q.trim() ? "Search covers all dates" : undefined}
-          />
-          {query.date ? (
-            <button
-              onClick={() => update({ date: "" })}
-              className="rounded-lg border border-border px-3 py-2 text-xs font-semibold hover:border-accent hover:text-accent sm:py-1.5"
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative min-w-[14rem] flex-1">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted"
             >
-              All dates
-            </button>
-          ) : (
-            <button
-              onClick={() => update({ date: data?.latestDate ?? "" })}
+              <circle cx="11" cy="11" r="7" />
+              <path d="M21 21l-4.3-4.3" />
+            </svg>
+            <input
+              value={query.q}
+              onChange={(e) => update({ q: e.target.value })}
+              placeholder="Search titles (all dates)…"
+              className={`${fieldClass} h-9 w-full pl-8`}
+            />
+          </div>
+
+          <div className="flex items-center gap-2">
+            <input
+              type="date"
+              value={query.date}
               disabled={!!query.q.trim()}
-              className="rounded-lg border border-border px-3 py-2 text-xs font-semibold hover:border-accent hover:text-accent disabled:opacity-40 sm:py-1.5"
-            >
-              Latest day
-            </button>
-          )}
+              max={data?.latestDate || undefined}
+              onChange={(e) => update({ date: e.target.value })}
+              className={`${fieldClass} h-9 disabled:opacity-40`}
+              title={query.q.trim() ? "Search covers all dates" : undefined}
+            />
+            {query.date ? (
+              <button
+                onClick={() => update({ date: "" })}
+                className="h-9 whitespace-nowrap rounded-lg border border-border px-3 text-xs font-semibold hover:border-accent hover:text-accent"
+              >
+                All dates
+              </button>
+            ) : (
+              <button
+                onClick={() => update({ date: data?.latestDate ?? "" })}
+                disabled={!!query.q.trim()}
+                className="h-9 whitespace-nowrap rounded-lg border border-border px-3 text-xs font-semibold hover:border-accent hover:text-accent disabled:opacity-40"
+              >
+                Latest day
+              </button>
+            )}
+          </div>
+
           <button
             onClick={() => update({ sort: query.sort === "score" ? "date" : "score" })}
-            className={`col-span-2 rounded-lg px-3 py-2 text-xs font-semibold sm:col-span-1 sm:py-1.5 ${
+            className={`h-9 whitespace-nowrap rounded-lg px-3 text-xs font-semibold ${
               query.sort === "score" ? "bg-orange-500 text-white" : "border border-border hover:border-accent hover:text-accent"
             }`}
           >
             🔥 {query.sort === "score" ? "Sorted by hotness" : "Sort by hotness"}
           </button>
-        </div>
 
-        <span className="text-xs text-muted lg:ml-auto">{loading ? "Loading…" : `${data?.total ?? 0} articles`}</span>
+          <span className="ml-auto whitespace-nowrap text-xs text-muted">
+            {loading ? "Loading…" : `${data?.total ?? 0} articles`}
+          </span>
+        </div>
       </div>
 
       {data?.configured && (
