@@ -1,25 +1,37 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { getCategory } from "@/lib/data";
 import { categoryStyles } from "@/lib/categoryStyles";
-import { listArticles } from "@/lib/store";
+import { listPublishedInCategory } from "@/lib/store";
 import ArticleCard from "@/components/ArticleCard";
+import PageNav from "@/components/PageNav";
 
 export const revalidate = 60;
 
 const BASE_URL =
   process.env.NEXT_PUBLIC_BASE_URL ?? "https://genz-news.site";
 
-type Props = { params: Promise<{ slug: string }> };
+/** Bội số của 3 cột để hàng cuối không lẻ. */
+const PER_PAGE = 12;
 
-export async function generateMetadata({ params }: Props): Promise<Metadata> {
+type Props = {
+  params: Promise<{ slug: string }>;
+  searchParams: Promise<{ trang?: string }>;
+};
+
+const pageFrom = (raw?: string) => Math.max(1, Math.floor(Number(raw)) || 1);
+const pageHref = (slug: string, page: number) =>
+  page > 1 ? `/chuyen-muc/${slug}?trang=${page}` : `/chuyen-muc/${slug}`;
+
+export async function generateMetadata({ params, searchParams }: Props): Promise<Metadata> {
   const { slug } = await params;
   const category = getCategory(slug);
   if (!category) return { title: "Chuyên mục không tồn tại" };
 
-  const url = `${BASE_URL}/chuyen-muc/${slug}`;
+  const page = pageFrom((await searchParams).trang);
+  const url = `${BASE_URL}${pageHref(slug, page)}`;
   return {
-    title: `${category.name} — Tin tức mới nhất`,
+    title: `${category.name} — Tin tức mới nhất${page > 1 ? ` (trang ${page})` : ""}`,
     description: `Đọc tin tức ${category.name} mới nhất được chắt lọc và biên tập dành cho Gen Z Việt Nam.`,
     alternates: { canonical: url },
     openGraph: {
@@ -32,13 +44,16 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   };
 }
 
-export default async function CategoryPage({ params }: Props) {
+export default async function CategoryPage({ params, searchParams }: Props) {
   const { slug } = await params;
   const category = getCategory(slug);
   if (!category) notFound();
 
   const style = categoryStyles[category.slug];
-  const items = await listArticles({ status: "published", category: category.slug });
+  const page = pageFrom((await searchParams).trang);
+  const { items, total } = await listPublishedInCategory(category.slug, page, PER_PAGE);
+  const totalPages = Math.max(1, Math.ceil(total / PER_PAGE));
+  if (page > totalPages) redirect(pageHref(slug, totalPages));
 
   const categoryUrl = `${BASE_URL}/chuyen-muc/${slug}`;
 
@@ -81,6 +96,8 @@ export default async function CategoryPage({ params }: Props) {
           ))}
         </div>
       )}
+
+      <PageNav page={page} totalPages={totalPages} href={(p) => pageHref(slug, p)} />
     </div>
   );
 }

@@ -29,13 +29,23 @@ export const THREADS_MAX = 500;
  */
 const TOPIC_MAX = 50;
 /** Thẻ hay dùng, bày sẵn cho người biên tập bấm. */
-const POPULAR_TOPICS = ["Viral", "Tin nóng", "GenZ", "Tin tức", "Drama", "Xu hướng"];
+const POPULAR_TOPICS = [
+  "Viral",
+  "Tin nóng",
+  "GenZ",
+  "Tin tức",
+  "Drama",
+  "Xu hướng",
+];
 
 function normalizeTopicTag(raw: string) {
   const tag = raw.replace(/^#+/, "").replace(/\s+/g, " ").trim();
   if (!tag) return "";
   if (/[.&]/.test(tag)) throw new Error("Topic tags can’t contain “.” or “&”");
-  if (tag.length > TOPIC_MAX) throw new Error(`Topic tag is ${tag.length} characters; the limit is ${TOPIC_MAX}`);
+  if (tag.length > TOPIC_MAX)
+    throw new Error(
+      `Topic tag is ${tag.length} characters; the limit is ${TOPIC_MAX}`,
+    );
   return tag;
 }
 
@@ -78,7 +88,12 @@ function currentToken(): string | null {
   const env = process.env.THREAD_PAGE_ACCESS_TOKEN?.trim();
   let stored = readStored();
   if (env && stored?.seededFrom !== sha(env)) {
-    stored = { token: env, seededFrom: sha(env), refreshedAt: Date.now(), expiresAt: null };
+    stored = {
+      token: env,
+      seededFrom: sha(env),
+      refreshedAt: Date.now(),
+      expiresAt: null,
+    };
     try {
       writeStored(stored);
     } catch {
@@ -92,10 +107,12 @@ function currentToken(): string | null {
 async function refreshTokenIfDue() {
   const stored = readStored();
   if (!stored || Date.now() - stored.refreshedAt < REFRESH_EVERY_MS) return;
-  const url = `https://graph.threads.net/refresh_access_token?${new URLSearchParams({
-    grant_type: "th_refresh_token",
-    access_token: stored.token,
-  })}`;
+  const url = `https://graph.threads.net/refresh_access_token?${new URLSearchParams(
+    {
+      grant_type: "th_refresh_token",
+      access_token: stored.token,
+    },
+  )}`;
   const res = await fetch(url, { signal: AbortSignal.timeout(30_000) });
   const data = (await res.json().catch(() => ({}))) as {
     access_token?: string;
@@ -103,7 +120,9 @@ async function refreshTokenIfDue() {
     error?: { message?: string };
   };
   if (!res.ok || !data.access_token) {
-    throw new Error(`Could not refresh the Threads token: ${data.error?.message ?? `HTTP ${res.status}`}`);
+    throw new Error(
+      `Could not refresh the Threads token: ${data.error?.message ?? `HTTP ${res.status}`}`,
+    );
   }
   writeStored({
     ...stored,
@@ -123,17 +142,22 @@ async function api<T = Record<string, unknown>>(
   const token = currentToken();
   if (!token) throw new Error("THREAD_PAGE_ACCESS_TOKEN not configured");
   const search = new URLSearchParams({ ...params, access_token: token });
-  const url = method === "POST" ? `${API}/${pathPart}` : `${API}/${pathPart}?${search}`;
+  const url =
+    method === "POST" ? `${API}/${pathPart}` : `${API}/${pathPart}?${search}`;
   const res = await fetch(url, {
     method,
     body: method === "POST" ? search : undefined,
     signal: AbortSignal.timeout(60_000),
   });
-  const data = (await res.json().catch(() => ({}))) as T & { error?: { message?: string } };
+  const data = (await res.json().catch(() => ({}))) as T & {
+    error?: { message?: string };
+  };
   if (!res.ok || data.error) {
     const msg = data.error?.message ?? `Threads returned HTTP ${res.status}`;
     if (/permission/i.test(msg) && method === "DELETE") {
-      throw new Error("The Threads token lacks the threads_delete permission. Generate a token with it and try again.");
+      throw new Error(
+        "The Threads token lacks the threads_delete permission. Generate a token with it and try again.",
+      );
     }
     throw new Error(msg);
   }
@@ -152,12 +176,18 @@ async function userId() {
 /** Chờ container xử lý xong. Ảnh: vài giây; video: có thể vài phút. */
 async function waitReady(containerId: string, tries: number) {
   for (let i = 0; i < tries; i++) {
-    const st = await api<{ status?: string; error_message?: string }>(containerId, "GET", {
-      fields: "status,error_message",
-    });
+    const st = await api<{ status?: string; error_message?: string }>(
+      containerId,
+      "GET",
+      {
+        fields: "status,error_message",
+      },
+    );
     if (st.status === "FINISHED") break;
     if (st.status === "ERROR" || st.status === "EXPIRED") {
-      throw new Error(`Threads could not process the post: ${st.error_message ?? st.status}`);
+      throw new Error(
+        `Threads could not process the post: ${st.error_message ?? st.status}`,
+      );
     }
     await new Promise((r) => setTimeout(r, 3000));
   }
@@ -166,9 +196,20 @@ async function waitReady(containerId: string, tries: number) {
 /** Tạo container, chờ Threads xử lý xong, rồi publish. */
 async function createAndPublish(params: Record<string, string>) {
   const uid = await userId();
-  const { id: containerId } = await api<{ id: string }>(`${uid}/threads`, "POST", params);
-  await waitReady(containerId, params.media_type === "VIDEO" || params.media_type === "CAROUSEL" ? 100 : 30);
-  const { id } = await api<{ id: string }>(`${uid}/threads_publish`, "POST", { creation_id: containerId });
+  const { id: containerId } = await api<{ id: string }>(
+    `${uid}/threads`,
+    "POST",
+    params,
+  );
+  await waitReady(
+    containerId,
+    params.media_type === "VIDEO" || params.media_type === "CAROUSEL"
+      ? 100
+      : 30,
+  );
+  const { id } = await api<{ id: string }>(`${uid}/threads_publish`, "POST", {
+    creation_id: containerId,
+  });
   return id;
 }
 
@@ -186,17 +227,25 @@ export const threadsDriver: SocialDriver = {
   maxCaption: THREADS_MAX,
   canEditPublished: false,
   autoPick: false,
+  textOnlyByDefault: true,
   topicTag: {
     default: (a: ArticleView) => getCategory(a.category)?.name ?? "",
     suggestions: (a: ArticleView) => {
       // Bài bot viết gần đây lưu tag dạng slug ("bong-da-nu") — không dấu, có gạch
       // nối, không ai dùng làm thẻ trên Threads. Chỉ gợi ý tag viết như chữ thường.
-      const readable = a.tags.filter((t) => !/^[a-z0-9]+(-[a-z0-9]+)+$/.test(t));
-      const out = [...POPULAR_TOPICS, getCategory(a.category)?.name ?? "", ...readable.slice(0, 4)];
+      const readable = a.tags.filter(
+        (t) => !/^[a-z0-9]+(-[a-z0-9]+)+$/.test(t),
+      );
+      const out = [
+        ...POPULAR_TOPICS,
+        getCategory(a.category)?.name ?? "",
+        ...readable.slice(0, 4),
+      ];
       const seen = new Set<string>();
       return out.filter((t) => {
         const k = t.trim().toLowerCase();
-        if (!k || /[.&]/.test(k) || k.length > TOPIC_MAX || seen.has(k)) return false;
+        if (!k || /[.&]/.test(k) || k.length > TOPIC_MAX || seen.has(k))
+          return false;
         seen.add(k);
         return true;
       });
@@ -204,27 +253,40 @@ export const threadsDriver: SocialDriver = {
     normalize: normalizeTopicTag,
   },
 
-  configured: () => Boolean(process.env.THREAD_PAGE_ACCESS_TOKEN?.trim() || readStored()?.token),
+  configured: () =>
+    Boolean(
+      process.env.THREAD_PAGE_ACCESS_TOKEN?.trim() || readStored()?.token,
+    ),
 
   /** Tít, câu tóm tắt (cắt bớt cho vừa 500 ký tự), lời mời đọc tiếp. Thẻ chủ đề đi riêng (topic_tag). */
   formatCaption(a: ArticleView) {
     const cta = "👇 Link đọc đầy đủ ở bình luận";
-    const build = (dek: string) => [a.title, dek, cta].filter(Boolean).join("\n\n");
+    const build = (dek: string) =>
+      [a.title, dek, cta].filter(Boolean).join("\n\n");
     let dek = a.dek ?? "";
     let text = build(dek);
     while (text.length > THREADS_MAX && dek.length > 0) {
-      dek = dek.slice(0, Math.max(0, dek.length - (text.length - THREADS_MAX) - 1)).trimEnd();
+      dek = dek
+        .slice(0, Math.max(0, dek.length - (text.length - THREADS_MAX) - 1))
+        .trimEnd();
       text = build(dek ? `${dek}…` : "");
     }
     return text.slice(0, THREADS_MAX);
   },
 
-  formatComment: (a: ArticleView) => `Đọc đầy đủ tại đây 👉 ${articleUrl(a.slug)}`,
+  formatComment: (a: ArticleView) => `Xem thêm ${articleUrl(a.slug)}`,
 
   // Đã thử container thật (không publish): ảnh, carousel nhiều ảnh, video đều FINISHED.
-  async create(_article: Article, caption: string, comment: string, opts: { topicTag?: string | null; media: MediaItem[] }) {
+  async create(
+    _article: Article,
+    caption: string,
+    comment: string,
+    opts: { topicTag?: string | null; media: MediaItem[] },
+  ) {
     if (caption.length > THREADS_MAX) {
-      throw new Error(`Threads post is ${caption.length} characters; the limit is ${THREADS_MAX}`);
+      throw new Error(
+        `Threads post is ${caption.length} characters; the limit is ${THREADS_MAX}`,
+      );
     }
     const images = opts.media.filter((m) => m.type === "image");
     const video = opts.media.find((m) => m.type === "video");
@@ -232,7 +294,11 @@ export const threadsDriver: SocialDriver = {
     if (video) {
       params = { media_type: "VIDEO", video_url: video.url, text: caption };
     } else if (images.length === 1) {
-      params = { media_type: "IMAGE", image_url: await publicJpegUrl(images[0].url), text: caption };
+      params = {
+        media_type: "IMAGE",
+        image_url: await publicJpegUrl(images[0].url),
+        text: caption,
+      };
     } else if (images.length > 1) {
       const uid = await userId();
       const children: string[] = [];
@@ -245,7 +311,11 @@ export const threadsDriver: SocialDriver = {
         await waitReady(id, 30);
         children.push(id);
       }
-      params = { media_type: "CAROUSEL", children: children.join(","), text: caption };
+      params = {
+        media_type: "CAROUSEL",
+        children: children.join(","),
+        text: caption,
+      };
     } else {
       params = { media_type: "TEXT", text: caption };
     }
@@ -256,7 +326,12 @@ export const threadsDriver: SocialDriver = {
 
     let permalink: string | null = null;
     try {
-      permalink = (await api<{ permalink?: string }>(remotePostId, "GET", { fields: "permalink" })).permalink ?? null;
+      permalink =
+        (
+          await api<{ permalink?: string }>(remotePostId, "GET", {
+            fields: "permalink",
+          })
+        ).permalink ?? null;
     } catch {
       // không lấy được link thì thôi, bài vẫn đã lên
     }
@@ -264,16 +339,27 @@ export const threadsDriver: SocialDriver = {
     let remoteCommentId: string | null = null;
     let commentError: string | null = null;
     try {
-      remoteCommentId = await createAndPublish({ media_type: "TEXT", text: comment, reply_to_id: remotePostId });
+      remoteCommentId = await createAndPublish({
+        media_type: "TEXT",
+        text: comment,
+        reply_to_id: remotePostId,
+      });
     } catch (err) {
       commentError = `Posted, but the link reply failed: ${(err as Error).message}`;
     }
-    return { remotePostId, remoteMediaId: null, remoteCommentId, permalink, commentError };
+    return {
+      remotePostId,
+      remoteMediaId: null,
+      remoteCommentId,
+      permalink,
+      commentError,
+    };
   },
 
   async remove(ref: RemoteRef) {
     // Reply chứa link là một bài riêng; xoá nó trước để không sót lại lơ lửng.
-    if (ref.remoteCommentId) await api(ref.remoteCommentId, "DELETE").catch(() => {});
+    if (ref.remoteCommentId)
+      await api(ref.remoteCommentId, "DELETE").catch(() => {});
     if (ref.remotePostId) await api(ref.remotePostId, "DELETE");
   },
 

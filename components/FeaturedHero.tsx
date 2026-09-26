@@ -5,14 +5,29 @@ import { categoryStyles } from "@/lib/categoryStyles";
 import { relativeTime } from "@/lib/utils";
 import { mediaUrl } from "@/lib/media";
 
-export default function FeaturedHero({ article }: { article: Article }) {
+export type HeroArticle = Pick<
+  Article,
+  "slug" | "title" | "dek" | "category" | "coverGradient" | "coverImage" | "author" | "publishedAt" | "readingTimeMin"
+>;
+
+export default function FeaturedHero({
+  article,
+  priority = true,
+  className = "",
+}: {
+  article: HeroArticle;
+  /** Chỉ slide đầu tải ảnh ưu tiên; các slide sau tải lười. */
+  priority?: boolean;
+  className?: string;
+}) {
+  const Heading = priority ? "h1" : "h2";
   const category = getCategory(article.category);
   const style = categoryStyles[article.category];
 
   return (
     <Link
       href={`/bai-viet/${article.slug}`}
-      className="group relative flex min-h-[420px] flex-col justify-end overflow-hidden rounded-3xl p-6 sm:p-10"
+      className={`group relative flex min-h-[420px] flex-col justify-end overflow-hidden rounded-3xl p-6 sm:p-10 ${className}`}
       style={{
         background: `linear-gradient(135deg, ${article.coverGradient[0]}, ${article.coverGradient[1]})`,
       }}
@@ -22,7 +37,8 @@ export default function FeaturedHero({ article }: { article: Article }) {
         <img
           src={mediaUrl(article.coverImage)}
           alt={article.title}
-          fetchPriority="high"
+          fetchPriority={priority ? "high" : "auto"}
+          loading={priority ? "eager" : "lazy"}
           decoding="async"
           className="absolute inset-0 size-full object-cover"
         />
@@ -35,9 +51,9 @@ export default function FeaturedHero({ article }: { article: Article }) {
           <span className={`size-1.5 rounded-full ${style.dot}`} />
           {category?.name}
         </span>
-        <h1 className="font-display max-w-2xl text-balance text-3xl font-black leading-tight text-white sm:text-4xl lg:text-5xl">
+        <Heading className="font-display max-w-2xl text-balance text-3xl font-black leading-tight text-white sm:text-4xl lg:text-5xl">
           {article.title}
-        </h1>
+        </Heading>
         <p className="mt-3 max-w-xl text-balance text-sm text-white/80 sm:text-base">
           {article.dek}
         </p>

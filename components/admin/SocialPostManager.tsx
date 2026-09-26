@@ -46,6 +46,7 @@ interface ListResponse {
   canEditPublished: boolean;
   autoPick: boolean;
   supportsTopicTag: boolean;
+  textOnlyByDefault: boolean;
   autoNext: { slot: string | null; article: { id: string; title: string; score: number } | null } | null;
   configured: boolean;
   goldenHours: string[];
@@ -352,7 +353,7 @@ export default function SocialPostManager({ platform }: { platform: "facebook" |
     setCaption(r.post?.caption ?? r.defaultCaption);
     setComment(r.post?.comment ?? r.defaultComment);
     setTopicTag(r.post ? (r.post.topicTag ?? "") : (r.defaultTopicTag ?? ""));
-    const stored = r.post?.media ?? null;
+    const stored = r.post ? r.post.media : data?.textOnlyByDefault ? "[]" : null;
     setMediaItems(parseStoredMedia(stored));
     setMediaMode(stored === null ? (r.coverImage ? "cover" : "none") : stored === "[]" ? "none" : "custom");
     setWhen(toLocalInput(r.post?.scheduledAt ?? data?.nextSlot ?? null));
@@ -499,6 +500,8 @@ export default function SocialPostManager({ platform }: { platform: "facebook" |
   };
 
   const editingStatus = editing ? statusOf(editing) : "none";
+  /** A live post on a platform that can't edit it (Threads): the editor only shows the preview. */
+  const viewOnly = editingStatus === "published" && !data?.canEditPublished;
   const btn = "whitespace-nowrap rounded-xl px-4 py-2 text-sm font-semibold transition";
 
   return (
@@ -829,6 +832,14 @@ export default function SocialPostManager({ platform }: { platform: "facebook" |
                     {s === "none" || s === "skipped" ? "Compose & schedule" : "Edit"}
                   </button>
                 )}
+                {s === "published" && !data?.canEditPublished && (
+                  <button
+                    onClick={() => openEditor(r)}
+                    className="rounded-xl border border-border px-3 py-1.5 text-xs font-bold hover:bg-surface-2"
+                  >
+                    Preview
+                  </button>
+                )}
                 {(s === "none" || s === "failed" || s === "skipped" || (s === "scheduled" && !due)) && (
                   <button
                     onClick={() => publishNow(r)}
@@ -861,7 +872,7 @@ export default function SocialPostManager({ platform }: { platform: "facebook" |
             <div className="flex items-start justify-between gap-4 border-b border-border pb-4">
               <div className="min-w-0">
                 <h2 className="text-xl font-black">
-                  {editingStatus === "published" ? `Edit on ${label}` : `Compose for ${label}`}
+                  {viewOnly ? `Posted on ${label}` : editingStatus === "published" ? `Edit on ${label}` : `Compose for ${label}`}
                 </h2>
                 <p className="truncate text-xs text-muted">{editing.title}</p>
               </div>
@@ -870,7 +881,8 @@ export default function SocialPostManager({ platform }: { platform: "facebook" |
               </button>
             </div>
 
-            <div className="mt-5 grid grid-cols-1 gap-6 lg:grid-cols-2">
+            <div className={`mt-5 grid grid-cols-1 gap-6 ${viewOnly ? "mx-auto max-w-md" : "lg:grid-cols-2"}`}>
+              {!viewOnly && (
               <div className="space-y-4">
                 <label className="block text-xs font-bold">
                   <span className="flex justify-between">
@@ -1065,8 +1077,10 @@ export default function SocialPostManager({ platform }: { platform: "facebook" |
                 )}
               </div>
 
+              )}
+
               <div>
-                <div className="text-xs font-bold uppercase tracking-wider text-muted">Preview</div>
+                <div className="text-xs font-bold uppercase tracking-wider text-muted">{viewOnly ? "As posted" : "Preview"}</div>
                 <div className="mt-2 rounded-2xl border border-border bg-white p-4 text-black shadow-md dark:bg-zinc-900 dark:text-zinc-100">
                   <div className="flex items-center gap-2.5">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -1126,11 +1140,21 @@ export default function SocialPostManager({ platform }: { platform: "facebook" |
 
             <div className="mt-6 flex flex-wrap items-center justify-end gap-3 border-t border-border pt-4">
               {tooLong && <span className="mr-auto text-xs font-semibold text-red-600">Over {max} characters</span>}
+              {viewOnly && editing.post?.permalink && (
+                <a
+                  href={editing.post.permalink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="rounded-xl border border-border px-4 py-2 text-xs font-semibold hover:border-accent hover:text-accent"
+                >
+                  View on {label} ↗
+                </a>
+              )}
               <button
                 onClick={closeEditor}
                 className="rounded-xl border border-border px-4 py-2 text-xs font-semibold hover:bg-surface-2"
               >
-                Cancel
+                {viewOnly ? "Close" : "Cancel"}
               </button>
               {editingStatus !== "published" && (
                 <button
@@ -1148,13 +1172,15 @@ export default function SocialPostManager({ platform }: { platform: "facebook" |
                   Post now
                 </button>
               )}
-              <button
-                onClick={saveEditor}
-                disabled={busy === editing.id || tooLong || badTag || drafting || uploading}
-                className="rounded-xl bg-accent px-6 py-2 text-xs font-bold text-white shadow-lg hover:opacity-90 disabled:opacity-50"
-              >
-                {busy === editing.id ? "Saving…" : editingStatus === "published" ? `Save & update on ${label}` : "Schedule"}
-              </button>
+              {!viewOnly && (
+                <button
+                  onClick={saveEditor}
+                  disabled={busy === editing.id || tooLong || badTag || drafting || uploading}
+                  className="rounded-xl bg-accent px-6 py-2 text-xs font-bold text-white shadow-lg hover:opacity-90 disabled:opacity-50"
+                >
+                  {busy === editing.id ? "Saving…" : editingStatus === "published" ? `Save & update on ${label}` : "Schedule"}
+                </button>
+              )}
             </div>
           </div>
         </div>

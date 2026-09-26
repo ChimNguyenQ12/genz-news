@@ -85,6 +85,10 @@ export interface Article {
   readingTimeMin: number;
   featured?: boolean;
   trending?: boolean;
+  /** Vị trí trong slideshow hero (1 = đầu); null = không hiện. */
+  featuredOrder?: number | null;
+  /** Vị trí trong "Đang nóng" (1 = trên cùng); null = không hiện. */
+  trendingOrder?: number | null;
   status: ArticleStatus;
   /** Ngôn ngữ gốc — quyết định chiều dịch của nút trên trang bài. */
   language: ArticleLanguage;

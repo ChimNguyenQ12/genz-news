@@ -67,6 +67,10 @@ model Article {
   readingTimeMin Int     @default(3)
   featured       Boolean @default(false)
   trending       Boolean @default(false)
+  /// Vị trí trong slideshow hero trang chủ (1 = đầu tiên); NULL = không hiện. featured = featuredOrder != NULL.
+  featuredOrder  Int?
+  /// Vị trí trong khối "Đang nóng" (1 = trên cùng); NULL = không hiện.
+  trendingOrder  Int?
 
   submittedAt DateTime?
   reviewNote  String?

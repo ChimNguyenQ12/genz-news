@@ -47,6 +47,8 @@ export interface SocialDriver {
   canEditPublished: boolean;
   /** Tới giờ vàng mà trống thì tự chọn bài nóng nhất để đăng (Facebook: có; Threads: không, người tự đặt lịch). */
   autoPick: boolean;
+  /** Bài mới mặc định chỉ có chữ, không kèm ảnh bìa (Threads: có). */
+  textOnlyByDefault?: boolean;
   /** Nền tảng có thẻ chủ đề riêng (Threads topic_tag): mặc định, gợi ý, và kiểm tra. */
   topicTag?: {
     default(a: ArticleView): string;

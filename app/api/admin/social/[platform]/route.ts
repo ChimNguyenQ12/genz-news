@@ -96,6 +96,7 @@ export async function GET(req: Request, { params }: Ctx) {
     canEditPublished: driver.canEditPublished,
     autoPick: driver.autoPick,
     supportsTopicTag: Boolean(driver.topicTag),
+    textOnlyByDefault: Boolean(driver.textOnlyByDefault),
     autoNext,
     configured,
     goldenHours: GOLDEN_HOURS,

@@ -5,7 +5,7 @@ import { getCategory } from "@/lib/data";
 import { categoryStyles } from "@/lib/categoryStyles";
 import { formatDate } from "@/lib/utils";
 import { mediaHtml, mediaUrl } from "@/lib/media";
-import { getArticleBySlug, listArticles } from "@/lib/store";
+import { getArticleBySlug, listPublishedInCategory } from "@/lib/store";
 import { getSessionUser } from "@/lib/auth";
 import { listComments } from "@/lib/comments";
 import ArticleCard from "@/components/ArticleCard";
@@ -83,9 +83,9 @@ export default async function ArticlePage({ params }: Props) {
 
   const category = getCategory(article.category);
   const style = categoryStyles[article.category];
-  const published = await listArticles({ status: "published" });
-  const related = published
-    .filter((a) => a.category === article.category && a.slug !== article.slug)
+  // Lấy 4 để còn đủ 3 khi bài đang đọc nằm trong số đó.
+  const related = (await listPublishedInCategory(article.category, 1, 4)).items
+    .filter((a) => a.slug !== article.slug)
     .slice(0, 3);
   const comments = await listComments(article.id);
 

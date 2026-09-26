@@ -61,6 +61,8 @@ function toArticle(row: ArticleRow): Article {
     readingTimeMin: row.readingTimeMin,
     featured: row.featured,
     trending: row.trending,
+    featuredOrder: row.featuredOrder,
+    trendingOrder: row.trendingOrder,
     status: row.status as ArticleStatus,
     language: (row.language === "en" ? "en" : "vi") as ArticleLanguage,
     submittedAt: row.submittedAt?.toISOString(),
@@ -114,6 +116,8 @@ export interface ArticleSummary {
   readingTimeMin: number;
   featured: boolean;
   trending: boolean;
+  featuredOrder: number | null;
+  trendingOrder: number | null;
   status: ArticleStatus;
   language: ArticleLanguage;
   submittedAt?: string;
@@ -140,6 +144,8 @@ const SUMMARY_SELECT = {
   readingTimeMin: true,
   featured: true,
   trending: true,
+  featuredOrder: true,
+  trendingOrder: true,
   status: true,
   language: true,
   submittedAt: true,
@@ -169,6 +175,8 @@ function toSummary(row: SummaryRow): ArticleSummary {
     readingTimeMin: row.readingTimeMin,
     featured: row.featured,
     trending: row.trending,
+    featuredOrder: row.featuredOrder,
+    trendingOrder: row.trendingOrder,
     status: row.status as ArticleStatus,
     language: (row.language === "en" ? "en" : "vi") as ArticleLanguage,
     submittedAt: row.submittedAt?.toISOString(),
@@ -292,6 +300,66 @@ export async function listArticlesPage(query: ArticleQuery = {}): Promise<Articl
 }
 
 /** Bỏ dấu + chữ thường, để "viet nam" khớp "Việt Nam" và "đà nẵng" khớp "Đà Nẵng". */
+/**
+ * Một trang bài đã đăng của một chuyên mục, cho trang /chuyen-muc/[slug].
+ * Không kèm thân bài và không đếm theo trạng thái như listArticlesPage — trang
+ * công khai chỉ cần đúng số thẻ đang hiện và tổng số để dựng phân trang.
+ */
+export async function listPublishedInCategory(
+  category: string,
+  page: number,
+  perPage: number,
+): Promise<{ items: ArticleSummary[]; total: number }> {
+  const where = { status: "published", category };
+  const [rows, total] = await Promise.all([
+    prisma.article.findMany({
+      where,
+      select: SUMMARY_SELECT,
+      orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
+      skip: (page - 1) * perPage,
+      take: perPage,
+    }),
+    prisma.article.count({ where }),
+  ]);
+  return { items: rows.map(toSummary), total };
+}
+
+/** Bài đang giữ từng vị trí trong hero / "Đang nóng" — cho ô chọn vị trí trong trình sửa bài. */
+export interface PlacementSlot {
+  order: number;
+  id: string;
+  title: string;
+  status: ArticleStatus;
+}
+
+export async function listPlacements(): Promise<{ hero: PlacementSlot[]; trending: PlacementSlot[] }> {
+  const select = { id: true, title: true, status: true, featuredOrder: true, trendingOrder: true } as const;
+  const [hero, trending] = await Promise.all([
+    prisma.article.findMany({ where: { featuredOrder: { not: null } }, select, orderBy: { featuredOrder: "asc" } }),
+    prisma.article.findMany({ where: { trendingOrder: { not: null } }, select, orderBy: { trendingOrder: "asc" } }),
+  ]);
+  const slot = (order: number | null, r: (typeof hero)[number]) => ({
+    order: order ?? 0,
+    id: r.id,
+    title: r.title,
+    status: r.status as ArticleStatus,
+  });
+  return {
+    hero: hero.map((r) => slot(r.featuredOrder, r)),
+    trending: trending.map((r) => slot(r.trendingOrder, r)),
+  };
+}
+
+/** Bài đã đăng, KHÔNG kèm thân bài — đủ cho trang chủ (thẻ bài, hero, "Đang nóng"). */
+export async function listPublishedSummaries(): Promise<ArticleSummary[]> {
+  const rows = await prisma.article.findMany({
+    where: { status: "published" },
+    select: SUMMARY_SELECT,
+    orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
+  });
+  return rows.map(toSummary);
+}
+
 export function foldVietnamese(s: string) {
   return s
     .normalize("NFD")
@@ -414,7 +482,10 @@ export async function updateArticle(
   id: string,
   patch: Partial<Omit<Article, "id" | "createdAt">>,
 ): Promise<Article | undefined> {
-  const current = await prisma.article.findUnique({ where: { id }, select: { slug: true } });
+  const current = await prisma.article.findUnique({
+    where: { id },
+    select: { slug: true, featuredOrder: true, trendingOrder: true },
+  });
   if (!current) return undefined;
 
   const slug =
@@ -428,6 +499,20 @@ export async function updateArticle(
   const row = await prisma.$transaction(async (tx) => {
     if (replaceSources) {
       await tx.source.deleteMany({ where: { articleId: id } });
+    }
+    // Chỗ mới đang có bài khác thì đổi chỗ: bài kia nhận chỗ cũ của bài này
+    // (hoặc rời khỏi khối nếu bài này trước đó chưa có chỗ).
+    if (patch.featuredOrder != null && patch.featuredOrder !== current.featuredOrder) {
+      await tx.article.updateMany({
+        where: { featuredOrder: patch.featuredOrder, id: { not: id } },
+        data: { featuredOrder: current.featuredOrder, featured: current.featuredOrder !== null },
+      });
+    }
+    if (patch.trendingOrder != null && patch.trendingOrder !== current.trendingOrder) {
+      await tx.article.updateMany({
+        where: { trendingOrder: patch.trendingOrder, id: { not: id } },
+        data: { trendingOrder: current.trendingOrder, trending: current.trendingOrder !== null },
+      });
     }
     return tx.article.update({
       where: { id },
@@ -451,8 +536,12 @@ export async function updateArticle(
         ...(patch.readingTimeMin !== undefined
           ? { readingTimeMin: patch.readingTimeMin }
           : {}),
-        ...(patch.featured !== undefined ? { featured: patch.featured } : {}),
-        ...(patch.trending !== undefined ? { trending: patch.trending } : {}),
+        ...(patch.featuredOrder !== undefined
+          ? { featuredOrder: patch.featuredOrder, featured: patch.featuredOrder !== null }
+          : {}),
+        ...(patch.trendingOrder !== undefined
+          ? { trendingOrder: patch.trendingOrder, trending: patch.trendingOrder !== null }
+          : {}),
         ...(patch.status !== undefined ? { status: patch.status } : {}),
         ...(patch.language !== undefined ? { language: patch.language } : {}),
         ...(patch.body !== undefined ? { body: normalizeArticleHtml(patch.body) } : {}),

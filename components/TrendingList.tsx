@@ -3,7 +3,11 @@ import type { Article } from "@/lib/types";
 import { getCategory } from "@/lib/data";
 import { categoryStyles } from "@/lib/categoryStyles";
 
-export default function TrendingList({ articles }: { articles: Article[] }) {
+export default function TrendingList({
+  articles,
+}: {
+  articles: Pick<Article, "slug" | "title" | "category">[];
+}) {
   return (
     <div className="rounded-3xl border border-border bg-surface p-5">
       <div className="mb-4 flex items-center gap-2">

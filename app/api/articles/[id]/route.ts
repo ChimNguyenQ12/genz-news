@@ -5,6 +5,14 @@ import { closeRequestForArticle } from "@/lib/queue";
 import type { Article, ArticleStatus, CategorySlug } from "@/lib/types";
 import { categories } from "@/lib/data";
 import { normalizeArticleHtml } from "@/lib/html";
+import { HERO_SLOTS, TRENDING_SLOTS } from "@/lib/placement";
+
+/** null / false / "" = bỏ khỏi khối; 1..max = vị trí; còn lại = sai. */
+function slotFrom(raw: unknown, max: number): number | null | "invalid" {
+  if (raw === null || raw === false || raw === "") return null;
+  const n = Number(raw);
+  return Number.isInteger(n) && n >= 1 && n <= max ? n : "invalid";
+}
 
 const VALID_CATEGORIES = new Set(categories.map((c) => c.slug));
 
@@ -136,8 +144,20 @@ export async function PUT(
   if (isAdmin) {
     if (body.author !== undefined) patch.author = String(body.author);
     if (body.slug !== undefined) patch.slug = String(body.slug);
-    if (body.featured !== undefined) patch.featured = Boolean(body.featured);
-    if (body.trending !== undefined) patch.trending = Boolean(body.trending);
+    if (body.featuredOrder !== undefined) {
+      const slot = slotFrom(body.featuredOrder, HERO_SLOTS);
+      if (slot === "invalid") {
+        return NextResponse.json({ error: `Vị trí hero phải từ 1 đến ${HERO_SLOTS}` }, { status: 400 });
+      }
+      patch.featuredOrder = slot;
+    }
+    if (body.trendingOrder !== undefined) {
+      const slot = slotFrom(body.trendingOrder, TRENDING_SLOTS);
+      if (slot === "invalid") {
+        return NextResponse.json({ error: `Vị trí Đang nóng phải từ 1 đến ${TRENDING_SLOTS}` }, { status: 400 });
+      }
+      patch.trendingOrder = slot;
+    }
     if (body.reviewNote !== undefined) patch.reviewNote = String(body.reviewNote);
   }
 

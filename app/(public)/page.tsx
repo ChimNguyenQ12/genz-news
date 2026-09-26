@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { categories } from "@/lib/data";
 import { categoryStyles } from "@/lib/categoryStyles";
-import { listArticles } from "@/lib/store";
-import FeaturedHero from "@/components/FeaturedHero";
+import { listPublishedSummaries } from "@/lib/store";
+import HeroSlideshow from "@/components/HeroSlideshow";
 import ArticleCard from "@/components/ArticleCard";
 import TrendingList from "@/components/TrendingList";
 import SectionHeader from "@/components/SectionHeader";
@@ -14,7 +14,8 @@ const BASE_URL =
   process.env.NEXT_PUBLIC_BASE_URL ?? "https://genz-news.site";
 
 export default async function Home() {
-  const articles = await listArticles({ status: "published" });
+  // Không kèm thân bài: trang chủ chỉ cần thẻ bài, còn thân bài mỗi bài 8–14KB.
+  const articles = await listPublishedSummaries();
 
   if (articles.length === 0) {
     return (
@@ -27,9 +28,14 @@ export default async function Home() {
     );
   }
 
-  const featured = articles.find((a) => a.featured) ?? articles[0];
-  const trending = articles.filter((a) => a.trending).slice(0, 5);
-  const latest = articles.filter((a) => a.slug !== featured.slug).slice(0, 4);
+  // Theo vị trí đặt trong trình sửa bài (1 = đầu tiên); chưa đặt bài nào thì lấy bài mới nhất.
+  const byOrder = (key: "featuredOrder" | "trendingOrder") =>
+    articles.filter((a) => a[key] != null).sort((a, b) => a[key]! - b[key]!);
+  const heroes = byOrder("featuredOrder");
+  if (heroes.length === 0) heroes.push(articles[0]);
+  const trending = byOrder("trendingOrder");
+  const heroSlugs = new Set(heroes.map((a) => a.slug));
+  const latest = articles.filter((a) => !heroSlugs.has(a.slug)).slice(0, 4);
 
   // JSON-LD WebSite — giúp Google hiểu site và kích hoạt Sitelinks Searchbox
   const jsonLd = {
@@ -54,7 +60,7 @@ export default async function Home() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
-      <FeaturedHero article={featured} />
+      <HeroSlideshow articles={heroes} />
 
       <div className="no-scrollbar mt-6 flex gap-2 overflow-x-auto pb-2">
         {categories.map((c) => {

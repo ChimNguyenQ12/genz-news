@@ -264,7 +264,11 @@ export async function schedulePost(
       : driver.topicTag.normalize(input.topicTag ?? "") || null;
   const media =
     input.media === undefined
-      ? (existing?.media ?? null)
+      ? existing
+        ? existing.media
+        : driver.textOnlyByDefault
+          ? "[]"
+          : null
       : input.media === null
         ? null
         : JSON.stringify(parseMedia(input.media));
