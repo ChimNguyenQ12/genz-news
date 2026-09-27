@@ -6,42 +6,41 @@ import { SESSION_SECRET } from "./secret";
 export const SESSION_COOKIE = "genz_session";
 const SESSION_TTL_MS = 1000 * 60 * 60 * 12; // 12 giờ
 
-function sign(payload: string) {
-  return crypto.createHmac("sha256", SESSION_SECRET).update(payload).digest("hex");
+/**
+ * Chữ ký phủ cả salt mật khẩu của tài khoản: đổi hoặc reset mật khẩu là salt
+ * đổi, mọi phiên cũ (kể cả phiên bị đánh cắp) mất hiệu lực ngay. Các script
+ * bảo trì tự ký phiên (scripts/social-run-due.mjs…) ký đúng công thức này.
+ */
+function sign(payload: string, salt: string) {
+  return crypto.createHmac("sha256", SESSION_SECRET).update(`${payload}.${salt}`).digest("hex");
 }
 
-/** Token = userId.expiresAt.chữ_ký — vai trò luôn đọc lại từ file, không tin cookie. */
-export function createSessionToken(userId: string) {
+/** Token = userId.expiresAt.chữ_ký — vai trò luôn đọc lại từ cơ sở dữ liệu, không tin cookie. */
+export function createSessionToken(user: { id: string; salt: string }) {
   const expiresAt = Date.now() + SESSION_TTL_MS;
-  const payload = `${userId}.${expiresAt}`;
-  return `${payload}.${sign(payload)}`;
+  const payload = `${user.id}.${expiresAt}`;
+  return `${payload}.${sign(payload, user.salt)}`;
 }
 
-export function verifySessionToken(token: string | undefined): string | null {
-  if (!token) return null;
-  const parts = token.split(".");
+/** User đang đăng nhập, hoặc null. */
+export async function getSessionUser(): Promise<PublicUser | null> {
+  const store = await cookies();
+  const parts = (store.get(SESSION_COOKIE)?.value ?? "").split(".");
   if (parts.length !== 3) return null;
   const [userId, expiresAt, signature] = parts;
+  if (!(Number(expiresAt) > Date.now())) return null;
 
-  const expected = sign(`${userId}.${expiresAt}`);
+  const user = await findById(userId);
+  if (!user) return null;
+  const expected = sign(`${userId}.${expiresAt}`, user.salt);
   if (
     signature.length !== expected.length ||
     !crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected))
   ) {
     return null;
   }
-  if (Number(expiresAt) < Date.now()) return null;
-  return userId;
-}
-
-/** User đang đăng nhập, hoặc null. Vai trò được đọc từ data/users.json. */
-export async function getSessionUser(): Promise<PublicUser | null> {
-  const store = await cookies();
-  const userId = verifySessionToken(store.get(SESSION_COOKIE)?.value);
-  if (!userId) return null;
-  const user = await findById(userId);
   // Tài khoản bị khoá: phiên đang mở mất hiệu lực ngay, không đợi cookie hết hạn.
-  return user && !user.disabledAt ? toPublicUser(user) : null;
+  return user.disabledAt ? null : toPublicUser(user);
 }
 
 export async function requireRole(role: Role): Promise<PublicUser | null> {

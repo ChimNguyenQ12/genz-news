@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getCategory } from "@/lib/data";
 import { categoryStyles } from "@/lib/categoryStyles";
-import { formatDate } from "@/lib/utils";
+import { formatDate, jsonLdScript } from "@/lib/utils";
 import { mediaHtml, mediaUrl } from "@/lib/media";
 import { getArticleBySlug, listPublishedInCategory } from "@/lib/store";
 import { getSessionUser } from "@/lib/auth";
@@ -154,7 +154,7 @@ export default async function ArticlePage({ params }: Props) {
       {/* JSON-LD structured data — không hiển thị, dành cho crawler & AI engines */}
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        dangerouslySetInnerHTML={{ __html: jsonLdScript(jsonLd) }}
       />
 
       {isDraft && (

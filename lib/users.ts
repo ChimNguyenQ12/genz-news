@@ -64,6 +64,16 @@ async function hashPassword(password: string, salt: string) {
   return buf.toString("hex");
 }
 
+/**
+ * Chạy scrypt giả khi không có tài khoản, để "sai tên đăng nhập" mất đúng bằng
+ * thời gian "sai mật khẩu" — không thì đo thời gian phản hồi là dò được
+ * tài khoản nào tồn tại.
+ */
+const DUMMY_SALT = crypto.randomBytes(16).toString("hex");
+export async function burnPasswordCheck(password: string) {
+  await hashPassword(password, DUMMY_SALT);
+}
+
 export async function verifyPassword(user: User, password: string) {
   const hash = await hashPassword(password, user.salt);
   const a = Buffer.from(hash, "hex");
@@ -124,8 +134,8 @@ export async function registerContributor(input: {
       error: "Tên đăng nhập 3–24 ký tự, chỉ gồm chữ thường, số và _ . -",
     };
   }
-  if (input.password.length < 8) {
-    return { ok: false, error: "Mật khẩu phải từ 8 ký tự trở lên" };
+  if (input.password.length < 8 || input.password.length > 256) {
+    return { ok: false, error: "Mật khẩu phải từ 8 đến 256 ký tự" };
   }
   if (displayName.length < 2 || displayName.length > 40) {
     return { ok: false, error: "Tên hiển thị phải từ 2 đến 40 ký tự" };
@@ -155,7 +165,7 @@ export async function registerContributor(input: {
 }
 
 export async function changePassword(userId: string, newPassword: string) {
-  if (newPassword.length < 8) return false;
+  if (newPassword.length < 8 || newPassword.length > 256) return false;
   const salt = crypto.randomBytes(16).toString("hex");
   try {
     await prisma.user.update({

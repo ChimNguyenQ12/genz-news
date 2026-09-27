@@ -2,6 +2,15 @@ import { NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
 import { uploadToS3 } from "@/lib/storage";
 import { toWebp } from "@/lib/image";
+import { take, tooMany } from "@/lib/rateLimit";
+
+/**
+ * Đăng ký là tự do, nên không giới hạn thì một tài khoản rác đổ được hàng
+ * trăm video 200MB lên S3 (tiền của mình). Tài khoản thường: 40 file / giờ,
+ * 150 / ngày. Admin không giới hạn.
+ */
+const PER_HOUR = { max: 40, windowMs: 3600_000 };
+const PER_DAY = { max: 150, windowMs: 24 * 3600_000 };
 
 /** Loại file cho phép → phần mở rộng do server tự đặt (không tin tên file client gửi). */
 const ALLOWED: Record<string, { ext: string; kind: "image" | "video"; maxMB: number }> = {
@@ -39,6 +48,18 @@ function sniff(buf: Buffer): string | null {
 export async function POST(request: Request) {
   const user = await getSessionUser();
   if (!user) return NextResponse.json({ error: "Chưa đăng nhập" }, { status: 401 });
+
+  if (user.role !== "admin") {
+    const wait = take(`upload:h:${user.id}`, PER_HOUR) || take(`upload:d:${user.id}`, PER_DAY);
+    if (wait) return tooMany(wait, "Tải lên quá nhiều file. Thử lại sau.");
+  }
+
+  // Chặn trước khi đọc: formData() nạp cả thân request vào RAM rồi mới tới
+  // bước so dung lượng bên dưới.
+  const MAX_BODY = 201 * 1024 * 1024;
+  if (Number(request.headers.get("content-length") ?? 0) > MAX_BODY) {
+    return NextResponse.json({ error: "File quá lớn. Tối đa 200MB." }, { status: 413 });
+  }
 
   let form: FormData;
   try {

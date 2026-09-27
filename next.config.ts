@@ -13,6 +13,25 @@ const nextConfig: NextConfig = {
       `https://${process.env.S3_BUCKET ?? "genz-news"}.s3.${process.env.AWS_REGION ?? "us-east-1"}.amazonaws.com`;
     return [{ source: "/media/:path*", destination: `${s3}/uploads/:path*` }];
   },
+  async headers() {
+    return [
+      {
+        source: "/:path*",
+        headers: [
+          // Không trang nào được nhúng trang này vào iframe: chặn lừa admin bấm
+          // nút (clickjacking) qua một trang giả phủ lên /admin.
+          { key: "X-Frame-Options", value: "DENY" },
+          { key: "Content-Security-Policy", value: "frame-ancestors 'none'; base-uri 'self'; object-src 'none'" },
+          // File trong /media (người dùng tải lên) chỉ được hiểu đúng kiểu khai báo,
+          // không bị trình duyệt "đoán" thành HTML/JS.
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), payment=()" },
+          { key: "Strict-Transport-Security", value: "max-age=31536000" },
+        ],
+      },
+    ];
+  },
 };
 
 export default nextConfig;

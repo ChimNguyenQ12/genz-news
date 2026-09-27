@@ -2,6 +2,11 @@ import { NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
 import { createComment, listComments } from "@/lib/comments";
 import { getArticleById } from "@/lib/store";
+import { take, tooMany } from "@/lib/rateLimit";
+
+/** Chặn spam bình luận: 5 bình luận / phút, 60 / giờ mỗi tài khoản (admin không giới hạn). */
+const PER_MINUTE = { max: 5, windowMs: 60_000 };
+const PER_HOUR = { max: 60, windowMs: 3600_000 };
 
 /** Ai cũng đọc được bình luận của bài đã đăng. */
 export async function GET(
@@ -37,6 +42,11 @@ export async function POST(
       { error: "Đăng nhập để bình luận" },
       { status: 401 },
     );
+  }
+
+  if (user.role !== "admin") {
+    const wait = take(`comment:m:${user.id}`, PER_MINUTE) || take(`comment:h:${user.id}`, PER_HOUR);
+    if (wait) return tooMany(wait, "Bạn bình luận nhanh quá. Chờ một chút rồi thử lại.");
   }
 
   const { id } = await params;

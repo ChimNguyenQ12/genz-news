@@ -9,9 +9,8 @@ export async function GET() {
     const articles = await prisma.article.count();
     return NextResponse.json({ ok: true, articles });
   } catch (err) {
-    return NextResponse.json(
-      { ok: false, error: (err as Error).message },
-      { status: 503 },
-    );
+    // Lỗi chi tiết (đường dẫn DB, câu lệnh…) chỉ vào log, không trả ra ngoài.
+    console.error("[health]", err);
+    return NextResponse.json({ ok: false }, { status: 503 });
   }
 }

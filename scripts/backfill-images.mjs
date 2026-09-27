@@ -66,12 +66,12 @@ function adminCookie() {
       ? process.env.ADMIN_SESSION_SECRET
       : fs.readFileSync(path.join(DATA_DIR, "session-secret"), "utf8").trim();
 
-  const admin = sql("SELECT id FROM users WHERE role = 'admin' ORDER BY createdAt LIMIT 1;")[0];
+  const admin = sql("SELECT id, salt FROM users WHERE role = 'admin' ORDER BY createdAt LIMIT 1;")[0];
   if (!admin) throw new Error("không tìm thấy tài khoản admin nào");
 
   const expiresAt = Date.now() + 60 * 60 * 1000;
   const payload = `${admin.id}.${expiresAt}`;
-  const signature = crypto.createHmac("sha256", secret).update(payload).digest("hex");
+  const signature = crypto.createHmac("sha256", secret).update(`${payload}.${admin.salt}`).digest("hex"); // khớp sign() trong lib/auth.ts
   return `genz_session=${payload}.${signature}`;
 }
 

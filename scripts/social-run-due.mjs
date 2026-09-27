@@ -24,12 +24,14 @@ function adminCookie() {
       : fs.readFileSync(path.join(DATA_DIR, "session-secret"), "utf8").trim();
   const out = execFileSync(
     "sqlite3",
-    ["-cmd", ".timeout 5000", DB, "SELECT id FROM users WHERE role = 'admin' ORDER BY createdAt LIMIT 1;"],
+    ["-cmd", ".timeout 5000", DB, "SELECT id || '|' || salt FROM users WHERE role = 'admin' ORDER BY createdAt LIMIT 1;"],
     { encoding: "utf8" },
   ).trim();
   if (!out) throw new Error("không tìm thấy tài khoản admin nào");
-  const payload = `${out}.${Date.now() + 10 * 60 * 1000}`;
-  const signature = crypto.createHmac("sha256", secret).update(payload).digest("hex");
+  const [id, salt] = out.split("|");
+  const payload = `${id}.${Date.now() + 10 * 60 * 1000}`;
+  // Chữ ký phủ cả salt mật khẩu — khớp sign() trong lib/auth.ts.
+  const signature = crypto.createHmac("sha256", secret).update(`${payload}.${salt}`).digest("hex");
   return `genz_session=${payload}.${signature}`;
 }
 

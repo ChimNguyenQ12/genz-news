@@ -1,3 +1,4 @@
+import { jsonLdScript } from "@/lib/utils";
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { getCategory } from "@/lib/data";
@@ -77,7 +78,7 @@ export default async function CategoryPage({ params, searchParams }: Props) {
       {/* JSON-LD structured data */}
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        dangerouslySetInnerHTML={{ __html: jsonLdScript(jsonLd) }}
       />
 
       <div className="mb-10 flex items-center gap-3">

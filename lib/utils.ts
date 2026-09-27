@@ -17,3 +17,21 @@ export function relativeTime(iso: string) {
   const diffD = Math.round(diffH / 24);
   return `${diffD} ngày trước`;
 }
+
+/**
+ * JSON để nhúng trong <script type="application/ld+json">.
+ *
+ * JSON.stringify KHÔNG escape "<", nên một tít có "</script><script>…" thoát
+ * ra khỏi thẻ và chạy như mã thật — tít/dek/tag do tài khoản thường nhập, và
+ * admin mở bản xem trước bài nháp là chạy mã đó bằng phiên admin. Đổi các ký
+ * tự nguy hiểm sang dạng \uXXXX: vẫn là JSON hợp lệ, trình duyệt không còn
+ * thấy thẻ đóng.
+ */
+export function jsonLdScript(data: unknown): string {
+  return JSON.stringify(data)
+    .replace(/</g, "\\u003c")
+    .replace(/>/g, "\\u003e")
+    .replace(/&/g, "\\u0026")
+    .replace(/\u2028/g, "\\u2028")
+    .replace(/\u2029/g, "\\u2029");
+}

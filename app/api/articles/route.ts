@@ -4,6 +4,11 @@ import { createArticle, listArticlesPage, slugify } from "@/lib/store";
 import type { Article, ArticleStatus, CategorySlug } from "@/lib/types";
 import { categories } from "@/lib/data";
 import { normalizeArticleHtml } from "@/lib/html";
+import * as clean from "@/lib/articleInput";
+import { take, tooMany } from "@/lib/rateLimit";
+
+/** Tài khoản thường (đăng ký tự do) tạo tối đa 30 bài / giờ — chặn spam bài nháp. */
+const CREATE_LIMIT = { max: 30, windowMs: 3600_000 };
 
 const VALID_CATEGORIES = new Set(categories.map((c) => c.slug));
 const VALID_STATUS = new Set<string>(["draft", "pending", "published", "rejected"]);
@@ -52,14 +57,22 @@ export async function POST(request: Request) {
   const user = await getSessionUser();
   if (!user) return NextResponse.json({ error: "Chưa đăng nhập" }, { status: 401 });
 
+  if (user.role !== "admin") {
+    const wait = take(`article:create:${user.id}`, CREATE_LIMIT);
+    if (wait) return tooMany(wait);
+  }
+
   let body: Record<string, unknown>;
   try {
     body = await request.json();
   } catch {
     return NextResponse.json({ error: "Dữ liệu không hợp lệ" }, { status: 400 });
   }
+  if (typeof body.body === "string" && body.body.length > clean.LIMITS.body) {
+    return NextResponse.json({ error: "Bài quá dài" }, { status: 413 });
+  }
 
-  const title = String(body.title ?? "").trim();
+  const title = clean.text(body.title, clean.LIMITS.title).trim();
   if (!title) return NextResponse.json({ error: "Thiếu tiêu đề" }, { status: 400 });
 
   const category = String(body.category ?? "the-gioi");
@@ -71,32 +84,27 @@ export async function POST(request: Request) {
   const input: Omit<Article, "id" | "createdAt" | "updatedAt"> = {
     slug: String(body.slug ?? "") || slugify(title),
     title,
-    dek: String(body.dek ?? ""),
+    dek: clean.text(body.dek, clean.LIMITS.dek),
     category: category as CategorySlug,
-    tags: Array.isArray(body.tags) ? body.tags.map(String) : [],
-    coverGradient: Array.isArray(body.coverGradient)
-      ? ([String(body.coverGradient[0]), String(body.coverGradient[1])] as [string, string])
-      : ["#7C3AED", "#22D3EE"],
+    tags: clean.tags(body.tags) ?? [],
+    coverGradient: clean.gradient(body.coverGradient) ?? ["#7C3AED", "#22D3EE"],
     // Ảnh bìa PHẢI được nhận ngay ở bước tạo bài. Trước đây hai trường này bị
     // bỏ quên ở đây (chỉ PUT mới đọc), nên bài do máy viết mất sạch ảnh bìa —
     // nó tìm được ảnh, gửi lên đúng, rồi API lặng lẽ vứt đi.
-    coverImage: body.coverImage ? String(body.coverImage) : undefined,
+    coverImage: clean.mediaRef(body.coverImage),
     coverImageCaption: body.coverImageCaption
       ? String(body.coverImageCaption)
       : undefined,
-    author: String(body.author ?? user.displayName),
+    // Chỉ admin được ghi tên tác giả khác (VD "Ban biên tập"); tài khoản thường
+    // luôn đứng tên chính mình — không mạo danh được người khác.
+    author: user.role === "admin" && body.author ? clean.text(body.author, 80) : user.displayName,
     authorId: user.id,
     publishedAt: String(body.publishedAt ?? new Date().toISOString().slice(0, 10)),
     readingTimeMin: Number(body.readingTimeMin) || 3,
     status: "draft",
     language: body.language === "en" ? "en" : "vi",
     body: normalizeArticleHtml(body.body),
-    sources: Array.isArray(body.sources)
-      ? body.sources
-          .map((s) => s as { name?: unknown; url?: unknown })
-          .filter((s) => s?.url)
-          .map((s) => ({ name: String(s.name ?? "Nguồn"), url: String(s.url) }))
-      : [],
+    sources: clean.sources(body.sources) ?? [],
   };
 
   const article = await createArticle(input);

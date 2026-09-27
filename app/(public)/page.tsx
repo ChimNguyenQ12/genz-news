@@ -1,3 +1,4 @@
+import { jsonLdScript } from "@/lib/utils";
 import Link from "next/link";
 import { categories } from "@/lib/data";
 import { categoryStyles } from "@/lib/categoryStyles";
@@ -58,7 +59,7 @@ export default async function Home() {
       {/* JSON-LD WebSite structured data */}
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        dangerouslySetInnerHTML={{ __html: jsonLdScript(jsonLd) }}
       />
       <HeroSlideshow articles={heroes} />
 

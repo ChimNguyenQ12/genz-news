@@ -6,6 +6,7 @@ import type { Article, ArticleStatus, CategorySlug } from "@/lib/types";
 import { categories } from "@/lib/data";
 import { normalizeArticleHtml } from "@/lib/html";
 import { HERO_SLOTS, TRENDING_SLOTS } from "@/lib/placement";
+import * as clean from "@/lib/articleInput";
 
 /** null / false / "" = bỏ khỏi khối; 1..max = vị trí; còn lại = sai. */
 function slotFrom(raw: unknown, max: number): number | null | "invalid" {
@@ -90,8 +91,11 @@ export async function PUT(
 
   const patch: Partial<Article> = {};
 
-  if (body.title !== undefined) patch.title = String(body.title).trim();
-  if (body.dek !== undefined) patch.dek = String(body.dek);
+  if (typeof body.body === "string" && body.body.length > clean.LIMITS.body) {
+    return NextResponse.json({ error: "Bài quá dài" }, { status: 413 });
+  }
+  if (body.title !== undefined) patch.title = clean.text(body.title, clean.LIMITS.title).trim();
+  if (body.dek !== undefined) patch.dek = clean.text(body.dek, clean.LIMITS.dek);
   if (body.publishedAt !== undefined) patch.publishedAt = String(body.publishedAt);
   if (body.readingTimeMin !== undefined) {
     patch.readingTimeMin = Number(body.readingTimeMin) || 3;
@@ -100,9 +104,10 @@ export async function PUT(
   if (body.language !== undefined) {
     patch.language = body.language === "en" ? "en" : "vi";
   }
-  if (Array.isArray(body.tags)) patch.tags = body.tags.map(String);
+  if (Array.isArray(body.tags)) patch.tags = clean.tags(body.tags);
   if (body.coverImage !== undefined) {
-    patch.coverImage = String(body.coverImage) || undefined;
+    // "" = gỡ ảnh bìa; URL không hợp lệ cũng coi như gỡ.
+    patch.coverImage = clean.mediaRef(body.coverImage) ?? "";
   }
   if (body.coverImageCaption !== undefined) {
     patch.coverImageCaption = String(body.coverImageCaption) || undefined;
@@ -114,23 +119,14 @@ export async function PUT(
         ? {
             author: String(c.author),
             license: String(c.license),
-            sourceUrl: String(c.sourceUrl),
+            sourceUrl: clean.httpUrl(c.sourceUrl) ?? "",
             sourceName: c.sourceName ? String(c.sourceName) : undefined,
           }
         : undefined;
   }
-  if (Array.isArray(body.coverGradient) && body.coverGradient.length === 2) {
-    patch.coverGradient = [
-      String(body.coverGradient[0]),
-      String(body.coverGradient[1]),
-    ];
-  }
-  if (Array.isArray(body.sources)) {
-    patch.sources = body.sources
-      .map((s) => s as { name?: unknown; url?: unknown })
-      .filter((s) => s?.url)
-      .map((s) => ({ name: String(s.name ?? "Nguồn"), url: String(s.url) }));
-  }
+  const grad = clean.gradient(body.coverGradient);
+  if (grad) patch.coverGradient = grad;
+  if (Array.isArray(body.sources)) patch.sources = clean.sources(body.sources);
 
   if (body.category !== undefined) {
     const category = String(body.category);

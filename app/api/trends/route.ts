@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireRole } from "@/lib/auth";
 import { fetchGoogleTrendsVN } from "@/lib/sources/googleTrends";
 import {
   fetchMultipleFeeds,
@@ -6,7 +7,14 @@ import {
   VIETNAMESE_INTL_FEEDS,
 } from "@/lib/sources/rss";
 
+/**
+ * Chỉ admin: mỗi lần gọi là hàng chục request ra ngoài (Google Trends + RSS),
+ * để công khai thì ai cũng dùng máy chủ mình làm bệ khuếch đại / làm nó quá tải.
+ */
 export async function GET() {
+  if (!(await requireRole("admin"))) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
   const [trends, international, vietnameseIntl] = await Promise.allSettled([
     fetchGoogleTrendsVN(),
     fetchMultipleFeeds(INTERNATIONAL_FEEDS),
