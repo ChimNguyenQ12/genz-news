@@ -30,7 +30,7 @@ export default function Footer() {
           </div>
 
           <div>
-            <h3 className="text-sm font-bold uppercase tracking-wide text-muted">Chuyên mục</h3>
+            <h2 className="text-sm font-bold uppercase tracking-wide text-muted">Chuyên mục</h2>
             <ul className="mt-3 space-y-2">
               {categories.map((c) => (
                 <li key={c.slug}>
@@ -43,7 +43,7 @@ export default function Footer() {
           </div>
 
           <div>
-            <h3 className="text-sm font-bold uppercase tracking-wide text-muted">Về GenZ News</h3>
+            <h2 className="text-sm font-bold uppercase tracking-wide text-muted">Về GenZ News</h2>
             <ul className="mt-3 space-y-2 text-sm text-foreground/80">
               <li><Link href="#" className="hover:text-accent">Giới thiệu</Link></li>
               <li><Link href="#" className="hover:text-accent">Nguyên tắc biên tập &amp; trích nguồn</Link></li>
@@ -52,7 +52,7 @@ export default function Footer() {
           </div>
 
           <div>
-            <h3 className="text-sm font-bold uppercase tracking-wide text-muted">Liên hệ</h3>
+            <h2 className="text-sm font-bold uppercase tracking-wide text-muted">Liên hệ</h2>
             <p className="mt-3 text-sm text-muted">tinhbu0123@gmail.com</p>
             <p className="mt-3 text-sm text-muted">Meeting App: <a href="https://meet.pliny.blog">meet.pliny.blog</a></p>
             <a

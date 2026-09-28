@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { getCategory } from "@/lib/data";
 import { categoryStyles } from "@/lib/categoryStyles";
 import { formatDate, jsonLdScript } from "@/lib/utils";
+import { DEFAULT_OG_IMAGE, serpDescription, serpTitle } from "@/lib/seo";
 import { mediaHtml, mediaUrl } from "@/lib/media";
 import { getArticleBySlug, listPublishedInCategory } from "@/lib/store";
 import { getSessionUser } from "@/lib/auth";
@@ -34,17 +35,23 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
   const category = getCategory(article.category);
   const url = `${BASE_URL}/bai-viet/${slug}`;
-  const images = article.coverImage
-    ? [{ url: article.coverImage, alt: article.title }]
-    : [];
+  // Cắt gọn ngay ở tầng metadata: tít bài dài bị Google cắt cụt, còn `dek`
+  // 180–200 ký tự bị cắt ở giữa câu khi hiện trên kết quả tìm kiếm.
+  const description = serpDescription(article.dek);
+  // Bài không có ảnh bìa thì rơi về ảnh thương hiệu — thà có ảnh chung còn hơn
+  // og:image trống, vì link chia sẻ không ảnh thì tỉ lệ bấm rất thấp.
+  const ogImage = article.coverImage
+    ? { url: article.coverImage, alt: article.title }
+    : DEFAULT_OG_IMAGE;
 
   return {
-    title: article.title,
-    description: article.dek || undefined,
+    // absolute: độ dài tít đã tự tính, không cho Next gắn thêm " | GenZ News".
+    title: { absolute: serpTitle(article.title) },
+    description: description || undefined,
     alternates: { canonical: url },
     openGraph: {
       title: article.title,
-      description: article.dek || undefined,
+      description: description || undefined,
       url,
       type: "article",
       locale: "vi_VN",
@@ -55,13 +62,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       authors: [article.author],
       section: category?.name,
       tags: article.tags,
-      images,
+      images: [ogImage],
     },
     twitter: {
       card: "summary_large_image",
       title: article.title,
-      description: article.dek || undefined,
-      images: images.map((i) => i.url),
+      description: description || undefined,
+      images: [ogImage.url],
     },
   };
 }

@@ -1,9 +1,24 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getSessionUser } from "@/lib/auth";
 import AuthForm from "@/components/AuthForm";
 
 export const dynamic = "force-dynamic";
+
+const BASE_URL =
+  process.env.NEXT_PUBLIC_BASE_URL ?? "https://genz-news.site";
+
+/**
+ * Cùng lý do như trang đăng nhập: tự khai báo title/description/canonical để
+ * không thừa hưởng metadata của trang chủ (tít trùng, canonical trỏ sai).
+ */
+export const metadata: Metadata = {
+  title: "Đăng ký",
+  description:
+    "Tạo tài khoản GenZ News miễn phí để đóng góp bài viết và theo dõi trạng thái duyệt bài của bạn.",
+  alternates: { canonical: `${BASE_URL}/dang-ky` },
+};
 
 const REGISTRATION_OPEN = process.env.ALLOW_REGISTRATION !== "0";
 

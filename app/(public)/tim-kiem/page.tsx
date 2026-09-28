@@ -57,7 +57,8 @@ export default async function SearchPage({ searchParams }: Props) {
       {items.length > 0 && (
         <div className="mt-8 grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
           {items.map((a) => (
-            <ArticleCard key={a.slug} article={a} />
+            // h2 để không nhảy cấp từ <h1>Tìm kiếm</h1> xuống h3.
+            <ArticleCard key={a.slug} article={a} headingLevel="h2" />
           ))}
         </div>
       )}

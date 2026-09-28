@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { getCategory } from "@/lib/data";
 import { categoryStyles } from "@/lib/categoryStyles";
+import { DEFAULT_OG_IMAGE } from "@/lib/seo";
 import { listPublishedInCategory } from "@/lib/store";
 import ArticleCard from "@/components/ArticleCard";
 import PageNav from "@/components/PageNav";
@@ -41,6 +42,7 @@ export async function generateMetadata({ params, searchParams }: Props): Promise
       url,
       type: "website",
       locale: "vi_VN",
+      images: [DEFAULT_OG_IMAGE],
     },
   };
 }
@@ -93,7 +95,9 @@ export default async function CategoryPage({ params, searchParams }: Props) {
       ) : (
         <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
           {items.map((a) => (
-            <ArticleCard key={a.slug} article={a} />
+            // headingLevel="h2": trang này đã có <h1> là tên chuyên mục, thẻ bài
+            // phải là h2 để không nhảy cấp h1 → h3.
+            <ArticleCard key={a.slug} article={a} headingLevel="h2" />
           ))}
         </div>
       )}

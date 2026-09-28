@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { Be_Vietnam_Pro } from "next/font/google";
+import { DEFAULT_OG_IMAGE, SITE_DESC, SITE_NAME } from "@/lib/seo";
 import "./globals.css";
 
 const BASE_URL =
@@ -11,10 +12,6 @@ const beVietnamPro = Be_Vietnam_Pro({
   subsets: ["latin", "vietnamese"],
   weight: ["400", "500", "600", "700", "800", "900"],
 });
-
-const SITE_NAME = "GenZ News";
-const SITE_DESC =
-  "Tin tức quốc tế được chắt lọc, biên tập lại và trích dẫn nguồn rõ ràng — đọc nhanh, hiểu sâu.";
 
 export const metadata: Metadata = {
   // metadataBase bắt buộc phải có để Next.js resolve canonical, og:image, sitemap
@@ -34,6 +31,9 @@ export const metadata: Metadata = {
     locale: "vi_VN",
     type: "website",
     url: BASE_URL,
+    // Ảnh mặc định cho mọi trang không tự khai báo (trang chủ, chuyên mục,
+    // đăng nhập…). Bài viết có ảnh bìa sẽ ghi đè bằng ảnh của chính bài.
+    images: [DEFAULT_OG_IMAGE],
   },
   icons: {
     icon: [
@@ -48,6 +48,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: `${SITE_NAME} — Tin thế giới, gọn cho Gen Z`,
     description: SITE_DESC,
+    images: [DEFAULT_OG_IMAGE.url],
   },
 };
 
