@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { jsonLdScript } from "@/lib/utils";
 
 /**
  * Khung chung cho các trang tĩnh (giới thiệu, nguyên tắc, điều khoản…).
@@ -11,16 +12,26 @@ export default function InfoPage({
   title,
   summary,
   updatedAt,
+  jsonLd,
   children,
 }: {
   title: string;
   summary?: string;
   /** Ngày cập nhật, đã ở dạng hiển thị được (VD "28/09/2026"). */
   updatedAt?: string;
+  /** Dữ liệu có cấu trúc của riêng trang (WebPage, AboutPage…). */
+  jsonLd?: unknown;
   children: ReactNode;
 }) {
   return (
     <article className="mx-auto max-w-3xl px-4 py-10 sm:py-14">
+      {/* JSON-LD structured data — không hiển thị, dành cho crawler & AI engines */}
+      {jsonLd ? (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: jsonLdScript(jsonLd) }}
+        />
+      ) : null}
       <h1 className="font-display text-3xl font-black leading-tight sm:text-4xl">
         {title}
       </h1>

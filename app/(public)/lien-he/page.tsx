@@ -10,7 +10,7 @@ const CONTACT_EMAIL = "tinhbu0123@gmail.com";
 const FACEBOOK_URL = "https://www.facebook.com/profile.php?id=61594370073139";
 
 export const metadata: Metadata = {
-  title: "Liên hệ",
+  title: "Liên hệ GenZ News — gửi tin, báo sai, gỡ nội dung",
   description:
     "Liên hệ toà soạn GenZ News: báo bài sai, yêu cầu chỉnh sửa hoặc gỡ nội dung, gửi tin và góp ý. Email và Facebook chính thức.",
   alternates: { canonical: `${BASE_URL}/lien-he` },

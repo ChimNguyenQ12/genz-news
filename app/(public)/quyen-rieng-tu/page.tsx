@@ -6,15 +6,29 @@ const BASE_URL =
   process.env.NEXT_PUBLIC_BASE_URL ?? "https://genz-news.site";
 
 export const metadata: Metadata = {
-  title: "Quyền riêng tư",
+  title: "Quyền riêng tư — GenZ News lưu dữ liệu gì?",
   description:
     "GenZ News không dùng công cụ theo dõi của bên thứ ba, không chạy quảng cáo và không bán dữ liệu. Đây là những dữ liệu chúng tôi thực sự lưu và vì sao.",
   alternates: { canonical: `${BASE_URL}/quyen-rieng-tu` },
 };
 
+// JSON-LD WebPage cho trang chính sách, kèm thực thể nhà xuất bản.
+const jsonLd = {
+  "@context": "https://schema.org",
+  "@type": "WebPage",
+  name: "Quyền riêng tư — GenZ News",
+  url: `${BASE_URL}/quyen-rieng-tu`,
+  description:
+    "GenZ News không dùng công cụ theo dõi của bên thứ ba, không chạy quảng cáo và không bán dữ liệu người đọc.",
+  inLanguage: "vi",
+  isPartOf: { "@type": "WebSite", name: "GenZ News", url: BASE_URL },
+  publisher: { "@type": "NewsMediaOrganization", name: "GenZ News", url: BASE_URL },
+};
+
 export default function PrivacyPage() {
   return (
     <InfoPage
+      jsonLd={jsonLd}
       title="Quyền riêng tư"
       summary="Ngắn gọn: đọc bài thì không cần tài khoản, chúng tôi không chạy công cụ theo dõi nào của bên thứ ba, và không bán dữ liệu cho ai."
       updatedAt="28/09/2026"

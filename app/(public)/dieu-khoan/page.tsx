@@ -12,9 +12,23 @@ export const metadata: Metadata = {
   alternates: { canonical: `${BASE_URL}/dieu-khoan` },
 };
 
+// JSON-LD WebPage cho trang điều khoản, kèm thực thể nhà xuất bản.
+const jsonLd = {
+  "@context": "https://schema.org",
+  "@type": "WebPage",
+  name: "Điều khoản sử dụng — GenZ News",
+  url: `${BASE_URL}/dieu-khoan`,
+  description:
+    "Điều khoản sử dụng GenZ News: bản quyền nội dung, điều kiện trích dẫn lại có ghi nguồn, quy định tài khoản và bình luận.",
+  inLanguage: "vi",
+  isPartOf: { "@type": "WebSite", name: "GenZ News", url: BASE_URL },
+  publisher: { "@type": "NewsMediaOrganization", name: "GenZ News", url: BASE_URL },
+};
+
 export default function TermsPage() {
   return (
     <InfoPage
+      jsonLd={jsonLd}
       title="Điều khoản sử dụng"
       summary="Bạn được đọc, trích dẫn và chia sẻ nội dung GenZ News — miễn là ghi rõ nguồn. Đây là các điều khoản chi tiết."
       updatedAt="28/09/2026"

@@ -12,9 +12,24 @@ export const metadata: Metadata = {
   alternates: { canonical: `${BASE_URL}/nguyen-tac-bien-tap` },
 };
 
+// JSON-LD WebPage: cho Google biết đây là trang chính sách của toà soạn chứ
+// không phải một bài viết, kèm thực thể nhà xuất bản để nhận diện thương hiệu.
+const jsonLd = {
+  "@context": "https://schema.org",
+  "@type": "WebPage",
+  name: "Nguyên tắc biên tập & trích nguồn — GenZ News",
+  url: `${BASE_URL}/nguyen-tac-bien-tap`,
+  description:
+    "Nguyên tắc biên tập của GenZ News: kiểm chứng dữ kiện từ nhiều nguồn, viết lại hoàn toàn bằng lời của mình, ghi rõ nguồn từng bài và ghi công ảnh.",
+  inLanguage: "vi",
+  isPartOf: { "@type": "WebSite", name: "GenZ News", url: BASE_URL },
+  publisher: { "@type": "NewsMediaOrganization", name: "GenZ News", url: BASE_URL },
+};
+
 export default function EditorialPolicyPage() {
   return (
     <InfoPage
+      jsonLd={jsonLd}
       title="Nguyên tắc biên tập & trích nguồn"
       summary="Chúng tôi tổng hợp và biên tập lại — không sao chép. Dưới đây là những gì chúng tôi buộc mình phải làm trước khi một bài được đăng."
       updatedAt="28/09/2026"

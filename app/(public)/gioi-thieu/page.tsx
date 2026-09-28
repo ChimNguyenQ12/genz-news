@@ -7,7 +7,7 @@ const BASE_URL =
   process.env.NEXT_PUBLIC_BASE_URL ?? "https://genz-news.site";
 
 export const metadata: Metadata = {
-  title: "Giới thiệu",
+  title: "Giới thiệu GenZ News — tin gọn cho người Việt",
   description:
     "GenZ News là trang tin quốc tế chắt lọc cho người đọc trẻ Việt Nam: tin ngắn, hiểu sâu, mỗi bài đều trích dẫn nguồn gốc rõ ràng.",
   alternates: { canonical: `${BASE_URL}/gioi-thieu` },
