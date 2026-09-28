@@ -45,9 +45,9 @@ export default function Footer() {
           <div>
             <h2 className="text-sm font-bold uppercase tracking-wide text-muted">Về GenZ News</h2>
             <ul className="mt-3 space-y-2 text-sm text-foreground/80">
-              <li><Link href="#" className="hover:text-accent">Giới thiệu</Link></li>
-              <li><Link href="#" className="hover:text-accent">Nguyên tắc biên tập &amp; trích nguồn</Link></li>
-              <li><Link href="#" className="hover:text-accent">Liên hệ</Link></li>
+              <li><Link href="/gioi-thieu" className="hover:text-accent">Giới thiệu</Link></li>
+              <li><Link href="/nguyen-tac-bien-tap" className="hover:text-accent">Nguyên tắc biên tập &amp; trích nguồn</Link></li>
+              <li><Link href="/lien-he" className="hover:text-accent">Liên hệ</Link></li>
             </ul>
           </div>
 
@@ -72,8 +72,8 @@ export default function Footer() {
         <div className="mt-10 flex flex-col items-center justify-between gap-3 border-t border-border pt-6 text-xs text-muted sm:flex-row">
           <p>© 2026 GenZ News. Mọi bài viết tổng hợp đều được BIÊN TẬP LẠI và trích dẫn nguồn gốc.</p>
           <div className="flex gap-4">
-            <Link href="#" className="hover:text-accent">Điều khoản</Link>
-            <Link href="#" className="hover:text-accent">Quyền riêng tư</Link>
+            <Link href="/dieu-khoan" className="hover:text-accent">Điều khoản</Link>
+            <Link href="/quyen-rieng-tu" className="hover:text-accent">Quyền riêng tư</Link>
           </div>
         </div>
       </div>
