@@ -255,7 +255,7 @@ Vài điều cụ thể làm bài dày lên mà không loãng:
 
 ## Kỹ thuật
 
-- Nội dung sống trong PostgreSQL, thao tác qua `lib/store.ts` (Prisma).
+- Nội dung sống trong SQLite (một tệp trong `data/`), thao tác qua `lib/store.ts` (Prisma).
 - Kiểu dữ liệu bài viết: `lib/types.ts` → `Article`.
 - Chuyên mục hợp lệ: `viet-nam`, `the-gioi`, `cong-nghe`, `giai-tri`,
   `doi-song`, `kinh-doanh`, `the-thao`.
@@ -263,5 +263,12 @@ Vài điều cụ thể làm bài dày lên mà không loãng:
   trực tiếp lên người/doanh nghiệp/chính sách Việt Nam — kể cả tin Việt–Trung,
   Biển Đông) đặt vào `viet-nam`, bất kể mảng nào. Bài quốc tế chỉ nhắc Việt Nam
   thoáng qua thì giữ chuyên mục theo mảng.
+- `tags[]` không phải phần trang trí: khối **Tin liên quan** cuối mỗi bài chọn
+  bài theo **tag dùng chung**, không theo chuyên mục. Trước khi đặt tag, tra kho
+  tag đang dùng bằng WebFetch `https://genz-news.site/api/tags` rồi **ưu tiên
+  dùng lại tag đã có** (đúng cách viết của nó); tag mới chỉ nên là tên riêng
+  chắc chắn còn lặp lại. Kho bài có 708 tag cho 211 bài mà 545 tag chỉ dùng một
+  lần — tag không lặp thì không nối được bài nào với bài nào. Chi tiết ở skill
+  `viet-bai-toa-soan`.
 - Sau khi sửa code: chạy `npm run lint` và `npx tsc --noEmit`.
 - Schema DB ở `prisma/schema.prisma`; đổi schema thì chạy `npm run db:migrate`.

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
-import { deleteArticle, getArticleById, updateArticle } from "@/lib/store";
+import { deleteArticle, getArticleById, listAllTagNames, updateArticle } from "@/lib/store";
+import { canonicalizeTags } from "@/lib/tags";
 import { closeRequestForArticle } from "@/lib/queue";
 import { pingIndexNow } from "@/lib/indexnow";
 import type { Article, ArticleStatus, CategorySlug } from "@/lib/types";
@@ -108,7 +109,11 @@ export async function PUT(
   if (body.language !== undefined) {
     patch.language = body.language === "en" ? "en" : "vi";
   }
-  if (Array.isArray(body.tags)) patch.tags = clean.tags(body.tags);
+  if (Array.isArray(body.tags)) {
+    // Gộp tag trùng nghĩa vào cách viết đang có trong kho ("openai" → "OpenAI"),
+    // để tag không tiếp tục phân tán (xem lib/tags.ts).
+    patch.tags = canonicalizeTags(clean.tags(body.tags) ?? [], await listAllTagNames());
+  }
   if (body.coverImage !== undefined) {
     // "" = gỡ ảnh bìa; URL không hợp lệ cũng coi như gỡ.
     patch.coverImage = clean.mediaRef(body.coverImage) ?? "";

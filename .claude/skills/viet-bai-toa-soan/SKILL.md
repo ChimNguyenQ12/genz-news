@@ -157,6 +157,35 @@ chủ thể chính thì dùng `viet-nam`, xem CLAUDE.md mục "Kỹ thuật"), `
   trả về (xem skill `lay-anh-bai-viet`) — lệnh lưu từ chối mọi ảnh khác, và từ
   chối ảnh thiếu `<figcaption>`.
 
+### Cách đặt `tags[]` (không phải phần trang trí)
+
+Khối **Tin liên quan** cuối mỗi bài chọn bài theo **tag dùng chung**, không theo
+chuyên mục. Tag dùng một lần thì không nối được bài nào với bài nào — nó chỉ làm
+loãng chính tín hiệu đó.
+
+Kho bài hiện có 708 tag cho 211 bài, trong đó **545 tag chỉ xuất hiện đúng một
+lần**. Đừng làm con số đó tệ thêm.
+
+Trước khi đặt tag, **tra kho tag đang dùng** bằng WebFetch:
+
+```
+https://genz-news.site/api/tags
+```
+
+Trả về danh sách tag kèm `count` (số bài đang mang tag đó), nhiều nhất trước.
+
+Quy tắc:
+
+- **3–5 tag**. Lệnh lưu cắt ở 6 nên đừng gửi dài hơn.
+- **Ưu tiên tag đã có** trong kho nếu cùng nghĩa, và dùng **đúng cách viết** của
+  nó — hệ thống tự gộp biến thể hoa/thường/dấu, nhưng đừng ỷ lại.
+- Tag phải là **thực thể cụ thể còn lặp lại**: tên người, tổ chức, địa danh, sản
+  phẩm, sự kiện (`Tô Lâm`, `OpenAI`, `Biển Đông`, `iPhone 18`, `ASIAD 2026`).
+- **Không** dùng tag mô tả chung chung chỉ đúng với mỗi bài này, và **không** gắn
+  một tag đã có vào bài không thật sự nói về nó — gắn sai còn tệ hơn không gắn.
+- Tag mới chỉ nên tạo khi là tên riêng chưa từng có nhưng **chắc chắn sẽ còn xuất
+  hiện** (một nhân vật, một vụ việc đang lên).
+
 Lệnh **từ chối** bài dưới 8 đoạn `<p>` hoặc dưới 750 từ, tít quá dài (>80 ký
 tự), `dek` rỗng, chuyên mục sai, hoặc không có tên miền nguồn độc lập nào (xem
 bước 1). Bị từ chối thì viết dày thêm bằng thông tin thật, đừng độn chữ —

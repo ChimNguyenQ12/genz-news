@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
-import { createArticle, listArticlesPage, slugify } from "@/lib/store";
+import { createArticle, listAllTagNames, listArticlesPage, slugify } from "@/lib/store";
+import { canonicalizeTags } from "@/lib/tags";
 import type { Article, ArticleStatus, CategorySlug } from "@/lib/types";
 import { categories } from "@/lib/data";
 import { normalizeArticleHtml } from "@/lib/html";
@@ -80,13 +81,17 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Chuyên mục không hợp lệ" }, { status: 400 });
   }
 
+  // Gộp tag trùng nghĩa vào cách viết đang có trong kho ("openai" → "OpenAI"),
+  // để kho tag không tiếp tục phân tán — xem lib/tags.ts và GET /api/tags.
+  const tags = canonicalizeTags(clean.tags(body.tags) ?? [], await listAllTagNames());
+
   // Bài mới luôn bắt đầu ở trạng thái nháp, kể cả admin tạo.
   const input: Omit<Article, "id" | "createdAt" | "updatedAt"> = {
     slug: String(body.slug ?? "") || slugify(title),
     title,
     dek: clean.text(body.dek, clean.LIMITS.dek),
     category: category as CategorySlug,
-    tags: clean.tags(body.tags) ?? [],
+    tags,
     coverGradient: clean.gradient(body.coverGradient) ?? ["#7C3AED", "#22D3EE"],
     // Ảnh bìa PHẢI được nhận ngay ở bước tạo bài. Trước đây hai trường này bị
     // bỏ quên ở đây (chỉ PUT mới đọc), nên bài do máy viết mất sạch ảnh bìa —

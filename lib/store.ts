@@ -411,6 +411,53 @@ export async function listRelatedArticles(input: {
     .map((x) => x.article);
 }
 
+/**
+ * Kho tag đang được dùng, xếp theo số bài mang tag đó.
+ *
+ * Hai chỗ dùng:
+ *  1. Vòng viết tự động tra trước khi đặt tag (GET /api/tags), để bài mới dùng
+ *     lại tag cũ thay vì mỗi bài phát minh một tag mới. 545/708 tag hiện tại chỉ
+ *     xuất hiện đúng một lần — đó là lý do khối "Tin liên quan" khó tìm được bài
+ *     cùng chủ đề.
+ *  2. canonicalizeTags() khi lưu bài, để "openai" gộp vào "OpenAI" đang có.
+ */
+export async function listTagVocabulary(
+  limit = 2000,
+): Promise<{ tag: string; count: number }[]> {
+  const rows = await prisma.article.findMany({
+    where: { status: "published" },
+    select: { tags: true },
+  });
+
+  const counts = new Map<string, number>();
+  for (const r of rows) {
+    for (const t of parseList(r.tags)) {
+      counts.set(t, (counts.get(t) ?? 0) + 1);
+    }
+  }
+
+  return [...counts.entries()]
+    .map(([tag, count]) => ({ tag, count }))
+    .sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag, "vi"))
+    .slice(0, limit);
+}
+
+/**
+ * Mọi cách viết tag đang có trong kho, KỂ CẢ bài chưa đăng.
+ *
+ * Khác listTagVocabulary() ở chỗ không lọc `published`: việc gộp tag lúc lưu bài
+ * phải tôn trọng cả cách viết trong bản nháp, nhưng endpoint công khai thì không
+ * được để lộ chủ đề của bài chưa đăng.
+ */
+export async function listAllTagNames(): Promise<string[]> {
+  const rows = await prisma.article.findMany({ select: { tags: true } });
+  const set = new Set<string>();
+  for (const r of rows) {
+    for (const t of parseList(r.tags)) set.add(t);
+  }
+  return [...set];
+}
+
 export function foldVietnamese(s: string) {
   return s
     .normalize("NFD")
