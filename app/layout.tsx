@@ -24,6 +24,14 @@ export const metadata: Metadata = {
   applicationName: SITE_NAME,
   alternates: { canonical: "/" },
   robots: { index: true, follow: true, googleBot: { index: true, follow: true } },
+  // Xác minh quyền sở hữu tên miền với máy tìm kiếm. Bing còn có cách thứ hai
+  // là tệp public/BingSiteAuth.xml — đặt CẢ HAI cho chắc, đằng nào cũng không
+  // hại gì và đỡ phải deploy lại nếu một cách bị từ chối.
+  verification: {
+    other: {
+      "msvalidate.01": "BB309AA244CC3515A217EA5BAD5C7A27",
+    },
+  },
   openGraph: {
     title: `${SITE_NAME} — Tin thế giới, gọn cho Gen Z`,
     description: SITE_DESC,

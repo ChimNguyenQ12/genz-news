@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
 import { deleteArticle, getArticleById, updateArticle } from "@/lib/store";
 import { closeRequestForArticle } from "@/lib/queue";
+import { pingIndexNow } from "@/lib/indexnow";
 import type { Article, ArticleStatus, CategorySlug } from "@/lib/types";
 import { categories } from "@/lib/data";
 import { normalizeArticleHtml } from "@/lib/html";
@@ -16,6 +17,9 @@ function slotFrom(raw: unknown, max: number): number | null | "invalid" {
 }
 
 const VALID_CATEGORIES = new Set(categories.map((c) => c.slug));
+
+const BASE_URL =
+  process.env.NEXT_PUBLIC_BASE_URL ?? "https://genz-news.site";
 
 /** Tài khoản thường chỉ được đặt hai trạng thái này. */
 const CONTRIBUTOR_STATUSES: ArticleStatus[] = ["draft", "pending"];
@@ -193,6 +197,13 @@ export async function PUT(
   // không phải nhật ký — bài đã đăng mà vẫn nằm đó thì mỗi ngày một dài thêm.
   if (patch.status === "published") {
     await closeRequestForArticle(id);
+    // IndexNow: báo thẳng cho Bing/Yandex/Naver biết bài vừa lên, thay vì chờ
+    // bot tự quét (mất vài ngày). Không await — người biên tập không phải chờ
+    // máy tìm kiếm trả lời, và pingIndexNow đã tự nuốt mọi lỗi.
+    void pingIndexNow([
+      `${BASE_URL}/bai-viet/${article.slug}`,
+      `${BASE_URL}/chuyen-muc/${article.category}`,
+    ]);
     // Mạng xã hội không xếp lịch ở đây: Facebook tự chọn bài nóng nhất đúng
     // lúc tới giờ vàng, Threads do người biên tập tự đặt (lib/social/core.ts).
   }

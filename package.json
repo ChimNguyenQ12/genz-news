@@ -9,6 +9,7 @@
     "lint": "eslint",
     "collect-trends": "node scripts/collect-trends.mjs",
     "translate-topics": "node scripts/translate-topics.mjs",
+    "indexnow": "node scripts/indexnow-submit.mjs",
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
     "db:generate": "prisma generate",
