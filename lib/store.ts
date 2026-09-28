@@ -360,6 +360,57 @@ export async function listPublishedSummaries(): Promise<ArticleSummary[]> {
   return rows.map(toSummary);
 }
 
+/**
+ * Bài liên quan cho khối "Đọc thêm".
+ *
+ * Chọn theo TAG DÙNG CHUNG chứ không theo chuyên mục: cùng một vụ việc hay
+ * nằm ở nhiều chuyên mục khác nhau (một tin vừa là Việt Nam vừa là Kinh Doanh),
+ * còn "cùng chuyên mục" thì gần như luôn đúng nên chẳng nói lên điều gì — và
+ * nó khiến đồ thị liên kết nội bộ bị chia thành 8 hòn đảo không nối nhau.
+ *
+ * Mỗi tag chung được cân theo ĐỘ HIẾM (1 / số bài mang tag đó) thay vì đếm thô.
+ * Kho bài hiện có 708 tag, trong đó 545 tag chỉ xuất hiện đúng một lần: tag
+ * hiếm như "kênh đào Bình Lục" là tín hiệu liên quan rất mạnh, còn tag phổ
+ * biến như "Việt Nam" (22% số bài) hay "Trung Quốc" (20%) nếu đếm thô sẽ kéo
+ * mọi bài về cùng một chỗ.
+ *
+ * Cùng chuyên mục chỉ là điểm cộng nhỏ, vừa đủ phá hoà khi hai bài không chung
+ * tag nào.
+ */
+export async function listRelatedArticles(input: {
+  slug: string;
+  category: CategorySlug;
+  tags: string[];
+  limit?: number;
+}): Promise<ArticleSummary[]> {
+  const { slug, category, tags, limit = 6 } = input;
+  const all = await listPublishedSummaries();
+
+  const frequency = new Map<string, number>();
+  for (const a of all) {
+    for (const t of a.tags) frequency.set(t, (frequency.get(t) ?? 0) + 1);
+  }
+
+  const wanted = new Set(tags);
+  return all
+    .filter((a) => a.slug !== slug)
+    .map((a) => {
+      let score = 0;
+      for (const t of a.tags) {
+        if (wanted.has(t)) score += 1 / (frequency.get(t) ?? 1);
+      }
+      if (a.category === category) score += 0.15;
+      return { article: a, score };
+    })
+    .sort(
+      (x, y) =>
+        y.score - x.score ||
+        (x.article.publishedAt < y.article.publishedAt ? 1 : -1),
+    )
+    .slice(0, limit)
+    .map((x) => x.article);
+}
+
 export function foldVietnamese(s: string) {
   return s
     .normalize("NFD")

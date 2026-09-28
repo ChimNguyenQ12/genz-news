@@ -6,7 +6,7 @@ import { categoryStyles } from "@/lib/categoryStyles";
 import { formatDate, jsonLdScript } from "@/lib/utils";
 import { DEFAULT_OG_IMAGE, serpDescription, serpTitle } from "@/lib/seo";
 import { mediaHtml, mediaUrl } from "@/lib/media";
-import { getArticleBySlug, listPublishedInCategory } from "@/lib/store";
+import { getArticleBySlug, listRelatedArticles } from "@/lib/store";
 import { getSessionUser } from "@/lib/auth";
 import { listComments } from "@/lib/comments";
 import ArticleCard from "@/components/ArticleCard";
@@ -90,10 +90,15 @@ export default async function ArticlePage({ params }: Props) {
 
   const category = getCategory(article.category);
   const style = categoryStyles[article.category];
-  // Lấy 4 để còn đủ 3 khi bài đang đọc nằm trong số đó.
-  const related = (await listPublishedInCategory(article.category, 1, 4)).items
-    .filter((a) => a.slug !== article.slug)
-    .slice(0, 3);
+  // Bài liên quan chọn theo tag dùng chung (xem listRelatedArticles), không
+  // phải cùng chuyên mục — nhờ vậy khối "Đọc thêm" nối được các chuyên mục với
+  // nhau thay vì chỉ xoay vòng trong một chuyên mục.
+  const related = await listRelatedArticles({
+    slug: article.slug,
+    category: article.category,
+    tags: article.tags,
+    limit: 6,
+  });
   const comments = await listComments(article.id);
 
   // JSON-LD NewsArticle cho GEO (Perplexity, ChatGPT, Gemini, Google AI Overviews)
@@ -184,13 +189,39 @@ export default async function ArticlePage({ params }: Props) {
           </Link>
         </div>
       )}
-      <Link
-        href={`/chuyen-muc/${article.category}`}
-        className={`mb-4 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-bold ${style.pill}`}
-      >
-        <span className={`size-1.5 rounded-full ${style.dot}`} />
-        {category?.name}
-      </Link>
+      {/* Breadcrumb hiện — khớp đúng BreadcrumbList trong JSON-LD ở trên. Vừa
+          cho người đọc biết mình đang ở đâu, vừa là link nội bộ có anchor rõ
+          nghĩa (thay vì chỉ một viên "chuyên mục" trơ). */}
+      <nav aria-label="Breadcrumb" className="mb-4">
+        <ol className="flex flex-wrap items-center gap-1.5 text-xs font-semibold text-muted">
+          <li>
+            <Link href="/" className="hover:text-accent">
+              Trang chủ
+            </Link>
+          </li>
+          <li aria-hidden className="opacity-50">
+            ›
+          </li>
+          <li>
+            <Link
+              href={`/chuyen-muc/${article.category}`}
+              className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 ${style.pill}`}
+            >
+              <span className={`size-1.5 rounded-full ${style.dot}`} />
+              {category?.name}
+            </Link>
+          </li>
+          <li aria-hidden className="hidden opacity-50 sm:inline">
+            ›
+          </li>
+          <li
+            aria-current="page"
+            className="hidden max-w-[40ch] truncate sm:inline"
+          >
+            {article.title}
+          </li>
+        </ol>
+      </nav>
 
       <div>
         <h1 className="font-display text-balance text-3xl font-black leading-tight sm:text-4xl lg:text-5xl">
@@ -303,7 +334,7 @@ export default async function ArticlePage({ params }: Props) {
       {related.length > 0 && (
         <div className="mt-14">
           <h2 className="font-display mb-5 text-xl font-black">
-            Đọc thêm về {category?.name}
+            Tin liên quan
           </h2>
           <div className="grid gap-8 sm:grid-cols-3">
             {related.map((a) => (
