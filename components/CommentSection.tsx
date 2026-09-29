@@ -408,7 +408,7 @@ export default function CommentSection({
             value={guestName}
             onChange={(e) => setTypedName(e.target.value.slice(0, NAME_MAX))}
             maxLength={NAME_MAX}
-            placeholder="Nick của bạn (VD: Mèo Lười)"
+            placeholder="Nick của bạn (VD: Nguyễn Sỹ Cương)"
             aria-label="Nick hiển thị"
             className="w-full rounded-xl border border-border bg-surface px-4 py-2.5 text-sm outline-none focus:border-accent sm:max-w-xs"
           />
@@ -438,7 +438,7 @@ export default function CommentSection({
 
         {!user && (
           <p className="text-xs text-muted">
-            Không cần đăng nhập. Muốn bình luận bằng tên tài khoản thì{" "}
+            Đăng ẩn danh hoặc có thể{" "}
             <Link href="/dang-nhap" className="font-semibold text-accent hover:underline">
               đăng nhập
             </Link>
