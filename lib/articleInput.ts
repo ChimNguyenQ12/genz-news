@@ -55,6 +55,29 @@ export function sources(raw: unknown): SourceRef[] | undefined {
 export const text = (raw: unknown, max: number) => String(raw ?? "").slice(0, max);
 
 /**
+ * Mốc đăng bài: LUÔN là ISO CÓ GIỜ.
+ *
+ * Ô "Publish date" trong trình sửa bài là `<input type="date">` nên chỉ gửi
+ * "YYYY-MM-DD". Ghi thẳng giá trị đó vào DB là mất phần giờ — đúng chuyện đã
+ * xảy ra với cả 221 bài, khiến trang bài viết không còn gì để hiện ngoài ngày.
+ *
+ * Chỉ có ngày thì giữ lại phần GIỜ của mốc cũ (bài mới chưa có mốc cũ thì lấy
+ * giờ hiện tại), để sửa ngày không xoá mất giờ đăng.
+ */
+export function publishedAt(raw: unknown, previous?: string): string {
+  const value = String(raw ?? "").trim();
+  if (!value) return previous ?? new Date().toISOString();
+  if (value.includes("T")) {
+    const d = new Date(value);
+    return Number.isNaN(d.getTime()) ? value : d.toISOString();
+  }
+  const tail = (previous ?? "").slice(10); // "T20:03:52.000+00:00"
+  return tail.includes("T")
+    ? `${value}${tail}`
+    : `${value}${new Date().toISOString().slice(10)}`;
+}
+
+/**
  * Ghi công ảnh bìa. `author` + `sourceUrl` (http/https thật) là bắt buộc — nếu
  * không thì "(nguồn)" không có gì để trỏ tới. `license` không bắt buộc: ảnh
  * báo chí không có giấy phép mở nên để trống; ảnh CC/Commons thì bên gọi

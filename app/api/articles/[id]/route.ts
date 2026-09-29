@@ -16,25 +16,6 @@ import * as clean from "@/lib/articleInput";
   return Number.isInteger(n) && n >= 1 && n <= max ? n : "invalid";
 }
 
-/**
- * Chuẩn hoá `publishedAt` về mốc ISO CÓ GIỜ.
- *
- * Ô "Publish date" trong trình sửa bài là `<input type="date">` nên chỉ gửi
- * "YYYY-MM-DD". Ghi thẳng giá trị đó vào DB là mất phần giờ, và trang bài viết
- * không còn gì để hiện ngoài ngày — đúng chuyện đã xảy ra với cả 221 bài. Chỉ có
- * ngày thì giữ lại phần giờ của mốc đang lưu (bài chưa từng có giờ thì lấy giờ
- * hiện tại), để đổi ngày không xoá mất giờ đăng.
- */
-function normalizePublishedAt(raw: string, previous: string): string {
-  const value = raw.trim();
-  if (value.includes("T")) {
-    const d = new Date(value);
-    return Number.isNaN(d.getTime()) ? value : d.toISOString();
-  }
-  const tail = previous.slice(10); // "T20:03:52.000+00:00"
-  return tail.includes("T") ? `${value}${tail}` : new Date().toISOString();
-}
-
 const VALID_CATEGORIES = new Set(categories.map((c) => c.slug));
 
 const BASE_URL =
@@ -120,7 +101,7 @@ export async function PUT(
   if (body.title !== undefined) patch.title = clean.text(body.title, clean.LIMITS.title).trim();
   if (body.dek !== undefined) patch.dek = clean.text(body.dek, clean.LIMITS.dek);
   if (body.publishedAt !== undefined) {
-    patch.publishedAt = normalizePublishedAt(String(body.publishedAt), current.publishedAt);
+    patch.publishedAt = clean.publishedAt(body.publishedAt, current.publishedAt);
   }
   if (body.readingTimeMin !== undefined) {
     patch.readingTimeMin = Number(body.readingTimeMin) || 3;
