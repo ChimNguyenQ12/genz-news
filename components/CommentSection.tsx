@@ -1,11 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
-import type { CommentNode } from "@/lib/comments";
+import { useRef, useState } from "react";
+import type { CommentMedia, CommentNode } from "@/lib/comments";
 import type { PublicUser } from "@/lib/users";
+import { mediaUrl } from "@/lib/media";
 
 const MAX = 1500;
+const ACCEPT = "image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm";
 
 function initials(name: string) {
   return name.trim().slice(0, 1).toUpperCase() || "?";
@@ -23,9 +25,77 @@ function timeAgo(iso: string) {
   return new Date(iso).toLocaleDateString("vi-VN");
 }
 
+/** Nút đính kèm + xem trước ảnh/video, dùng chung cho ô bình luận gốc và trả lời. */
+function MediaAttach({
+  media,
+  uploading,
+  error,
+  onAttach,
+  onRemove,
+}: {
+  media: CommentMedia | null;
+  uploading: boolean;
+  error: string;
+  onAttach: (file: File) => void;
+  onRemove: () => void;
+}) {
+  const input = useRef<HTMLInputElement>(null);
+
+  if (media) {
+    return (
+      <div className="mt-2 inline-flex max-w-full items-start gap-2 rounded-xl border border-border bg-surface-2 p-1.5">
+        {media.type === "image" ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={mediaUrl(media.url)} alt="" className="max-h-32 max-w-40 rounded-lg object-cover" />
+        ) : (
+          <video src={mediaUrl(media.url)} controls className="max-h-32 max-w-52 rounded-lg" />
+        )}
+        <button
+          type="button"
+          onClick={onRemove}
+          aria-label="Bỏ đính kèm"
+          className="shrink-0 rounded-full bg-black/60 px-1.5 py-0.5 text-xs font-bold text-white hover:bg-red-600"
+        >
+          ✕
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-2 flex items-center gap-2">
+      <button
+        type="button"
+        onClick={() => input.current?.click()}
+        disabled={uploading}
+        className="flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs font-semibold text-muted transition hover:border-accent hover:text-accent disabled:opacity-50"
+      >
+        📎 {uploading ? "Đang tải lên..." : "Ảnh/video"}
+      </button>
+      {error && <span className="text-xs text-red-500">{error}</span>}
+      <input
+        ref={input}
+        type="file"
+        accept={ACCEPT}
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) onAttach(file);
+          e.target.value = "";
+        }}
+      />
+    </div>
+  );
+}
+
 function CommentForm({
   value,
   onChange,
+  media,
+  uploading,
+  mediaError,
+  onAttach,
+  onRemoveMedia,
   onSubmit,
   onCancel,
   pending,
@@ -34,6 +104,11 @@ function CommentForm({
 }: {
   value: string;
   onChange: (v: string) => void;
+  media: CommentMedia | null;
+  uploading: boolean;
+  mediaError: string;
+  onAttach: (file: File) => void;
+  onRemoveMedia: () => void;
   onSubmit: () => void;
   onCancel?: () => void;
   pending: boolean;
@@ -48,6 +123,13 @@ function CommentForm({
         rows={compact ? 2 : 3}
         placeholder={placeholder}
         className="w-full resize-y rounded-xl border border-border bg-surface px-4 py-2.5 text-sm outline-none focus:border-accent"
+      />
+      <MediaAttach
+        media={media}
+        uploading={uploading}
+        error={mediaError}
+        onAttach={onAttach}
+        onRemove={onRemoveMedia}
       />
       <div className="mt-2 flex items-center justify-between gap-2">
         <span className="text-xs text-muted">
@@ -66,7 +148,7 @@ function CommentForm({
           <button
             type="button"
             onClick={onSubmit}
-            disabled={pending || !value.trim()}
+            disabled={pending || uploading || (!value.trim() && !media)}
             className="rounded-lg bg-accent px-4 py-1.5 text-xs font-bold text-white transition hover:opacity-90 disabled:opacity-40"
           >
             {pending ? "Đang gửi..." : "Gửi"}
@@ -110,9 +192,31 @@ function CommentItem({
           <span className="text-xs text-muted">{timeAgo(comment.createdAt)}</span>
         </div>
 
-        <p className="mt-1 whitespace-pre-wrap break-words text-[15px] leading-relaxed">
-          {comment.body}
-        </p>
+        {comment.body && (
+          <p className="mt-1 whitespace-pre-wrap break-words text-[15px] leading-relaxed">
+            {comment.body}
+          </p>
+        )}
+
+        {comment.media && (
+          <div className="mt-2">
+            {comment.media.type === "image" ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={mediaUrl(comment.media.url)}
+                alt=""
+                loading="lazy"
+                className="max-h-80 max-w-full rounded-xl border border-border object-contain"
+              />
+            ) : (
+              <video
+                src={mediaUrl(comment.media.url)}
+                controls
+                className="max-h-80 max-w-full rounded-xl border border-border"
+              />
+            )}
+          </div>
+        )}
 
         <div className="mt-1.5 flex items-center gap-4 text-xs font-semibold text-muted">
           {!isReply && user && onReply && (
@@ -135,6 +239,9 @@ function CommentItem({
   );
 }
 
+/** Đính kèm rỗng dùng chung để không phải viết lại object literal nhiều chỗ. */
+const EMPTY_ATTACH = { media: null as CommentMedia | null, uploading: false, error: "" };
+
 export default function CommentSection({
   articleId,
   initialComments,
@@ -146,21 +253,40 @@ export default function CommentSection({
 }) {
   const [comments, setComments] = useState(initialComments);
   const [text, setText] = useState("");
+  const [attach, setAttach] = useState(EMPTY_ATTACH);
   const [replyTo, setReplyTo] = useState<string | null>(null);
   const [replyText, setReplyText] = useState("");
+  const [replyAttach, setReplyAttach] = useState(EMPTY_ATTACH);
   const [pending, setPending] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState("");
 
   const total = comments.reduce((n, c) => n + 1 + c.replies.length, 0);
 
-  async function send(body: string, parentId: string | null) {
+  async function upload(file: File, setState: typeof setAttach) {
+    setState({ media: null, uploading: true, error: "" });
+    const form = new FormData();
+    form.append("file", file);
+    const res = await fetch("/api/upload", { method: "POST", body: form });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setState({ media: null, uploading: false, error: data.error ?? "Tải lên thất bại" });
+      return;
+    }
+    setState({
+      media: { type: data.kind === "video" ? "video" : "image", url: data.url },
+      uploading: false,
+      error: "",
+    });
+  }
+
+  async function send(body: string, media: CommentMedia | null, parentId: string | null) {
     setPending(true);
     setError("");
     const res = await fetch(`/api/articles/${articleId}/comments`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ body, parentId }),
+      body: JSON.stringify({ body, media, parentId }),
     });
     setPending(false);
 
@@ -212,8 +338,16 @@ export default function CommentSection({
           <CommentForm
             value={text}
             onChange={setText}
+            media={attach.media}
+            uploading={attach.uploading}
+            mediaError={attach.error}
+            onAttach={(file) => void upload(file, setAttach)}
+            onRemoveMedia={() => setAttach(EMPTY_ATTACH)}
             onSubmit={async () => {
-              if (await send(text, null)) setText("");
+              if (await send(text, attach.media, null)) {
+                setText("");
+                setAttach(EMPTY_ATTACH);
+              }
             }}
             pending={pending}
             placeholder="Viết bình luận..."
@@ -242,6 +376,7 @@ export default function CommentSection({
                 onReply={() => {
                   setReplyTo(replyTo === c.id ? null : c.id);
                   setReplyText("");
+                  setReplyAttach(EMPTY_ATTACH);
                 }}
                 onDelete={remove}
                 busyId={busyId}
@@ -252,9 +387,15 @@ export default function CommentSection({
                   <CommentForm
                     value={replyText}
                     onChange={setReplyText}
+                    media={replyAttach.media}
+                    uploading={replyAttach.uploading}
+                    mediaError={replyAttach.error}
+                    onAttach={(file) => void upload(file, setReplyAttach)}
+                    onRemoveMedia={() => setReplyAttach(EMPTY_ATTACH)}
                     onSubmit={async () => {
-                      if (await send(replyText, c.id)) {
+                      if (await send(replyText, replyAttach.media, c.id)) {
                         setReplyText("");
+                        setReplyAttach(EMPTY_ATTACH);
                         setReplyTo(null);
                       }
                     }}

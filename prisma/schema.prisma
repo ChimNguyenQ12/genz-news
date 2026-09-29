@@ -106,7 +106,13 @@ model Source {
 /// Bình luận. Trả lời chỉ 1 tầng: reply luôn trỏ về comment gốc.
 model Comment {
   id   String @id @default(uuid())
+  /// Có thể rỗng nếu bình luận chỉ có ảnh/video (mediaUrl khi đó bắt buộc).
   body String
+
+  /// "image" | "video" | NULL (không đính kèm). mediaUrl luôn nằm trên kho S3
+  /// của mình (đã qua /api/upload) — không nhận URL ngoài.
+  mediaType String?
+  mediaUrl  String?
 
   articleId String
   article   Article @relation(fields: [articleId], references: [id], onDelete: Cascade)

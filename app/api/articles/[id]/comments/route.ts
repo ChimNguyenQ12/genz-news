@@ -62,6 +62,7 @@ export async function POST(
     articleId: id,
     userId: user.id,
     body: String(body.body ?? ""),
+    media: body.media,
     parentId: body.parentId ? String(body.parentId) : null,
   });
 

@@ -1,4 +1,5 @@
 import { prisma } from "./prisma";
+import { S3_UPLOADS_BASE } from "./media";
 
 export const COMMENT_MAX_LENGTH = 1500;
 
@@ -8,9 +9,15 @@ export interface CommentAuthor {
   role: "admin" | "contributor";
 }
 
+export interface CommentMedia {
+  type: "image" | "video";
+  url: string;
+}
+
 export interface CommentNode {
   id: string;
   body: string;
+  media: CommentMedia | null;
   createdAt: string;
   author: CommentAuthor;
   /** Chỉ bình luận gốc mới có replies (giới hạn 1 tầng). */
@@ -20,6 +27,8 @@ export interface CommentNode {
 type Row = {
   id: string;
   body: string;
+  mediaType: string | null;
+  mediaUrl: string | null;
   parentId: string | null;
   createdAt: Date;
   user: { id: string; displayName: string; role: string };
@@ -29,6 +38,10 @@ function toNode(row: Row): CommentNode {
   return {
     id: row.id,
     body: row.body,
+    media:
+      row.mediaUrl && (row.mediaType === "image" || row.mediaType === "video")
+        ? { type: row.mediaType, url: row.mediaUrl }
+        : null,
     createdAt: row.createdAt.toISOString(),
     author: {
       id: row.user.id,
@@ -70,6 +83,24 @@ export async function countComments(articleId: string) {
   return prisma.comment.count({ where: { articleId } });
 }
 
+/**
+ * Kiểm tra ảnh/video đính kèm. Chỉ nhận URL đã qua /api/upload (nằm trên kho
+ * S3 của mình) — không cho dán URL ngoài, tránh bình luận nhúng ảnh độc hại
+ * hay ảnh của trang khác (hotlink tốn băng thông người ta).
+ */
+function checkMedia(raw: unknown): CommentMedia | null {
+  if (raw === null || raw === undefined) return null;
+  const type = (raw as CommentMedia)?.type;
+  const url = String((raw as CommentMedia)?.url ?? "");
+  if (type !== "image" && type !== "video") {
+    throw new Error("Loại tệp đính kèm không hợp lệ");
+  }
+  if (!url.startsWith(S3_UPLOADS_BASE)) {
+    throw new Error("Ảnh/video đính kèm phải tải lên qua nút đính kèm");
+  }
+  return { type, url };
+}
+
 export type CreateResult =
   | { ok: true; comment: CommentNode; parentId: string | null }
   | { ok: false; error: string; status: number };
@@ -78,18 +109,28 @@ export async function createComment(input: {
   articleId: string;
   userId: string;
   body: string;
+  media?: unknown;
   parentId?: string | null;
 }): Promise<CreateResult> {
   const body = input.body.trim();
-  if (!body) {
-    return { ok: false, error: "Bình luận không được để trống", status: 400 };
-  }
   if (body.length > COMMENT_MAX_LENGTH) {
     return {
       ok: false,
       error: `Bình luận tối đa ${COMMENT_MAX_LENGTH} ký tự`,
       status: 400,
     };
+  }
+
+  let media: CommentMedia | null;
+  try {
+    media = checkMedia(input.media);
+  } catch (err) {
+    return { ok: false, error: (err as Error).message, status: 400 };
+  }
+
+  // Bình luận chỉ có ảnh/video (không chữ) vẫn hợp lệ; chỉ rỗng cả hai thì mới chặn.
+  if (!body && !media) {
+    return { ok: false, error: "Bình luận không được để trống", status: 400 };
   }
 
   const article = await prisma.article.findUnique({
@@ -117,7 +158,14 @@ export async function createComment(input: {
   }
 
   const row = await prisma.comment.create({
-    data: { articleId: input.articleId, userId: input.userId, body, parentId },
+    data: {
+      articleId: input.articleId,
+      userId: input.userId,
+      body,
+      mediaType: media?.type ?? null,
+      mediaUrl: media?.url ?? null,
+      parentId,
+    },
     include: { user: { select: { id: true, displayName: true, role: true } } },
   });
 
@@ -138,6 +186,8 @@ export async function deleteComment(
     return { ok: false, error: "Không có quyền xoá bình luận này", status: 403 };
   }
   // Xoá bình luận gốc thì các trả lời cũng bị xoá theo (onDelete: Cascade).
+  // Tệp trên S3 (nếu có) giữ nguyên, cùng cách các ảnh khác của toà soạn
+  // không bị dọn khi bài/bình luận gốc bị xoá.
   await prisma.comment.delete({ where: { id } });
   return { ok: true };
 }
