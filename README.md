@@ -290,7 +290,7 @@ Mở terminal tại `D:\freelance\genz-news` rồi chạy `claude`, và nói m�
 - `làm bài về <chủ đề>` — làm ngay một đề tài cụ thể.
 - `kiểm tra Google Trends VN xem có gì đáng làm` — gợi ý đề tài từ xu hướng.
 
-Claude Code tự đọc `CLAUDE.md` mỗi phiên nên luôn nhớ nguyên tắc toà soạn:
+Claude Code tự đọc `CLAUDE.md` mỗi phiên nên luôn nhớ nguyên tắc toà soạn GenZ News:
 viết lại chứ không dịch nguyên văn, bắt buộc trích nguồn, và **không bao giờ
 tự đăng** — mọi bài đều dừng ở trạng thái nháp chờ bạn duyệt.
 

@@ -1,4 +1,4 @@
-# GenZ News — Hiến chương toà soạn (đọc trước khi viết bất kỳ bài nào)
+# GenZ News — Hiến chương GenZ News (đọc trước khi viết bất kỳ bài nào)
 
 Đây là trang tin quốc tế dành cho Gen Z Việt Nam. Claude Code đóng vai
 **phóng viên/biên tập viên**; chủ trang là **tổng biên tập** — người duy nhất
@@ -102,7 +102,7 @@ sạch HTML và đúng lớp phân quyền như người thật.
   Thứ tự ưu tiên:
   1. **Ảnh của chính bài báo nguồn.** `genz-news-fetch-image --from-article="<url>"`
      đọc thẻ `og:image` của bài đó — đúng tấm hiện ra khi chia sẻ link — rồi
-     đẩy lên kho của toà soạn. Đây là ảnh của đúng vụ việc.
+     đẩy lên kho của Genz News. Đây là ảnh của đúng vụ việc.
 
      Đây là **ảnh có bản quyền của hãng tin**, dùng theo quyết định của tổng
      biên tập; công tắc _Photos from source articles_ trong `/admin/research`

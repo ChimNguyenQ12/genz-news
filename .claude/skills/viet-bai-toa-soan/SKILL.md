@@ -7,7 +7,7 @@ tools: WebSearch, WebFetch, Read, Grep, Glob, Write, Edit, Bash
 # Viết bài cho GenZ News
 
 Đây là quy trình đầy đủ để biến MỘT đề tài thành một bài báo hoàn chỉnh, đúng
-hiến chương của toà soạn (`CLAUDE.md` ở gốc repo — đọc trước nếu chưa đọc,
+hiến chương của GenZ News (`CLAUDE.md` ở gốc repo — đọc trước nếu chưa đọc,
 mục "Nguyên tắc pháp lý", "Chọn đề tài và góc nhìn", "Giọng văn" và "Dựng một
 bài tổng hợp" vẫn là luật gốc; kỹ năng này chỉ gói lại phần **thao tác** cho
 gọn).

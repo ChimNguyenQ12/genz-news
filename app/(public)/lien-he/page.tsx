@@ -12,7 +12,7 @@ const FACEBOOK_URL = "https://www.facebook.com/profile.php?id=61594370073139";
 export const metadata: Metadata = {
   title: "Liên hệ GenZ News — gửi tin, báo sai, gỡ nội dung",
   description:
-    "Liên hệ toà soạn GenZ News: báo bài sai, yêu cầu chỉnh sửa hoặc gỡ nội dung, gửi tin và góp ý. Email và Facebook chính thức.",
+    "Liên hệ GenZ News: báo bài sai, yêu cầu chỉnh sửa hoặc gỡ nội dung, gửi tin và góp ý. Email và Facebook chính thức.",
   alternates: { canonical: `${BASE_URL}/lien-he` },
 };
 
@@ -102,7 +102,7 @@ export default function ContactPage() {
 
         <h2>Thời gian phản hồi</h2>
         <p>
-          Toà soạn nhỏ, nên chúng tôi không cam kết một mốc thời gian cụ thể.
+          GenZ News nhỏ, nên chúng tôi không cam kết một mốc thời gian cụ thể.
           Các yêu cầu liên quan bản quyền và nội dung sai sẽ được ưu tiên xử lý
           trước.
         </p>
