@@ -42,21 +42,23 @@ export function formatDateTime(iso: string) {
 }
 
 /**
- * Nhãn thời gian cho thẻ bài ở trang chủ / chuyên mục.
+ * Nhãn thời gian cho thẻ bài ở trang chủ / chuyên mục / Tin liên quan.
  *
- * Chỉ bài vừa lên trong VÒNG MỘT GIỜ mới nói "Vừa xong"; quá đó thì hiện thẳng
- * ngày + giờ đăng, vì "3 ngày trước" không cho biết bài lên lúc nào.
+ * Chỉ bài vừa lên trong VÒNG MỘT GIỜ mới nói "Vừa xong"; quá đó thì hiện ngày
+ * đăng — KHÔNG kèm giờ, vì thẻ bài chật (nhất là cỡ "sm"), thêm giờ vào là
+ * chuỗi xuống dòng, vỡ hàng meta. Giờ đăng đầy đủ chỉ hiện khi mở hẳn bài, ở
+ * trang bai-viet/[slug] (formatDateTime).
  *
  * Bản trước lấy `now` cứng là 2026-09-04 nên mọi bài đăng sau mốc đó đều cho
  * hiệu số âm và rơi vào nhánh < 1 giờ — cả trang chủ hiện "Vừa xong" hết.
  */
-export function relativeTime(iso: string) {
+export function relativeDate(iso: string) {
   const then = new Date(iso).getTime();
   if (Number.isNaN(then)) return "";
   const diffMin = Math.floor((Date.now() - then) / 60000);
   // diffMin âm (bài mang mốc thời gian tương lai) cũng coi như vừa lên.
   if (diffMin < 60) return "Vừa xong";
-  return formatDateTime(iso);
+  return formatDate(iso);
 }
 
 /**

@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { Article } from "@/lib/types";
 import { getCategory } from "@/lib/data";
 import { categoryStyles } from "@/lib/categoryStyles";
-import { relativeTime } from "@/lib/utils";
+import { relativeDate } from "@/lib/utils";
 import { mediaUrl } from "@/lib/media";
 
 export type HeroArticle = Pick<
@@ -60,7 +60,7 @@ export default function FeaturedHero({
         <div className="mt-4 flex items-center gap-2 text-xs text-white/70">
           <span>{article.author}</span>
           <span aria-hidden>·</span>
-          <span>{relativeTime(article.publishedAt)}</span>
+          <span>{relativeDate(article.publishedAt)}</span>
           <span aria-hidden>·</span>
           <span>{article.readingTimeMin} phút đọc</span>
         </div>
