@@ -8,14 +8,6 @@ import type { Role } from "@/lib/users";
 import { categories } from "@/lib/data";
 import BackToTopButton from "@/components/BackToTopButton";
 import RichTextEditor from "./RichTextEditor";
-import { HERO_SLOTS, TRENDING_SLOTS } from "@/lib/placement";
-
-interface Slot {
-  order: number;
-  id: string;
-  title: string;
-  status: Article["status"];
-}
 
 const STATUS_LABEL: Record<Article["status"], string> = {
   draft: "Draft",
@@ -61,24 +53,6 @@ export default function ArticleEditor({
   const [coverUploading, setCoverUploading] = useState(false);
   const [coverError, setCoverError] = useState("");
   const coverInput = useRef<HTMLInputElement>(null);
-  const [featuredOrder, setFeaturedOrder] = useState<number | null>(article.featuredOrder ?? null);
-  const [trendingOrder, setTrendingOrder] = useState<number | null>(article.trendingOrder ?? null);
-  // Vị trí đang lưu trong cơ sở dữ liệu — xem save().
-  const [savedOrders, setSavedOrders] = useState({
-    featuredOrder: article.featuredOrder ?? null,
-    trendingOrder: article.trendingOrder ?? null,
-  });
-  const [placements, setPlacements] = useState<{ hero: Slot[]; trending: Slot[] } | null>(null);
-
-  const loadPlacements = () =>
-    fetch("/api/articles/placements")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => d && setPlacements(d))
-      .catch(() => {});
-  useEffect(() => {
-    if (isAdmin) void loadPlacements();
-  }, [isAdmin]);
-
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
 
@@ -124,10 +98,8 @@ export default function ArticleEditor({
   }
 
   // Ảnh chụp trạng thái đã lưu — dùng để biết còn thay đổi nào chưa lưu không.
-  const [savedSnapshot, setSavedSnapshot] = useState(() =>
-    JSON.stringify({ ...payload(), featuredOrder, trendingOrder }),
-  );
-  const currentSnapshot = JSON.stringify({ ...payload(), featuredOrder, trendingOrder });
+  const [savedSnapshot, setSavedSnapshot] = useState(() => JSON.stringify(payload()));
+  const currentSnapshot = JSON.stringify(payload());
   const isDirty = currentSnapshot !== savedSnapshot;
 
   // Cảnh báo khi rời trang mà chưa lưu.
@@ -141,23 +113,14 @@ export default function ArticleEditor({
   async function save(status?: Article["status"]) {
     setSaving(true);
     setMessage("");
-    // Vị trí chỉ gửi khi thật sự đổi, để lưu các trường khác không giành lại
-    // chỗ mà một bài khác vừa đổi sang trong lúc trang này đang mở.
-    const sent = {
-      ...payload(status),
-      ...(featuredOrder !== savedOrders.featuredOrder ? { featuredOrder } : {}),
-      ...(trendingOrder !== savedOrders.trendingOrder ? { trendingOrder } : {}),
-    };
     const res = await fetch(`/api/articles/${article.id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(sent),
+      body: JSON.stringify(payload(status)),
     });
     setSaving(false);
     if (res.ok) {
-      setSavedOrders({ featuredOrder, trendingOrder });
-      setSavedSnapshot(JSON.stringify({ ...payload(), featuredOrder, trendingOrder }));
-      if (isAdmin) void loadPlacements();
+      setSavedSnapshot(JSON.stringify(payload()));
       setMessage(
         status === "published"
           ? "Article published."
@@ -487,105 +450,22 @@ export default function ArticleEditor({
             </div>
           </Field>
 
-          {isAdmin && (
+          {isAdmin && (article.featuredOrder != null || article.trendingOrder != null) && (
             <Field label="Placement">
-              <SlotPicker
-                label="Home page hero (slideshow)"
-                slots={HERO_SLOTS}
-                value={featuredOrder}
-                saved={savedOrders.featuredOrder}
-                taken={placements?.hero}
-                articleId={article.id}
-                onChange={setFeaturedOrder}
-              />
-              <div className="mt-4">
-                <SlotPicker
-                  label="Trending"
-                  slots={TRENDING_SLOTS}
-                  value={trendingOrder}
-                  saved={savedOrders.trendingOrder}
-                  taken={placements?.trending}
-                  articleId={article.id}
-                  onChange={setTrendingOrder}
-                />
-              </div>
+              <p className="text-xs text-muted">
+                {article.featuredOrder != null && `On the home page hero at #${article.featuredOrder}. `}
+                {article.trendingOrder != null && `In Trending at #${article.trendingOrder}. `}
+                Manage this on{" "}
+                <Link href="/admin/homepage" className="font-semibold text-accent hover:underline">
+                  the Homepage page
+                </Link>
+                .
+              </p>
             </Field>
           )}
         </div>
       </div>
       <BackToTopButton />
-    </div>
-  );
-}
-
-/**
- * Chọn vị trí 1..N. Vị trí bài khác đang giữ hiện mờ, rê chuột thấy tên bài;
- * bấm vào thì đổi chỗ — bài kia nhận vị trí cũ của bài này khi lưu.
- */
-function SlotPicker({
-  label,
-  slots,
-  value,
-  saved,
-  taken,
-  articleId,
-  onChange,
-}: {
-  label: string;
-  slots: number;
-  value: number | null;
-  /** Vị trí bài này đang giữ trong cơ sở dữ liệu — bài bị đổi chỗ sẽ nhận vị trí này. */
-  saved: number | null;
-  taken?: Slot[];
-  articleId: string;
-  onChange: (v: number | null) => void;
-}) {
-  const holder = (n: number) => taken?.find((s) => s.order === n && s.id !== articleId);
-  const displaced = value !== null && value !== saved ? holder(value) : undefined;
-  return (
-    <div>
-      <div className="mb-1.5 text-sm">{label}</div>
-      <div className="flex flex-wrap gap-1.5">
-        <button
-          type="button"
-          onClick={() => onChange(null)}
-          className={`h-8 rounded-lg border px-2.5 text-xs font-semibold transition ${
-            value === null ? "border-violet-600 bg-violet-600 text-white" : "border-border hover:border-violet-500"
-          }`}
-        >
-          Off
-        </button>
-        {Array.from({ length: slots }, (_, i) => i + 1).map((n) => {
-          const other = holder(n);
-          const active = value === n;
-          return (
-            <button
-              key={n}
-              type="button"
-              onClick={() => onChange(n)}
-              title={
-                other
-                  ? `#${n}: ${other.title}${other.status !== "published" ? ` (${other.status})` : ""} — click to swap`
-                  : `Position ${n}`
-              }
-              className={`size-8 rounded-lg border text-xs font-bold transition ${
-                active
-                  ? "border-violet-600 bg-violet-600 text-white"
-                  : other
-                    ? "border-dashed border-border text-muted opacity-40 hover:opacity-100 hover:border-violet-500"
-                    : "border-border hover:border-violet-500"
-              }`}
-            >
-              {n}
-            </button>
-          );
-        })}
-      </div>
-      {displaced && (
-        <p className="mt-1.5 text-xs text-amber-600 dark:text-amber-400">
-          Swap on save: “{displaced.title}” {saved ? `moves to #${saved}` : "leaves this block"}.
-        </p>
-      )}
     </div>
   );
 }

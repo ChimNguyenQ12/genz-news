@@ -2,6 +2,7 @@ import crypto from "crypto";
 import { prisma } from "./prisma";
 import type { Article, ArticleLanguage, ArticleStatus, CategorySlug } from "./types";
 import { normalizeArticleHtml } from "./html";
+import { HERO_SLOTS, TRENDING_SLOTS } from "./placement";
 
 export function makeId() {
   return crypto.randomUUID();
@@ -324,30 +325,108 @@ export async function listPublishedInCategory(
   return { items: rows.map(toSummary), total };
 }
 
-/** Bài đang giữ từng vị trí trong hero / "Đang nóng" — cho ô chọn vị trí trong trình sửa bài. */
-export interface PlacementSlot {
-  order: number;
+/** Một bài trong danh sách hero / "Đang nóng", cho trang /admin/homepage. */
+export interface HomepageSlotArticle {
   id: string;
+  slug: string;
   title: string;
+  category: CategorySlug;
+  coverImage?: string;
+  /** Bài chưa "published" vẫn xếp được vào đây (chờ sẵn chỗ), nhưng chưa hiện
+   *  trên trang chủ — trang chủ tự lọc theo status khi đọc danh sách này. */
   status: ArticleStatus;
 }
 
-export async function listPlacements(): Promise<{ hero: PlacementSlot[]; trending: PlacementSlot[] }> {
-  const select = { id: true, title: true, status: true, featuredOrder: true, trendingOrder: true } as const;
-  const [hero, trending] = await Promise.all([
-    prisma.article.findMany({ where: { featuredOrder: { not: null } }, select, orderBy: { featuredOrder: "asc" } }),
-    prisma.article.findMany({ where: { trendingOrder: { not: null } }, select, orderBy: { trendingOrder: "asc" } }),
-  ]);
-  const slot = (order: number | null, r: (typeof hero)[number]) => ({
-    order: order ?? 0,
-    id: r.id,
-    title: r.title,
-    status: r.status as ArticleStatus,
-  });
+const HOMEPAGE_SLOT_SELECT = {
+  id: true,
+  slug: true,
+  title: true,
+  category: true,
+  coverImage: true,
+  status: true,
+} as const;
+
+function toHomepageSlotArticle(row: {
+  id: string;
+  slug: string;
+  title: string;
+  category: string;
+  coverImage: string | null;
+  status: string;
+}): HomepageSlotArticle {
   return {
-    hero: hero.map((r) => slot(r.featuredOrder, r)),
-    trending: trending.map((r) => slot(r.trendingOrder, r)),
+    id: row.id,
+    slug: row.slug,
+    title: row.title,
+    category: row.category as CategorySlug,
+    coverImage: row.coverImage ?? undefined,
+    status: row.status as ArticleStatus,
   };
+}
+
+/** Thứ tự hiện tại của hero / "Đang nóng" trên trang chủ — cho /admin/homepage. */
+export async function getHomepageLayout(): Promise<{
+  hero: HomepageSlotArticle[];
+  trending: HomepageSlotArticle[];
+}> {
+  const [hero, trending] = await Promise.all([
+    prisma.article.findMany({
+      where: { featuredOrder: { not: null } },
+      select: HOMEPAGE_SLOT_SELECT,
+      orderBy: { featuredOrder: "asc" },
+    }),
+    prisma.article.findMany({
+      where: { trendingOrder: { not: null } },
+      select: HOMEPAGE_SLOT_SELECT,
+      orderBy: { trendingOrder: "asc" },
+    }),
+  ]);
+  return { hero: hero.map(toHomepageSlotArticle), trending: trending.map(toHomepageSlotArticle) };
+}
+
+/**
+ * Ghi đè TOÀN BỘ thứ tự hero / "Đang nóng" theo đúng danh sách gửi lên.
+ *
+ * Khác `updateArticle` (đổi chỗ theo CẶP, dùng cho ô chọn vị trí cũ trong
+ * trình sửa từng bài): ở đây /admin/homepage gửi nguyên danh sách đã sắp theo
+ * ý người dùng (thêm/bớt/kéo thả), nên chỉ cần XOÁ hết thứ tự cũ rồi ĐÁNH SỐ
+ * LẠI theo đúng mảng — chèn một bài vào giữa hay kéo lên đầu tự động đẩy các
+ * bài khác dịch chỗ, không cần biết trước "chỗ này đang có ai".
+ */
+export async function setHomepageLayout(input: {
+  hero: string[];
+  trending: string[];
+}): Promise<void> {
+  const hero = [...new Set(input.hero)].slice(0, HERO_SLOTS);
+  const trending = [...new Set(input.trending)].slice(0, TRENDING_SLOTS);
+
+  const ids = [...new Set([...hero, ...trending])];
+  if (ids.length) {
+    const found = await prisma.article.findMany({
+      where: { id: { in: ids } },
+      select: { id: true },
+    });
+    const foundIds = new Set(found.map((r) => r.id));
+    const missing = ids.filter((id) => !foundIds.has(id));
+    if (missing.length) throw new Error(`Article not found: ${missing.join(", ")}`);
+  }
+
+  await prisma.$transaction([
+    prisma.article.updateMany({
+      where: { featuredOrder: { not: null } },
+      data: { featuredOrder: null, featured: false },
+    }),
+    prisma.article.updateMany({
+      where: { trendingOrder: { not: null } },
+      data: { trendingOrder: null, trending: false },
+    }),
+    ...hero.map((id, i) =>
+      prisma.article.update({ where: { id }, data: { featuredOrder: i + 1, featured: true } }),
+    ),
+    ...trending.map((id, i) =>
+      prisma.article.update({ where: { id }, data: { trendingOrder: i + 1, trending: true } }),
+    ),
+  ]);
 }
 
 /** Bài đã đăng, KHÔNG kèm thân bài — đủ cho trang chủ (thẻ bài, hero, "Đang nóng"). */
