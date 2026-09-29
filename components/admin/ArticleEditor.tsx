@@ -42,7 +42,10 @@ export default function ArticleEditor({
   const [dek, setDek] = useState(article.dek);
   const [category, setCategory] = useState<CategorySlug>(article.category);
   const [author, setAuthor] = useState(article.author);
-  const [publishedAt, setPublishedAt] = useState(article.publishedAt);
+  // Ô "Publish date" là <input type="date"> nên chỉ nhận "YYYY-MM-DD": cắt lấy
+  // phần ngày, vì publishedAt giờ là mốc ISO đầy đủ ("2026-09-29T17:23:43Z" đưa
+  // thẳng vào input date sẽ bị coi là giá trị sai và hiện trắng).
+  const [publishedAt, setPublishedAt] = useState(article.publishedAt.slice(0, 10));
   const [readingTimeMin, setReadingTimeMin] = useState(article.readingTimeMin);
   const [tags, setTags] = useState(article.tags.join(", "));
   const [bodyHtml, setBodyHtml] = useState(article.body);

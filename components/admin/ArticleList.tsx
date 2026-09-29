@@ -7,6 +7,7 @@ import type { ArticlePage, ArticleSummary } from "@/lib/store";
 import type { ArticleStatus } from "@/lib/types";
 import type { Role } from "@/lib/users";
 import { categories, getCategory } from "@/lib/data";
+import { formatDateTime } from "@/lib/utils";
 import { categoryStyles } from "@/lib/categoryStyles";
 import Pagination from "@/components/admin/Pagination";
 
@@ -374,7 +375,7 @@ export default function ArticleList({
                   )}
 
                   <p className="text-xs text-muted">
-                    {a.author} · {a.publishedAt} · {a.sourceCount} sources
+                    {a.author} · {formatDateTime(a.publishedAt)} · {a.sourceCount} sources
                   </p>
 
                   {a.status === "rejected" && a.reviewNote && (

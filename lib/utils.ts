@@ -1,21 +1,52 @@
+/**
+ * Múi giờ để HIỂN THỊ. Phải ghim Asia/Ho_Chi_Minh chứ không để mặc định: app
+ * chạy trong container UTC, nên 00:23 ngày 30/09 giờ Việt Nam sẽ bị hiện thành
+ * 29/09 — lệch hẳn một ngày với người đọc.
+ */
+const TZ = "Asia/Ho_Chi_Minh";
+
 export function formatDate(iso: string) {
   const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
   return new Intl.DateTimeFormat("vi-VN", {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
+    timeZone: TZ,
   }).format(d);
 }
 
+/** Ngày VÀ giờ đăng, giờ Việt Nam. VD: "30/09/2026 00:23". */
+export function formatDateTime(iso: string) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return new Intl.DateTimeFormat("vi-VN", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    timeZone: TZ,
+  }).format(d);
+}
+
+/**
+ * Nhãn thời gian cho thẻ bài ở trang chủ / chuyên mục.
+ *
+ * Chỉ bài vừa lên trong VÒNG MỘT GIỜ mới nói "Vừa xong"; quá đó thì hiện thẳng
+ * ngày + giờ đăng, vì "3 ngày trước" không cho biết bài lên lúc nào.
+ *
+ * Bản trước lấy `now` cứng là 2026-09-04 nên mọi bài đăng sau mốc đó đều cho
+ * hiệu số âm và rơi vào nhánh < 1 giờ — cả trang chủ hiện "Vừa xong" hết.
+ */
 export function relativeTime(iso: string) {
-  const now = new Date("2026-09-04");
-  const then = new Date(iso);
-  const diffMs = now.getTime() - then.getTime();
-  const diffH = Math.round(diffMs / (1000 * 60 * 60));
-  if (diffH < 1) return "Vừa xong";
-  if (diffH < 24) return `${diffH} giờ trước`;
-  const diffD = Math.round(diffH / 24);
-  return `${diffD} ngày trước`;
+  const then = new Date(iso).getTime();
+  if (Number.isNaN(then)) return "";
+  const diffMin = Math.floor((Date.now() - then) / 60000);
+  // diffMin âm (bài mang mốc thời gian tương lai) cũng coi như vừa lên.
+  if (diffMin < 60) return "Vừa xong";
+  return formatDateTime(iso);
 }
 
 /**

@@ -105,7 +105,9 @@ export async function POST(request: Request) {
     // luôn đứng tên chính mình — không mạo danh được người khác.
     author: user.role === "admin" && body.author ? clean.text(body.author, 80) : user.displayName,
     authorId: user.id,
-    publishedAt: String(body.publishedAt ?? new Date().toISOString().slice(0, 10)),
+    // Mốc ISO CÓ GIỜ. Bản trước cắt `.slice(0, 10)` nên mọi bài mất hẳn phần
+    // giờ, và trang bài viết chỉ còn ngày để hiện.
+    publishedAt: String(body.publishedAt ?? new Date().toISOString()),
     readingTimeMin: Number(body.readingTimeMin) || 3,
     status: "draft",
     language: body.language === "en" ? "en" : "vi",

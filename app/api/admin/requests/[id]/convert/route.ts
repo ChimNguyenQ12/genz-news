@@ -111,7 +111,8 @@ export async function POST(
     coverGradient: ["#7C3AED", "#22D3EE"],
     author: user.displayName,
     authorId: user.id,
-    publishedAt: new Date().toISOString().slice(0, 10),
+    // Mốc ISO CÓ GIỜ (bản trước cắt còn ngày, làm mọi bài mất phần giờ).
+    publishedAt: new Date().toISOString(),
     readingTimeMin: 3,
     status: "draft",
     body,

@@ -112,14 +112,27 @@ export async function reactToArticle(
   // Bài chưa đăng thì chưa có ai đọc để mà đánh giá.
   if (!row || row.status !== "published") return undefined;
 
-  return prisma.article.update({
+  // Cập nhật bằng SQL thô để KHÔNG đụng `updatedAt`: Prisma tự bật @updatedAt ở
+  // mọi lệnh update, nên một lượt bấm 👍 sẽ bị ghi thành "bài vừa được sửa" —
+  // đổi `lastmod` trong sitemap và `dateModified` trong JSON-LD, tức là báo
+  // Google rằng nội dung đã thay đổi trong khi nó không đổi một chữ.
+  //
+  // Tách hai nhánh vì tên cột không truyền được qua tham số của $executeRaw —
+  // `type` đã bị API chặn chỉ còn "like" | "dislike" trước khi tới đây.
+  if (type === "like") {
+    await prisma.$executeRaw`
+      UPDATE "articles" SET "likeCount" = "likeCount" + 1 WHERE "id" = ${articleId}
+    `;
+  } else {
+    await prisma.$executeRaw`
+      UPDATE "articles" SET "dislikeCount" = "dislikeCount" + 1 WHERE "id" = ${articleId}
+    `;
+  }
+  const updated = await prisma.article.findUnique({
     where: { id: articleId },
-    data:
-      type === "like"
-        ? { likeCount: { increment: 1 } }
-        : { dislikeCount: { increment: 1 } },
     select: { likeCount: true, dislikeCount: true },
   });
+  return updated ?? undefined;
 }
 
 export async function listArticles(options?: {

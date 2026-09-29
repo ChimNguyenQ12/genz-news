@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getCategory } from "@/lib/data";
 import { categoryStyles } from "@/lib/categoryStyles";
-import { formatDate, jsonLdScript } from "@/lib/utils";
+import { formatDateTime, jsonLdScript } from "@/lib/utils";
 import { DEFAULT_OG_IMAGE, serpDescription, serpTitle } from "@/lib/seo";
 import { mediaHtml, mediaUrl } from "@/lib/media";
 import { getArticleBySlug, listRelatedArticles } from "@/lib/store";
@@ -235,8 +235,9 @@ export default async function ArticlePage({ params }: Props) {
         <span className="font-semibold text-foreground">{article.author}</span>
         <span aria-hidden>·</span>
         <span>
+          Đăng{" "}
           <time dateTime={article.publishedAt}>
-            {formatDate(article.publishedAt)}
+            {formatDateTime(article.publishedAt)}
           </time>
         </span>
         <span aria-hidden>·</span>
