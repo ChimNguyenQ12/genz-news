@@ -8,6 +8,7 @@ import type { Role } from "@/lib/users";
 import { categories } from "@/lib/data";
 import BackToTopButton from "@/components/BackToTopButton";
 import RichTextEditor from "./RichTextEditor";
+import CommentModerationPanel from "./CommentModerationPanel";
 
 const STATUS_LABEL: Record<Article["status"], string> = {
   draft: "Draft",
@@ -496,6 +497,13 @@ export default function ArticleEditor({
           )}
         </div>
       </div>
+
+      {isAdmin && (
+        <div className="mt-6">
+          <CommentModerationPanel articleId={article.id} slug={article.slug} />
+        </div>
+      )}
+
       <BackToTopButton />
     </div>
   );
