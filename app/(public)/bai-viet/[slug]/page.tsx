@@ -7,6 +7,7 @@ import { formatDateTime, jsonLdScript } from "@/lib/utils";
 import { DEFAULT_OG_IMAGE, serpDescription, serpTitle } from "@/lib/seo";
 import { mediaHtml, mediaUrl } from "@/lib/media";
 import { getArticleBySlug, listRelatedArticles } from "@/lib/store";
+import type { Article } from "@/lib/types";
 import { getSessionUser } from "@/lib/auth";
 import { listComments } from "@/lib/comments";
 import ArticleCard from "@/components/ArticleCard";
@@ -15,6 +16,19 @@ import ReactionButtons from "@/components/ReactionButtons";
 import BackToTopButton from "@/components/BackToTopButton";
 
 export const revalidate = 60;
+
+/**
+ * Bài có được sửa đáng kể SAU khi đăng không.
+ *
+ * Ngày đăng là NGÀY GỐC và không bao giờ bị đổi; lần sửa cuối hiện thành một
+ * mốc riêng "Cập nhật". Bỏ qua phần lệch dưới một tiếng vì chính lần ghi lúc
+ * publish cũng làm updatedAt nhích lên vài giây.
+ */
+function wasUpdated(article: Article) {
+  const u = new Date(article.updatedAt).getTime();
+  const p = new Date(article.publishedAt).getTime();
+  return Number.isFinite(u) && Number.isFinite(p) && u - p > 3600_000;
+}
 
 const BASE_URL =
   process.env.NEXT_PUBLIC_BASE_URL ?? "https://genz-news.site";
@@ -240,6 +254,17 @@ export default async function ArticlePage({ params }: Props) {
             {formatDateTime(article.publishedAt)}
           </time>
         </span>
+        {wasUpdated(article) && (
+          <>
+            <span aria-hidden>·</span>
+            <span>
+              Cập nhật{" "}
+              <time dateTime={article.updatedAt}>
+                {formatDateTime(article.updatedAt)}
+              </time>
+            </span>
+          </>
+        )}
         <span aria-hidden>·</span>
         <span>{article.readingTimeMin} phút đọc</span>
       </div>
