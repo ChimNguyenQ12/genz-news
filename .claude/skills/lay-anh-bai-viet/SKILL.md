@@ -59,8 +59,28 @@ Dùng `--html` là có sẵn; viết tay thì theo đúng dạng:
 <figure><img src="URL_KHO" alt="mô tả ngắn"><figcaption>Ảnh: Tuổi Trẻ (<a href="URL_BÀI_GỐC">nguồn</a>)</figcaption></figure>
 ```
 
-Ảnh bìa cũng lấy y như vậy: url vào `coverImage`, caption vào
-`coverImageCaption`.
+**Ảnh bìa KHÁC ảnh trong thân bài** — `coverImageCaption` là trường THUẦN VĂN
+BẢN, không phải HTML. Nhét cả cụm `Ảnh: Tuổi Trẻ (<a href="...">nguồn</a>)`
+vào đó thì thẻ `<a>` hiện nguyên chữ ra cho người đọc thấy, không render thành
+link. `genz-news-fetch-image` (không kèm `--html`) đã trả sẵn hai trường tách
+riêng đúng việc này cho từng ảnh:
+
+- `caption` — chuỗi chữ thuần (`Ảnh: Tuổi Trẻ`), có thể dùng cho
+  `coverImageCaption`, hoặc bỏ qua nếu không có gì mô tả thêm ngoài ghi công.
+- `credit` — object `{author, sourceUrl, license?, sourceName?}`, gán THẲNG
+  cho `coverImageCredit` (đừng tự sửa lại). Đây là thứ làm chữ "(nguồn)" hiện
+  ra dưới ảnh bìa thành một link thật.
+
+```json
+{
+  "coverImage": "https://.../uploads/2026/09/xxx.webp",
+  "coverImageCredit": { "author": "Tuổi Trẻ", "sourceUrl": "https://tuoitre.vn/bai-goc.htm" }
+}
+```
+
+Có `coverImage` thì bắt buộc có ít nhất một trong hai: `coverImageCaption`
+hoặc `coverImageCredit` — ảnh báo chí thường chỉ cần `coverImageCredit`, khỏi
+cần `coverImageCaption`.
 
 Không nguồn nào cho ảnh (từ chối kết nối, không có og:image...) thì chuyển
 sang bước c.
@@ -100,11 +120,16 @@ nhau cho c), nhưng đừng hạ tiêu chuẩn xuống một tấm ảnh "cùng 
 ## Gắn ảnh vào thân bài
 
 Mỗi bài nên có ảnh bìa và 1–3 ảnh xen giữa các đoạn, đặt rải ra chứ đừng dồn
-một chỗ. Ảnh trong thân bài luôn nằm trong `<figure>` kèm `<figcaption>` nếu có, và ưu tiên **mọi** ảnh (cả bìa lẫn trong thân) nằm trên kho S3 của chính toà
-soạn. Url do `genz-news-fetch-image` trả về là hợp lệ nhất — tuy nhiên có thể tự dán URL ảnh của báo khác vào.
+một chỗ. Ảnh trong thân bài luôn nằm trong `<figure>` kèm `<figcaption>`, và
+**mọi** ảnh (cả bìa lẫn trong thân) BẮT BUỘC nằm trên kho S3 của chính toà
+soạn — url do `genz-news-fetch-image` trả về. KHÔNG tự dán URL ảnh của báo
+khác vào: lệnh lưu bài kiểm tra và từ chối thẳng, hotlink ảnh có bản quyền của
+người khác không phải một lựa chọn.
 
 ## Kết quả trả về cho bước viết bài
 
 Sau khi xong, báo lại: đã dùng ảnh nào (nguồn b/c/không có), url kho, caption
 đầy đủ, và có video nhúng hay không — để bước lưu bài (`genz-news-save-article`)
-điền đúng `coverImage`, `coverImageCaption`, và các `<figure>` trong `body`.
+điền đúng `coverImage`, `coverImageCaption`, `coverImageCredit` (nguyên object
+`credit` mà lệnh trả về, xem mục "Ảnh bìa" ở trên), và các `<figure>` trong
+`body`.

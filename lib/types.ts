@@ -32,14 +32,18 @@ export type ArticleStatus = "draft" | "pending" | "published" | "rejected";
 export type ArticleLanguage = "vi" | "en";
 
 /**
- * Thông tin bản quyền ảnh. Bắt buộc khi dùng coverImage —
- * ảnh CC/Commons chỉ hợp lệ khi ghi công đúng tác giả và giấy phép.
+ * Ghi công ảnh bìa — bắt buộc phải có `sourceUrl` thật để "(nguồn)" render
+ * thành một link, không phải chữ suông. Dùng cho cả hai loại ảnh bìa:
+ *   - Ảnh báo chí (genz-news-fetch-image --from-article): author = tên báo,
+ *     license bỏ trống — không có giấy phép mở, chỉ có chỗ lấy.
+ *   - Ảnh CC/Commons/Openverse: license BẮT BUỘC ghi rõ (VD "CC BY-SA 4.0",
+ *     "CC0") — đây là điều kiện của chính giấy phép, không phải tuỳ chọn.
  */
 export interface ImageCredit {
   author: string;
-  license: string; // VD: "CC BY-SA 4.0", "CC0", "Public domain"
-  sourceUrl: string; // trang mô tả ảnh gốc
-  sourceName?: string; // VD: "Wikimedia Commons"
+  license?: string; // Bỏ trống cho ảnh báo chí; bắt buộc cho ảnh CC/Commons.
+  sourceUrl: string; // trang gốc — bài báo, hoặc trang mô tả ảnh trên Commons
+  sourceName?: string; // chữ hiện trên link, mặc định "nguồn"
 }
 
 /**

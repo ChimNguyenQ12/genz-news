@@ -50,6 +50,10 @@ export default function ArticleEditor({
   const [coverTo, setCoverTo] = useState(article.coverGradient[1]);
   const [coverImage, setCoverImage] = useState(article.coverImage ?? "");
   const [coverCaption, setCoverCaption] = useState(article.coverImageCaption ?? "");
+  // Ghi công ảnh bìa: tên nguồn + link, render thành "(nguồn)" bấm được —
+  // tách khỏi coverCaption (thuần văn bản) để không phải nhét thẻ <a> vào đó.
+  const [creditAuthor, setCreditAuthor] = useState(article.coverImageCredit?.author ?? "");
+  const [creditUrl, setCreditUrl] = useState(article.coverImageCredit?.sourceUrl ?? "");
   const [coverUploading, setCoverUploading] = useState(false);
   const [coverError, setCoverError] = useState("");
   const coverInput = useRef<HTMLInputElement>(null);
@@ -93,6 +97,10 @@ export default function ArticleEditor({
       coverGradient: [coverFrom, coverTo],
       coverImage: coverImage.trim(),
       coverImageCaption: coverCaption.trim(),
+      coverImageCredit:
+        creditAuthor.trim() && creditUrl.trim()
+          ? { author: creditAuthor.trim(), sourceUrl: creditUrl.trim() }
+          : null,
       ...(status ? { status } : {}),
     };
   }
@@ -426,12 +434,35 @@ export default function ArticleEditor({
             />
 
             {coverImage && (
-              <input
-                value={coverCaption}
-                onChange={(e) => setCoverCaption(e.target.value)}
-                placeholder="Image caption and credit"
-                className="mt-2 w-full rounded-xl border border-border bg-surface px-3 py-2 text-xs outline-none focus:border-accent"
-              />
+              <>
+                <input
+                  value={coverCaption}
+                  onChange={(e) => setCoverCaption(e.target.value)}
+                  placeholder="Short caption describing the photo (plain text, optional)"
+                  className="mt-2 w-full rounded-xl border border-border bg-surface px-3 py-2 text-xs outline-none focus:border-accent"
+                />
+                {/* Ghi công: hai ô này render thành "Ảnh: <author> (nguồn)" — nguồn
+                    là link thật tới creditUrl, không phải chữ nhét trong caption. */}
+                <div className="mt-2 flex gap-2">
+                  <input
+                    value={creditAuthor}
+                    onChange={(e) => setCreditAuthor(e.target.value)}
+                    placeholder="Credit: outlet or author name"
+                    className="w-1/2 rounded-xl border border-border bg-surface px-3 py-2 text-xs outline-none focus:border-accent"
+                  />
+                  <input
+                    value={creditUrl}
+                    onChange={(e) => setCreditUrl(e.target.value)}
+                    placeholder="Credit: link to source"
+                    className="w-1/2 rounded-xl border border-border bg-surface px-3 py-2 text-xs outline-none focus:border-accent"
+                  />
+                </div>
+                {(creditAuthor.trim() || creditUrl.trim()) && !(creditAuthor.trim() && creditUrl.trim()) && (
+                  <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">
+                    Credit needs both a name and a link to show up — otherwise it won&apos;t be saved.
+                  </p>
+                )}
+              </>
             )}
 
             <div className="mt-2 flex gap-2">

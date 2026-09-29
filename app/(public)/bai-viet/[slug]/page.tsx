@@ -258,16 +258,16 @@ export default async function ArticlePage({ params }: Props) {
             )}
             {article.coverImageCredit && (
               <span>
-                Ảnh: {article.coverImageCredit.author} /{" "}
+                Ảnh: {article.coverImageCredit.author} (
                 <a
                   href={article.coverImageCredit.sourceUrl}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="underline hover:text-accent"
                 >
-                  {article.coverImageCredit.sourceName ?? "Nguồn"}
-                </a>{" "}
-                ({article.coverImageCredit.license})
+                  {article.coverImageCredit.sourceName ?? "nguồn"}
+                </a>
+                {article.coverImageCredit.license ? `, ${article.coverImageCredit.license}` : ""})
               </span>
             )}
           </figcaption>

@@ -193,20 +193,76 @@ function validate(a) {
   // tự do trên Wikimedia Commons rồi đẩy lên S3 của mình.
   let coverImage;
   let coverImageCaption;
+  let coverImageCredit;
   if (a.coverImage) {
     const img = String(a.coverImage);
     if (!img.startsWith(MEDIA_BASE)) {
       die(
         `coverImage phải nằm trên kho ảnh của mình (${MEDIA_BASE}...). ` +
         "Dùng lệnh genz-news-fetch-image để lấy ảnh; " +
-        "Được trỏ thẳng vào ảnh của báo khác.",
+        "KHÔNG được trỏ thẳng vào ảnh của báo khác.",
       );
     }
-    coverImageCaption = String(a.coverImageCaption ?? "").trim();
-    if (!coverImageCaption) {
-      die("có coverImage thì có coverImageCaption");
-    }
     coverImage = img;
+
+    // coverImageCaption là trường THUẦN VĂN BẢN, hiện nguyên chữ cho người
+    // đọc — không qua bộ làm sạch HTML như thân bài. Một chuỗi kiểu
+    // `Ảnh: Báo X (<a href="...">nguồn</a>)` sẽ lộ nguyên thẻ ra mặt chữ thay
+    // vì render thành link. Ghi công kèm link thì dùng coverImageCredit.
+    coverImageCaption = String(a.coverImageCaption ?? "").trim();
+    if (/[<>]/.test(coverImageCaption)) {
+      die(
+        "coverImageCaption chứa dấu < hoặc > — trường này thuần văn bản, không " +
+        'phải HTML, nên thẻ sẽ hiện nguyên chữ ra cho người đọc thấy. Mô tả ảnh ' +
+        "ngắn gọn (không bắt buộc), ghi công kèm link 'nguồn' thì dùng coverImageCredit.",
+      );
+    }
+    if (coverImageCaption.length > 200) {
+      console.error(
+        `[newsroom-save] LƯU Ý: coverImageCaption dài ${coverImageCaption.length} ký tự — nên ngắn gọn, ` +
+        "một câu mô tả ảnh là đủ; ghi công đã có coverImageCredit riêng.",
+      );
+    }
+
+    // credit: object {author, license?, sourceUrl, sourceName?} — chính là
+    // thứ genz-news-fetch-image trả về ở trường `credit`. Dùng nguyên, không
+    // tự ghép chuỗi.
+    const credit = a.coverImageCredit;
+    if (credit != null) {
+      if (typeof credit !== "object" || Array.isArray(credit)) {
+        die("coverImageCredit phải là object {author, sourceUrl, license?, sourceName?}");
+      }
+      const author = String(credit.author ?? "").trim();
+      let sourceUrl = "";
+      try {
+        const u = new URL(String(credit.sourceUrl ?? ""));
+        if (u.protocol === "http:" || u.protocol === "https:") sourceUrl = u.href;
+      } catch {
+        // để rỗng, chặn ở dưới
+      }
+      if (!author || !sourceUrl) {
+        die(
+          "coverImageCredit cần author và sourceUrl (URL http/https hợp lệ) — " +
+          "dùng nguyên trường `credit` mà genz-news-fetch-image trả về.",
+        );
+      }
+      coverImageCredit = {
+        author,
+        sourceUrl,
+        ...(credit.license ? { license: String(credit.license) } : {}),
+        ...(credit.sourceName ? { sourceName: String(credit.sourceName) } : {}),
+      };
+    }
+
+    // Phải ghi công bằng MỘT trong hai cách: mô tả ngắn, hoặc credit kèm link.
+    // Không bắt buộc cả hai — ảnh báo chí thường chỉ cần coverImageCredit.
+    if (!coverImageCaption && !coverImageCredit) {
+      die(
+        "có coverImage thì cần coverImageCaption (mô tả ngắn) hoặc " +
+        "coverImageCredit (ghi công kèm link) — ít nhất một trong hai.",
+      );
+    }
+    if (!coverImageCaption) coverImageCaption = undefined;
   }
 
   return {
@@ -220,6 +276,7 @@ function validate(a) {
     readingTimeMin: Math.max(1, Math.round(words / 200)),
     coverImage,
     coverImageCaption,
+    coverImageCredit,
     sources: sources.map((s) => ({
       name: String(s.name ?? "Nguồn"),
       url: String(s.url),

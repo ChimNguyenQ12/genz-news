@@ -100,6 +100,7 @@ export async function POST(request: Request) {
     coverImageCaption: body.coverImageCaption
       ? String(body.coverImageCaption)
       : undefined,
+    coverImageCredit: clean.imageCredit(body.coverImageCredit),
     // Chỉ admin được ghi tên tác giả khác (VD "Ban biên tập"); tài khoản thường
     // luôn đứng tên chính mình — không mạo danh được người khác.
     author: user.role === "admin" && body.author ? clean.text(body.author, 80) : user.displayName,

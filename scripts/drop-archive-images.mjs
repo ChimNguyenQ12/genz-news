@@ -90,14 +90,23 @@ async function main() {
     const src = first.match(/<img[^>]*src="([^"]+)"/i)?.[1];
     const caption = first.match(/<figcaption>([\s\S]*?)<\/figcaption>/i)?.[1] ?? "";
     if (src) {
-      // coverImageCaption là chữ thuần, không chứa thẻ. Bỏ cả cụm "(nguồn)"
-      // đi kèm link — bóc thẻ <a> mà giữ lại chữ thì còn mỗi hai chữ trong
-      // ngoặc, chẳng trỏ đi đâu cả.
+      // coverImageCaption là chữ thuần, không chứa thẻ — không thể giữ nguyên
+      // cụm "(<a href=...>nguồn</a>)". Tách link đó ra coverImageCredit thay
+      // vì bỏ hẳn, để "(nguồn)" vẫn là một link thật dưới ảnh bìa mới.
+      const linked = caption.match(/^([\s\S]*?)\s*\(<a\s+href="([^"]+)">\s*nguồn\s*<\/a>\)\s*$/i);
       patch.coverImage = src;
-      patch.coverImageCaption = caption
-        .replace(/\s*\(\s*<a[^>]*>[\s\S]*?<\/a>\s*\)\s*/gi, "")
-        .replace(/<[^>]+>/g, "")
-        .trim();
+      if (linked) {
+        const [, before, href] = linked;
+        const outletMatch = before.match(/Ảnh(?:\s+minh\s+hoạ)?:\s*(.+)$/i);
+        patch.coverImageCaption = (outletMatch ? before.slice(0, outletMatch.index) : before)
+          .replace(/<[^>]+>/g, "")
+          .trim();
+        if (outletMatch) {
+          patch.coverImageCredit = { author: outletMatch[1].trim(), sourceUrl: href };
+        }
+      } else {
+        patch.coverImageCaption = caption.replace(/<[^>]+>/g, "").trim();
+      }
       body = body.replace(first, "");
       console.log(`    ảnh bìa mới: ${patch.coverImageCaption}`);
       console.log(`    bìa cũ bỏ đi: ${(article.coverImageCaption ?? "").slice(0, 70)}`);

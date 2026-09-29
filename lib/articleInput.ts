@@ -1,4 +1,4 @@
-import type { SourceRef } from "./types";
+import type { ImageCredit, SourceRef } from "./types";
 
 /**
  * Làm sạch các trường bài viết do người dùng gửi lên (POST/PUT /api/articles).
@@ -53,3 +53,20 @@ export function sources(raw: unknown): SourceRef[] | undefined {
 }
 
 export const text = (raw: unknown, max: number) => String(raw ?? "").slice(0, max);
+
+/**
+ * Ghi công ảnh bìa. `author` + `sourceUrl` (http/https thật) là bắt buộc — nếu
+ * không thì "(nguồn)" không có gì để trỏ tới. `license` không bắt buộc: ảnh
+ * báo chí không có giấy phép mở nên để trống; ảnh CC/Commons thì bên gọi
+ * (genz-news-fetch-image) đã tự điền, ở đây chỉ giữ nguyên nếu có.
+ */
+export function imageCredit(raw: unknown): ImageCredit | undefined {
+  if (raw === null || raw === undefined) return undefined;
+  const c = raw as Record<string, unknown>;
+  const author = text(c.author, 200).trim();
+  const sourceUrl = httpUrl(c.sourceUrl);
+  if (!author || !sourceUrl) return undefined;
+  const license = text(c.license, 100).trim();
+  const sourceName = text(c.sourceName, 100).trim();
+  return { author, sourceUrl, ...(license ? { license } : {}), ...(sourceName ? { sourceName } : {}) };
+}

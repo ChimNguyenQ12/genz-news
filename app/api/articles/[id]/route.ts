@@ -122,16 +122,7 @@ export async function PUT(
     patch.coverImageCaption = String(body.coverImageCaption) || undefined;
   }
   if (body.coverImageCredit !== undefined) {
-    const c = body.coverImageCredit as Record<string, unknown> | null;
-    patch.coverImageCredit =
-      c && c.author && c.license && c.sourceUrl
-        ? {
-            author: String(c.author),
-            license: String(c.license),
-            sourceUrl: clean.httpUrl(c.sourceUrl) ?? "",
-            sourceName: c.sourceName ? String(c.sourceName) : undefined,
-          }
-        : undefined;
+    patch.coverImageCredit = clean.imageCredit(body.coverImageCredit);
   }
   const grad = clean.gradient(body.coverGradient);
   if (grad) patch.coverGradient = grad;

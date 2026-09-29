@@ -1,6 +1,6 @@
 import crypto from "crypto";
 import { prisma } from "./prisma";
-import type { Article, ArticleLanguage, ArticleStatus, CategorySlug } from "./types";
+import type { Article, ArticleLanguage, ArticleStatus, CategorySlug, ImageCredit } from "./types";
 import { normalizeArticleHtml } from "./html";
 import { HERO_SLOTS, TRENDING_SLOTS } from "./placement";
 
@@ -33,6 +33,19 @@ function parseList(value: string | null | undefined, fallback: string[] = []): s
   }
 }
 
+/** Ghi công ảnh bìa lưu dưới dạng JSON — hỏng (hay không có) thì coi như không có. */
+function parseCredit(value: string | null | undefined): ImageCredit | undefined {
+  if (!value) return undefined;
+  try {
+    const c = JSON.parse(value) as Partial<ImageCredit>;
+    return c && c.author && c.sourceUrl
+      ? { author: String(c.author), license: c.license ? String(c.license) : undefined, sourceUrl: String(c.sourceUrl), sourceName: c.sourceName ? String(c.sourceName) : undefined }
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 const DEFAULT_GRADIENT: [string, string] = ["#7C3AED", "#22D3EE"];
 
 function parseGradient(value: string | null | undefined): [string, string] {
@@ -56,6 +69,7 @@ function toArticle(row: ArticleRow): Article {
     coverGradient: parseGradient(row.coverGradient),
     coverImage: row.coverImage ?? undefined,
     coverImageCaption: row.coverImageCaption ?? undefined,
+    coverImageCredit: parseCredit(row.coverImageCredit),
     author: row.author,
     authorId: row.authorId ?? undefined,
     publishedAt: row.publishedAt,
@@ -631,6 +645,7 @@ export async function createArticle(
       coverGradient: JSON.stringify(input.coverGradient),
       coverImage: input.coverImage ?? null,
       coverImageCaption: input.coverImageCaption ?? null,
+      coverImageCredit: input.coverImageCredit ? JSON.stringify(input.coverImageCredit) : null,
       author: input.author,
       authorId: input.authorId ?? null,
       publishedAt: input.publishedAt,
@@ -707,6 +722,14 @@ export async function updateArticle(
           : {}),
         ...(patch.coverImageCaption !== undefined
           ? { coverImageCaption: patch.coverImageCaption || null }
+          : {}),
+        // "in" chứ không phải "!== undefined": bên gọi (ArticleEditor) gửi
+        // coverImageCredit: null để XOÁ ghi công đang có — nếu chỉ xét khác
+        // undefined thì giá trị null (rơi qua clean.imageCredit() thành
+        // undefined) sẽ bị coi là "không đụng tới trường này" và không bao
+        // giờ xoá được. "in" phân biệt đúng "có gửi nhưng rỗng" và "không gửi".
+        ...("coverImageCredit" in patch
+          ? { coverImageCredit: patch.coverImageCredit ? JSON.stringify(patch.coverImageCredit) : null }
           : {}),
         ...(patch.author !== undefined ? { author: patch.author } : {}),
         ...(patch.publishedAt !== undefined ? { publishedAt: patch.publishedAt } : {}),

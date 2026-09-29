@@ -1,6 +1,11 @@
 /**
  * Tìm ảnh DÙNG LẠI ĐƯỢC trên internet, tải về rồi đẩy lên kho ảnh của toà soạn.
- * In ra JSON: {url, caption, licence, source}.
+ * In ra JSON: {url, caption, credit, licence, source}.
+ *   - caption: chuỗi chữ thuần, dùng cho <figcaption> trong thân bài.
+ *   - credit: object {author, license?, sourceUrl, sourceName?} — dùng THẲNG
+ *     cho coverImageCredit của ảnh bìa, để "(nguồn)" render thành link thật
+ *     thay vì tự ghép chuỗi HTML rồi nhét vào coverImageCaption (trường thuần
+ *     văn bản — thẻ <a> nhét vào đó sẽ hiện nguyên chữ ra cho người đọc).
  *
  *   node scripts/fetch-image.mjs "đường sắt cao tốc Việt Nam"
  *   node scripts/fetch-image.mjs --count=3 "hanoi metro"     # nhiều ảnh, in mảng
@@ -485,6 +490,24 @@ function captionFor(c) {
   );
 }
 
+/**
+ * Ghi công dạng object cho `coverImageCredit` — khác `captionFor()` (chuỗi
+ * chữ, dùng cho figcaption trong thân bài): đây là dữ liệu để "(nguồn)" render
+ * thành một link thật dưới ảnh bìa, không phải chữ "<a href=...>" nằm lẫn
+ * trong một trường thuần văn bản.
+ */
+function creditFor(c) {
+  if (c.fromPress) {
+    return { author: c.outlet, sourceUrl: c.page };
+  }
+  return {
+    author: c.artist || "không rõ tác giả",
+    ...(c.licence ? { license: c.licence } : {}),
+    sourceUrl: c.page,
+    sourceName: c.outlet,
+  };
+}
+
 const escapeHtml = (s) =>
   String(s)
     .replace(/&/g, "&amp;")
@@ -587,6 +610,9 @@ async function main() {
     picked.push({
       url,
       caption: captionFor(c),
+      // Dùng thẳng cho coverImageCredit — KHÔNG tự ghép chuỗi HTML, và KHÔNG
+      // dùng chung với coverImageCaption (đó là mô tả nội dung ảnh, nếu có).
+      credit: creditFor(c),
       licence: c.licence || "",
       source: c.page,
       fromPress: Boolean(c.fromPress),

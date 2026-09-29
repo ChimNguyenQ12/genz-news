@@ -147,8 +147,9 @@ cần phía sau — bạn không cần và không được tự đặt biến n�
 JSON gồm: `title`, `dek`, `category` (`viet-nam`|`the-gioi`|`cong-nghe`|
 `giai-tri`|`doi-song`|`kinh-doanh`|`the-thao` — bài mà Việt Nam là
 chủ thể chính thì dùng `viet-nam`, xem CLAUDE.md mục "Kỹ thuật"), `tags[]`, `body` (HTML), `language`
-("vi"), `sources[{name,url}]`, và `coverImage` + `coverImageCaption` nếu bước
-5 có ảnh.
+("vi"), `sources[{name,url}]`, và `coverImage` + `coverImageCaption`/`coverImageCredit`
+nếu bước 5 có ảnh (chi tiết hai trường này — đặc biệt `coverImageCredit` để
+"(nguồn)" render thành link thật thay vì lộ thẻ HTML — xem skill `lay-anh-bai-viet`).
 
 - Liệt kê **đủ** mọi nguồn đã thật sự dùng, không phải chỉ hai cái.
 - Không đặt `status` — lệnh tự đưa bài vào hàng chờ duyệt (`pending`), dừng ở

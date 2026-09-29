@@ -61,7 +61,12 @@ model Article {
   /// Mảng JSON 2 phần tử: ["#7C3AED","#22D3EE"]
   coverGradient     String  @default("[\"#7C3AED\",\"#22D3EE\"]")
   coverImage        String?
+  /// Mô tả ngắn, THUẦN VĂN BẢN (không HTML) — hiện ngay dưới ảnh bìa.
   coverImageCaption String?
+  /// JSON ImageCredit — ghi công + link "(nguồn)" thật, hiện cạnh caption.
+  /// Tách khỏi coverImageCaption để "(nguồn)" luôn là link render đúng, không
+  /// phải chuỗi HTML nhét vào một trường thuần văn bản (rò rỉ thẻ ra mặt chữ).
+  coverImageCredit  String?
 
   publishedAt    String
   readingTimeMin Int     @default(3)

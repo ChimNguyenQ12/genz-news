@@ -265,7 +265,13 @@ async function main() {
     let forBody = collected;
     if (!article.coverImage) {
       patch.coverImage = collected[0].url;
-      patch.coverImageCaption = collected[0].caption;
+      // credit làm "(nguồn)" render thành link thật dưới ảnh bìa; caption
+      // ("Ảnh: <báo>") đã nằm trong credit.author nên khỏi lặp lại ở
+      // coverImageCaption (trường chữ thuần, không có chỗ cho link).
+      patch.coverImageCredit = {
+        author: collected[0].caption.replace(/^Ảnh:\s*/i, "").trim(),
+        sourceUrl: collected[0].source,
+      };
       forBody = collected.slice(1);
     }
 
