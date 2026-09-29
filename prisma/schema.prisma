@@ -77,6 +77,10 @@ model Article {
   /// Vị trí trong khối "Đang nóng" (1 = trên cùng); NULL = không hiện.
   trendingOrder  Int?
 
+  /// Vị trí trong khối "Tin Nóng" ở cột chính trang chủ (1 = trên cùng);
+  /// NULL = không hiện. Thay cho danh sách "Mới nhất" tự động trước đây.
+  hotOrder       Int?
+
   /// Lượt đánh giá của người đọc ("bài này hữu ích không"). Cộng dồn đơn giản,
   /// KHÔNG gắn với tài khoản vì khách chưa đăng nhập vẫn bấm được — xem
   /// app/api/articles/[id]/react/route.ts. Vì vậy con số này là thăm dò ý kiến,

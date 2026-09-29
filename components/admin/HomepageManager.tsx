@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { getCategory } from "@/lib/data";
 import { categoryStyles } from "@/lib/categoryStyles";
 import { mediaUrl } from "@/lib/media";
-import { HERO_SLOTS, TRENDING_SLOTS } from "@/lib/placement";
+import { HERO_SLOTS, HOT_SLOTS, TRENDING_SLOTS } from "@/lib/placement";
 import type { ArticleStatus } from "@/lib/types";
 
 interface SlotArticle {
@@ -21,9 +21,16 @@ interface SearchResult extends SlotArticle {
   publishedAt: string;
 }
 
-type ListKey = "hero" | "trending";
+type ListKey = "hot" | "hero" | "trending";
 
 const LIST_META: Record<ListKey, { title: string; blurb: string; max: number; addLabel: string }> = {
+  hot: {
+    title: "Tin Nóng",
+    blurb:
+      'The main block on the home page, left of "Đang nóng". Empty means the site falls back to the newest articles.',
+    max: HOT_SLOTS,
+    addLabel: "+ Tin Nóng",
+  },
   hero: {
     title: "Hero slideshow",
     blurb: "The big rotating banner at the top of the home page.",
@@ -32,7 +39,7 @@ const LIST_META: Record<ListKey, { title: string; blurb: string; max: number; ad
   },
   trending: {
     title: "Trending",
-    blurb: 'The "Đang nóng" list next to the latest articles.',
+    blurb: 'The "Đang nóng" list in the right-hand column.',
     max: TRENDING_SLOTS,
     addLabel: "+ Trending",
   },
@@ -60,7 +67,20 @@ function move<T>(arr: T[], from: number, to: number): T[] {
 }
 
 /**
- * Quản lý bố cục trang chủ: danh sách hero (slideshow) và "Đang nóng".
+ * Khoá để so "có thay đổi chưa" — chỉ lấy id và ĐÚNG thứ tự khoá, dùng chung
+ * cho lúc tải và lúc lưu. So cả object thô thì chỉ cần lệch thứ tự khoá JSON
+ * giữa hai lần stringify là báo "Unsaved changes" dù chẳng ai sửa gì.
+ */
+const layoutKey = (d: { hero: SlotArticle[]; hot: SlotArticle[]; trending: SlotArticle[] }) =>
+  JSON.stringify({
+    hero: d.hero.map((a) => a.id),
+    hot: d.hot.map((a) => a.id),
+    trending: d.trending.map((a) => a.id),
+  });
+
+/**
+ * Quản lý bố cục trang chủ: hero (slideshow), "Tin Nóng" (cột chính) và "Đang
+ * nóng" (cột phải).
  *
  * Thay hẳn ô chọn vị trí từng bài trong trình sửa bài (đổi chỗ theo CẶP, hay
  * gặp lỗi "muốn đưa bài lên #2 phải tự nhớ ai đang giữ #2"). Ở đây làm việc
@@ -70,6 +90,7 @@ function move<T>(arr: T[], from: number, to: number): T[] {
  */
 export default function HomepageManager() {
   const [hero, setHero] = useState<SlotArticle[] | null>(null);
+  const [hot, setHot] = useState<SlotArticle[] | null>(null);
   const [trending, setTrending] = useState<SlotArticle[] | null>(null);
   const [savedSnapshot, setSavedSnapshot] = useState("");
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -85,10 +106,11 @@ export default function HomepageManager() {
 
   const load = () =>
     api("/api/admin/homepage")
-      .then((d: { hero: SlotArticle[]; trending: SlotArticle[] }) => {
+      .then((d: { hero: SlotArticle[]; hot: SlotArticle[]; trending: SlotArticle[] }) => {
         setHero(d.hero);
+        setHot(d.hot);
         setTrending(d.trending);
-        setSavedSnapshot(JSON.stringify(d));
+        setSavedSnapshot(layoutKey(d));
         setLoadError(null);
       })
       .catch((err: Error) => setLoadError(err.message));
@@ -122,7 +144,8 @@ export default function HomepageManager() {
     setTimeout(() => setToast(null), kind === "error" ? 6000 : 3500);
   };
 
-  const isDirty = hero && trending && JSON.stringify({ hero, trending }) !== savedSnapshot;
+  const isDirty =
+    !!hero && !!hot && !!trending && layoutKey({ hero, hot, trending }) !== savedSnapshot;
 
   useEffect(() => {
     if (!isDirty) return;
@@ -131,8 +154,14 @@ export default function HomepageManager() {
     return () => window.removeEventListener("beforeunload", handler);
   }, [isDirty]);
 
-  const listFor = (key: ListKey) => (key === "hero" ? hero : trending);
-  const setListFor = (key: ListKey) => (key === "hero" ? setHero : setTrending);
+  const listFor = (key: ListKey) => ({ hot, hero, trending })[key];
+  const setListFor = (key: ListKey) => ({ hot: setHot, hero: setHero, trending: setTrending })[key];
+
+  /** Bài này còn nằm ở danh sách nào khác — trang chủ sẽ hiện nó hai lần. */
+  const alsoIn = (key: ListKey, id: string) =>
+    (Object.keys(LIST_META) as ListKey[]).filter(
+      (k) => k !== key && (listFor(k) ?? []).some((a) => a.id === id),
+    );
 
   const addTo = (key: ListKey, article: SearchResult) => {
     const current = listFor(key) ?? [];
@@ -172,14 +201,18 @@ export default function HomepageManager() {
   };
 
   const save = async () => {
-    if (!hero || !trending) return;
+    if (!hero || !hot || !trending) return;
     setSaving(true);
     try {
       const out = await api("/api/admin/homepage", {
         method: "PUT",
-        body: JSON.stringify({ hero: hero.map((a) => a.id), trending: trending.map((a) => a.id) }),
+        body: JSON.stringify({
+          hero: hero.map((a) => a.id),
+          hot: hot.map((a) => a.id),
+          trending: trending.map((a) => a.id),
+        }),
       });
-      setSavedSnapshot(JSON.stringify({ hero, trending }));
+      setSavedSnapshot(layoutKey({ hero, hot, trending }));
       notify(out.message ?? "Saved");
     } catch (err) {
       notify((err as Error).message, "error");
@@ -242,19 +275,16 @@ export default function HomepageManager() {
                     <p className="truncate text-sm font-semibold">{r.title}</p>
                     <p className="text-xs text-muted">{getCategory(r.category)?.name ?? r.category}</p>
                   </div>
-                  <div className="flex shrink-0 gap-1.5">
-                    <button
-                      onClick={() => addTo("hero", r)}
-                      className="rounded-lg border border-border px-2.5 py-1 text-xs font-bold hover:border-accent hover:text-accent"
-                    >
-                      {LIST_META.hero.addLabel}
-                    </button>
-                    <button
-                      onClick={() => addTo("trending", r)}
-                      className="rounded-lg border border-border px-2.5 py-1 text-xs font-bold hover:border-accent hover:text-accent"
-                    >
-                      {LIST_META.trending.addLabel}
-                    </button>
+                  <div className="flex shrink-0 flex-wrap justify-end gap-1.5">
+                    {(Object.keys(LIST_META) as ListKey[]).map((key) => (
+                      <button
+                        key={key}
+                        onClick={() => addTo(key, r)}
+                        className="rounded-lg border border-border px-2.5 py-1 text-xs font-bold hover:border-accent hover:text-accent"
+                      >
+                        {LIST_META[key].addLabel}
+                      </button>
+                    ))}
                   </div>
                 </div>
               ))}
@@ -331,6 +361,15 @@ export default function HomepageManager() {
                               {a.status} — won’t show until published
                             </span>
                           )}
+                          {alsoIn(key, a.id).map((k) => (
+                            <span
+                              key={k}
+                              title="The home page will show this article in both blocks"
+                              className="rounded bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-bold text-amber-600 dark:text-amber-400"
+                            >
+                              also in {LIST_META[k].title}
+                            </span>
+                          ))}
                         </div>
                       </div>
                       <div className="flex shrink-0 flex-col">

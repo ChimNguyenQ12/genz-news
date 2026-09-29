@@ -2,7 +2,7 @@ import crypto from "crypto";
 import { prisma } from "./prisma";
 import type { Article, ArticleLanguage, ArticleStatus, CategorySlug, ImageCredit } from "./types";
 import { normalizeArticleHtml } from "./html";
-import { HERO_SLOTS, TRENDING_SLOTS } from "./placement";
+import { HERO_SLOTS, HOT_SLOTS, TRENDING_SLOTS } from "./placement";
 
 export function makeId() {
   return crypto.randomUUID();
@@ -78,6 +78,7 @@ function toArticle(row: ArticleRow): Article {
     trending: row.trending,
     featuredOrder: row.featuredOrder,
     trendingOrder: row.trendingOrder,
+    hotOrder: row.hotOrder,
     likeCount: row.likeCount,
     dislikeCount: row.dislikeCount,
     status: row.status as ArticleStatus,
@@ -177,6 +178,7 @@ export interface ArticleSummary {
   trending: boolean;
   featuredOrder: number | null;
   trendingOrder: number | null;
+  hotOrder: number | null;
   status: ArticleStatus;
   language: ArticleLanguage;
   submittedAt?: string;
@@ -205,6 +207,7 @@ const SUMMARY_SELECT = {
   trending: true,
   featuredOrder: true,
   trendingOrder: true,
+  hotOrder: true,
   status: true,
   language: true,
   submittedAt: true,
@@ -236,6 +239,7 @@ function toSummary(row: SummaryRow): ArticleSummary {
     trending: row.trending,
     featuredOrder: row.featuredOrder,
     trendingOrder: row.trendingOrder,
+    hotOrder: row.hotOrder,
     status: row.status as ArticleStatus,
     language: (row.language === "en" ? "en" : "vi") as ArticleLanguage,
     submittedAt: row.submittedAt?.toISOString(),
@@ -422,16 +426,22 @@ function toHomepageSlotArticle(row: {
   };
 }
 
-/** Thứ tự hiện tại của hero / "Đang nóng" trên trang chủ — cho /admin/homepage. */
+/** Thứ tự hiện tại của hero / "Tin Nóng" / "Đang nóng" — cho /admin/homepage. */
 export async function getHomepageLayout(): Promise<{
   hero: HomepageSlotArticle[];
+  hot: HomepageSlotArticle[];
   trending: HomepageSlotArticle[];
 }> {
-  const [hero, trending] = await Promise.all([
+  const [hero, hot, trending] = await Promise.all([
     prisma.article.findMany({
       where: { featuredOrder: { not: null } },
       select: HOMEPAGE_SLOT_SELECT,
       orderBy: { featuredOrder: "asc" },
+    }),
+    prisma.article.findMany({
+      where: { hotOrder: { not: null } },
+      select: HOMEPAGE_SLOT_SELECT,
+      orderBy: { hotOrder: "asc" },
     }),
     prisma.article.findMany({
       where: { trendingOrder: { not: null } },
@@ -439,11 +449,15 @@ export async function getHomepageLayout(): Promise<{
       orderBy: { trendingOrder: "asc" },
     }),
   ]);
-  return { hero: hero.map(toHomepageSlotArticle), trending: trending.map(toHomepageSlotArticle) };
+  return {
+    hero: hero.map(toHomepageSlotArticle),
+    hot: hot.map(toHomepageSlotArticle),
+    trending: trending.map(toHomepageSlotArticle),
+  };
 }
 
 /**
- * Ghi đè TOÀN BỘ thứ tự hero / "Đang nóng" theo đúng danh sách gửi lên.
+ * Ghi đè TOÀN BỘ thứ tự hero / "Tin Nóng" / "Đang nóng" theo đúng danh sách gửi lên.
  *
  * Khác `updateArticle` (đổi chỗ theo CẶP, dùng cho ô chọn vị trí cũ trong
  * trình sửa từng bài): ở đây /admin/homepage gửi nguyên danh sách đã sắp theo
@@ -453,12 +467,14 @@ export async function getHomepageLayout(): Promise<{
  */
 export async function setHomepageLayout(input: {
   hero: string[];
+  hot: string[];
   trending: string[];
 }): Promise<void> {
   const hero = [...new Set(input.hero)].slice(0, HERO_SLOTS);
+  const hot = [...new Set(input.hot)].slice(0, HOT_SLOTS);
   const trending = [...new Set(input.trending)].slice(0, TRENDING_SLOTS);
 
-  const ids = [...new Set([...hero, ...trending])];
+  const ids = [...new Set([...hero, ...hot, ...trending])];
   if (ids.length) {
     const found = await prisma.article.findMany({
       where: { id: { in: ids } },
@@ -474,12 +490,21 @@ export async function setHomepageLayout(input: {
       where: { featuredOrder: { not: null } },
       data: { featuredOrder: null, featured: false },
     }),
+    // "Tin Nóng" không có cột boolean đi kèm: `featured`/`trending` chỉ là sổ
+    // sách cũ, không chỗ nào đọc để hiển thị, nên thêm một cột nữa là thừa.
+    prisma.article.updateMany({
+      where: { hotOrder: { not: null } },
+      data: { hotOrder: null },
+    }),
     prisma.article.updateMany({
       where: { trendingOrder: { not: null } },
       data: { trendingOrder: null, trending: false },
     }),
     ...hero.map((id, i) =>
       prisma.article.update({ where: { id }, data: { featuredOrder: i + 1, featured: true } }),
+    ),
+    ...hot.map((id, i) =>
+      prisma.article.update({ where: { id }, data: { hotOrder: i + 1 } }),
     ),
     ...trending.map((id, i) =>
       prisma.article.update({ where: { id }, data: { trendingOrder: i + 1, trending: true } }),

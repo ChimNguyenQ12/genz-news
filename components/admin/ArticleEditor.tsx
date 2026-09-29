@@ -485,10 +485,14 @@ export default function ArticleEditor({
             </div>
           </Field>
 
-          {isAdmin && (article.featuredOrder != null || article.trendingOrder != null) && (
+          {isAdmin &&
+            (article.featuredOrder != null ||
+              article.hotOrder != null ||
+              article.trendingOrder != null) && (
             <Field label="Placement">
               <p className="text-xs text-muted">
                 {article.featuredOrder != null && `On the home page hero at #${article.featuredOrder}. `}
+                {article.hotOrder != null && `In Tin Nóng at #${article.hotOrder}. `}
                 {article.trendingOrder != null && `In Trending at #${article.trendingOrder}. `}
                 Manage this on{" "}
                 <Link href="/admin/homepage" className="font-semibold text-accent hover:underline">

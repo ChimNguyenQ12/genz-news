@@ -3,6 +3,7 @@ import Link from "next/link";
 import { categories } from "@/lib/data";
 import { categoryStyles } from "@/lib/categoryStyles";
 import { listPublishedSummaries } from "@/lib/store";
+import { HOT_SLOTS } from "@/lib/placement";
 import HeroSlideshow from "@/components/HeroSlideshow";
 import ArticleCard from "@/components/ArticleCard";
 import TrendingList from "@/components/TrendingList";
@@ -29,14 +30,19 @@ export default async function Home() {
     );
   }
 
-  // Theo vị trí đặt trong trình sửa bài (1 = đầu tiên); chưa đặt bài nào thì lấy bài mới nhất.
-  const byOrder = (key: "featuredOrder" | "trendingOrder") =>
+  // Theo vị trí đặt trong /admin/homepage (1 = đầu tiên); chưa đặt bài nào thì
+  // lùi về bài mới nhất, để trang chủ không trống trong lúc chờ xếp.
+  const byOrder = (key: "featuredOrder" | "hotOrder" | "trendingOrder") =>
     articles.filter((a) => a[key] != null).sort((a, b) => a[key]! - b[key]!);
   const heroes = byOrder("featuredOrder");
   if (heroes.length === 0) heroes.push(articles[0]);
   const trending = byOrder("trendingOrder");
   const heroSlugs = new Set(heroes.map((a) => a.slug));
-  const latest = articles.filter((a) => !heroSlugs.has(a.slug)).slice(0, 4);
+  // "Tin Nóng" thay cho khối "Mới nhất" tự động trước đây: giờ do tổng biên tập
+  // chọn bài và xếp thứ tự. Bỏ trống thì mới rơi về bài mới nhất.
+  const hot = byOrder("hotOrder");
+  const hotCards =
+    hot.length > 0 ? hot : articles.filter((a) => !heroSlugs.has(a.slug)).slice(0, HOT_SLOTS);
 
   // JSON-LD WebSite — giúp Google hiểu site và kích hoạt Sitelinks Searchbox
   const jsonLd = {
@@ -80,9 +86,9 @@ export default async function Home() {
 
       <div className="mt-10 grid gap-10 lg:grid-cols-3">
         <div className="lg:col-span-2">
-          <SectionHeader title="Mới nhất" />
+          <SectionHeader title="Tin Nóng" />
           <div className="grid gap-8 sm:grid-cols-2">
-            {latest.map((a) => (
+            {hotCards.map((a) => (
               <ArticleCard key={a.slug} article={a} />
             ))}
           </div>

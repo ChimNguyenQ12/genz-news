@@ -93,6 +93,8 @@ export interface Article {
   featuredOrder?: number | null;
   /** Vị trí trong "Đang nóng" (1 = trên cùng); null = không hiện. */
   trendingOrder?: number | null;
+  /** Vị trí trong "Tin Nóng" ở cột chính trang chủ; null = không hiện. */
+  hotOrder?: number | null;
   /**
    * Lượt đánh giá của người đọc. Chỉ cộng dồn và KHÔNG gắn với tài khoản — khách
    * chưa đăng nhập vẫn bấm được, nên con số này là thăm dò ý kiến chứ không phải
