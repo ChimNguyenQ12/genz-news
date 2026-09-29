@@ -16,19 +16,29 @@ export function formatDate(iso: string) {
   }).format(d);
 }
 
-/** Ngày VÀ giờ đăng, giờ Việt Nam. VD: "30/09/2026 00:23". */
+/**
+ * Ngày VÀ giờ đăng, giờ Việt Nam. VD: "29/09/2026 20:37".
+ *
+ * Ghép tay thay vì để Intl tự sắp: mặc định của vi-VN là GIỜ trước ngày
+ * ("20:37 29/09/2026"), còn ở đây muốn ngày trước cho khớp cách đọc "ngày và
+ * giờ", và cũng để nhãn "Đăng 29/09/2026 20:37" xuôi mắt.
+ */
 export function formatDateTime(iso: string) {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "";
-  return new Intl.DateTimeFormat("vi-VN", {
+  const day = new Intl.DateTimeFormat("vi-VN", {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
+    timeZone: TZ,
+  }).format(d);
+  const time = new Intl.DateTimeFormat("vi-VN", {
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
     timeZone: TZ,
   }).format(d);
+  return `${day} ${time}`;
 }
 
 /**
