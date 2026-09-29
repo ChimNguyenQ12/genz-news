@@ -62,13 +62,19 @@ export default function PrivacyPage() {
           Chúng tôi không lưu mật khẩu gốc và không thể đọc mật khẩu của bạn.
         </li>
         <li>
-          <strong>Bình luận:</strong> nội dung bạn viết, gắn với tài khoản đã
-          đăng, và thời điểm gửi.
+          <strong>Bình luận:</strong> nội dung bạn viết, thời điểm gửi, và tên
+          hiển thị. Bình luận <em>không cần đăng nhập</em> — chọn ẩn danh thì
+          chúng tôi chỉ lưu nick bạn tự đặt, không gắn với tài khoản nào.
         </li>
       </ul>
       <p>
+        Lượt đánh giá bài viết (👍/👎) chỉ là một con số cộng dồn trên bài —{" "}
+        <strong>chúng tôi không lưu ai đã bấm</strong>.
+      </p>
+      <p>
         Chúng tôi <strong>không</strong> lưu địa chỉ IP kèm bình luận, không lưu
-        vị trí, và không dựng hồ sơ hành vi đọc của bạn.
+        vị trí, và không dựng hồ sơ hành vi đọc của bạn. Địa chỉ IP chỉ được đếm
+        tạm trong bộ nhớ để chặn spam, không ghi xuống cơ sở dữ liệu.
       </p>
 
       <h2>Quyền của bạn</h2>

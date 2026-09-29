@@ -93,6 +93,13 @@ export interface Article {
   featuredOrder?: number | null;
   /** Vị trí trong "Đang nóng" (1 = trên cùng); null = không hiện. */
   trendingOrder?: number | null;
+  /**
+   * Lượt đánh giá của người đọc. Chỉ cộng dồn và KHÔNG gắn với tài khoản — khách
+   * chưa đăng nhập vẫn bấm được, nên con số này là thăm dò ý kiến chứ không phải
+   * dữ liệu chính xác (chống bấm lặp nằm ở phía trình duyệt).
+   */
+  likeCount?: number;
+  dislikeCount?: number;
   status: ArticleStatus;
   /** Ngôn ngữ gốc — quyết định chiều dịch của nút trên trang bài. */
   language: ArticleLanguage;

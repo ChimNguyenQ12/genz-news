@@ -11,6 +11,7 @@ import { getSessionUser } from "@/lib/auth";
 import { listComments } from "@/lib/comments";
 import ArticleCard from "@/components/ArticleCard";
 import CommentSection from "@/components/CommentSection";
+import ReactionButtons from "@/components/ReactionButtons";
 import BackToTopButton from "@/components/BackToTopButton";
 
 export const revalidate = 60;
@@ -285,6 +286,13 @@ export default async function ArticlePage({ params }: Props) {
       <div
         className="article-body text-[17px] leading-relaxed"
         dangerouslySetInnerHTML={{ __html: mediaHtml(article.body) }}
+      />
+
+      {/* Đánh giá của người đọc — không cần đăng nhập, chỉ cộng dồn. */}
+      <ReactionButtons
+        articleId={article.id}
+        initialLikes={article.likeCount ?? 0}
+        initialDislikes={article.dislikeCount ?? 0}
       />
 
       {article.tags.length > 0 && (

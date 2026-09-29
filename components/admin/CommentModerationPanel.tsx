@@ -51,6 +51,9 @@ function Row({
           {comment.author.role === "admin" && (
             <span className="rounded-full bg-accent/10 px-1.5 py-0.5 text-[10px] font-bold text-accent">Quản trị</span>
           )}
+          {comment.author.role === "guest" && (
+            <span className="rounded-full bg-surface-2 px-1.5 py-0.5 text-[10px] font-bold text-muted">Khách</span>
+          )}
           <span className="text-muted">{timeAgo(comment.createdAt)}</span>
         </div>
         {comment.body && <p className="mt-1 whitespace-pre-wrap break-words text-sm">{comment.body}</p>}

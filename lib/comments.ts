@@ -2,11 +2,16 @@ import { prisma } from "./prisma";
 import { S3_UPLOADS_BASE } from "./media";
 
 export const COMMENT_MAX_LENGTH = 1500;
+/** Nick của khách ẩn danh. Rỗng thì lùi về tên này, không chặn gửi. */
+export const GUEST_NAME_MAX = 40;
+export const GUEST_FALLBACK_NAME = "Khách";
 
 export interface CommentAuthor {
-  id: string;
+  /** null = bình luận ẩn danh, không gắn tài khoản nào. */
+  id: string | null;
   displayName: string;
-  role: "admin" | "contributor";
+  /** "guest" = khách chưa đăng nhập; không xoá lại được bình luận của mình. */
+  role: "admin" | "contributor" | "guest";
 }
 
 export interface CommentMedia {
@@ -31,7 +36,8 @@ type Row = {
   mediaUrl: string | null;
   parentId: string | null;
   createdAt: Date;
-  user: { id: string; displayName: string; role: string };
+  authorName: string | null;
+  user: { id: string; displayName: string; role: string } | null;
 };
 
 function toNode(row: Row): CommentNode {
@@ -43,11 +49,18 @@ function toNode(row: Row): CommentNode {
         ? { type: row.mediaType, url: row.mediaUrl }
         : null,
     createdAt: row.createdAt.toISOString(),
-    author: {
-      id: row.user.id,
-      displayName: row.user.displayName,
-      role: row.user.role as CommentAuthor["role"],
-    },
+    // Không có tài khoản = bình luận ẩn danh, tên lấy từ nick khách để lại.
+    author: row.user
+      ? {
+          id: row.user.id,
+          displayName: row.user.displayName,
+          role: row.user.role as CommentAuthor["role"],
+        }
+      : {
+          id: null,
+          displayName: row.authorName?.trim() || GUEST_FALLBACK_NAME,
+          role: "guest",
+        },
     replies: [],
   };
 }
@@ -101,13 +114,23 @@ function checkMedia(raw: unknown): CommentMedia | null {
   return { type, url };
 }
 
+/** Nick khách để lại: gọn khoảng trắng, giới hạn độ dài, rỗng thì lùi về "Khách". */
+function guestName(raw: unknown): string {
+  return (
+    String(raw ?? "").replace(/\s+/g, " ").trim().slice(0, GUEST_NAME_MAX) ||
+    GUEST_FALLBACK_NAME
+  );
+}
+
 export type CreateResult =
   | { ok: true; comment: CommentNode; parentId: string | null }
   | { ok: false; error: string; status: number };
 
 export async function createComment(input: {
   articleId: string;
-  userId: string;
+  /** null = bình luận ẩn danh, khi đó authorName là nick khách để lại. */
+  userId: string | null;
+  authorName?: string | null;
   body: string;
   media?: unknown;
   parentId?: string | null;
@@ -161,6 +184,8 @@ export async function createComment(input: {
     data: {
       articleId: input.articleId,
       userId: input.userId,
+      // Có tài khoản thì tên lấy từ tài khoản; ẩn danh thì lấy nick khách để lại.
+      authorName: input.userId ? null : guestName(input.authorName),
       body,
       mediaType: media?.type ?? null,
       mediaUrl: media?.url ?? null,
@@ -172,7 +197,13 @@ export async function createComment(input: {
   return { ok: true, comment: toNode(row), parentId };
 }
 
-/** Xoá bình luận. Chỉ tác giả bình luận hoặc admin mới được xoá. */
+/**
+ * Xoá bình luận. Chỉ tác giả hoặc admin được xoá.
+ *
+ * Bình luận ẩn danh không gắn tài khoản (userId NULL) nên không có gì để đối
+ * chiếu danh tính — chỉ admin xoá được. Đó là cái giá của việc cho bình luận
+ * không cần đăng nhập; đổi lại khách không phải để lại email hay mật khẩu.
+ */
 export async function deleteComment(
   id: string,
   actor: { id: string; role: string },

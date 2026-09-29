@@ -1,12 +1,20 @@
 "use client";
 
 import Link from "next/link";
-import { useRef, useState } from "react";
+import { useRef, useState, useSyncExternalStore } from "react";
 import type { CommentMedia, CommentNode } from "@/lib/comments";
 import type { PublicUser } from "@/lib/users";
 import { mediaUrl } from "@/lib/media";
+import { readLocalPref, subscribeLocalPref, writeLocalPref } from "@/lib/localPref";
 
 const MAX = 1500;
+/**
+ * Trần độ dài nick khách. Giữ khớp với GUEST_NAME_MAX trong lib/comments.ts —
+ * chép tay chứ không import, vì lib/comments.ts kéo theo Prisma và đây là
+ * component chạy ở trình duyệt.
+ */
+const NAME_MAX = 40;
+const NAME_KEY = "genz-comment-name";
 const ACCEPT = "image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm";
 
 function initials(name: string) {
@@ -174,7 +182,8 @@ function CommentItem({
   onDelete: (id: string) => void;
   busyId: string | null;
 }) {
-  const canDelete = user && (user.role === "admin" || user.id === comment.author.id);
+  const canDelete =
+    !!user && (user.role === "admin" || user.id === comment.author.id);
 
   return (
     <div className="flex gap-3">
@@ -187,6 +196,11 @@ function CommentItem({
           {comment.author.role === "admin" && (
             <span className="rounded-full bg-accent/10 px-2 py-0.5 text-[10px] font-bold text-accent">
               Quản trị
+            </span>
+          )}
+          {comment.author.role === "guest" && (
+            <span className="rounded-full bg-surface-2 px-2 py-0.5 text-[10px] font-bold text-muted">
+              Khách
             </span>
           )}
           <span className="text-xs text-muted">{timeAgo(comment.createdAt)}</span>
@@ -219,7 +233,7 @@ function CommentItem({
         )}
 
         <div className="mt-1.5 flex items-center gap-4 text-xs font-semibold text-muted">
-          {!isReply && user && onReply && (
+          {!isReply && onReply && (
             <button onClick={onReply} className="-my-2 py-2 hover:text-accent">
               Trả lời
             </button>
@@ -261,6 +275,23 @@ export default function CommentSection({
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState("");
 
+  /**
+   * Đã đăng nhập thì MẶC ĐỊNH vẫn là bình luận ẩn danh; chọn "Tài khoản" mới
+   * đứng tên thật. Chưa đăng nhập thì luôn ẩn danh.
+   */
+  const [asAccount, setAsAccount] = useState(false);
+  const needsName = !user || !asAccount;
+
+  // Nick đã dùng lần trước, nhớ ở máy này để không phải gõ lại mỗi lần.
+  const savedName = useSyncExternalStore(
+    subscribeLocalPref,
+    () => readLocalPref(NAME_KEY) ?? "",
+    () => "",
+  );
+  /** Nick đang gõ; null = chưa đụng tới thì dùng nick đã nhớ. */
+  const [typedName, setTypedName] = useState<string | null>(null);
+  const guestName = typedName ?? savedName;
+
   const total = comments.reduce((n, c) => n + 1 + c.replies.length, 0);
 
   async function upload(file: File, setState: typeof setAttach) {
@@ -281,12 +312,25 @@ export default function CommentSection({
   }
 
   async function send(body: string, media: CommentMedia | null, parentId: string | null) {
+    // Ẩn danh thì nick là thứ duy nhất phân biệt người này với người kia, nên
+    // bắt buộc có — không để cả khung bình luận toàn "Khách".
+    if (needsName && !guestName.trim()) {
+      setError("Đặt nick trước khi gửi nhé.");
+      return false;
+    }
     setPending(true);
     setError("");
+    if (needsName) writeLocalPref(NAME_KEY, guestName.trim());
     const res = await fetch(`/api/articles/${articleId}/comments`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ body, media, parentId }),
+      body: JSON.stringify({
+        body,
+        media,
+        parentId,
+        as: asAccount ? "account" : "guest",
+        authorName: guestName.trim(),
+      }),
     });
     setPending(false);
 
@@ -333,34 +377,75 @@ export default function CommentSection({
         Bình luận {total > 0 && <span className="text-muted">({total})</span>}
       </h2>
 
-      {user ? (
-        <div className="mt-4">
-          <CommentForm
-            value={text}
-            onChange={setText}
-            media={attach.media}
-            uploading={attach.uploading}
-            mediaError={attach.error}
-            onAttach={(file) => void upload(file, setAttach)}
-            onRemoveMedia={() => setAttach(EMPTY_ATTACH)}
-            onSubmit={async () => {
-              if (await send(text, attach.media, null)) {
-                setText("");
-                setAttach(EMPTY_ATTACH);
-              }
-            }}
-            pending={pending}
-            placeholder="Viết bình luận..."
+      {/* Không cần đăng nhập: khách để lại nick là bình luận được. */}
+      <div className="mt-4 space-y-2">
+        {user && (
+          <div className="flex flex-wrap items-center gap-3 text-xs font-semibold text-muted">
+            <span>Bình luận với tư cách:</span>
+            <label className="flex items-center gap-1.5">
+              <input
+                type="radio"
+                name="comment-identity"
+                checked={!asAccount}
+                onChange={() => setAsAccount(false)}
+              />
+              Ẩn danh
+            </label>
+            <label className="flex items-center gap-1.5">
+              <input
+                type="radio"
+                name="comment-identity"
+                checked={asAccount}
+                onChange={() => setAsAccount(true)}
+              />
+              {user.displayName}
+            </label>
+          </div>
+        )}
+
+        {needsName && (
+          <input
+            value={guestName}
+            onChange={(e) => setTypedName(e.target.value.slice(0, NAME_MAX))}
+            maxLength={NAME_MAX}
+            placeholder="Nick của bạn (VD: Mèo Lười)"
+            aria-label="Nick hiển thị"
+            className="w-full rounded-xl border border-border bg-surface px-4 py-2.5 text-sm outline-none focus:border-accent sm:max-w-xs"
           />
-        </div>
-      ) : (
-        <p className="mt-4 rounded-xl border border-border bg-surface px-4 py-3 text-sm text-muted">
-          <Link href="/dang-nhap" className="font-bold text-accent hover:underline">
-            Đăng nhập
-          </Link>{" "}
-          để bình luận.
-        </p>
-      )}
+        )}
+
+        <CommentForm
+          value={text}
+          onChange={setText}
+          media={attach.media}
+          uploading={attach.uploading}
+          mediaError={attach.error}
+          onAttach={(file) => void upload(file, setAttach)}
+          onRemoveMedia={() => setAttach(EMPTY_ATTACH)}
+          onSubmit={async () => {
+            if (await send(text, attach.media, null)) {
+              setText("");
+              setAttach(EMPTY_ATTACH);
+            }
+          }}
+          pending={pending}
+          placeholder={
+            asAccount && user
+              ? `Bình luận với tên ${user.displayName}...`
+              : "Viết bình luận..."
+          }
+        />
+
+        {!user && (
+          <p className="text-xs text-muted">
+            Không cần đăng nhập. Muốn bình luận bằng tên tài khoản thì{" "}
+            <Link href="/dang-nhap" className="font-semibold text-accent hover:underline">
+              đăng nhập
+            </Link>
+            .
+          </p>
+        )}
+      </div>
 
       {error && <p className="mt-3 text-sm text-red-500">{error}</p>}
 
@@ -382,7 +467,7 @@ export default function CommentSection({
                 busyId={busyId}
               />
 
-              {replyTo === c.id && user && (
+              {replyTo === c.id && (
                 <div className="ml-4 mt-2 sm:ml-11">
                   <CommentForm
                     value={replyText}

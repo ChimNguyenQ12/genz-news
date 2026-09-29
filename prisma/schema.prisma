@@ -77,6 +77,13 @@ model Article {
   /// Vị trí trong khối "Đang nóng" (1 = trên cùng); NULL = không hiện.
   trendingOrder  Int?
 
+  /// Lượt đánh giá của người đọc ("bài này hữu ích không"). Cộng dồn đơn giản,
+  /// KHÔNG gắn với tài khoản vì khách chưa đăng nhập vẫn bấm được — xem
+  /// app/api/articles/[id]/react/route.ts. Vì vậy con số này là thăm dò ý kiến,
+  /// không phải dữ liệu chính xác: chống bấm lặp chỉ nằm ở phía trình duyệt.
+  likeCount    Int @default(0)
+  dislikeCount Int @default(0)
+
   submittedAt DateTime?
   reviewNote  String?
 
@@ -122,8 +129,16 @@ model Comment {
   articleId String
   article   Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
 
-  userId String
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// NULL = bình luận ẩn danh của khách chưa đăng nhập (khi đó authorName bắt buộc).
+  /// Khách vẫn bấm được nhưng không xoá lại được bình luận của mình, vì không có
+  /// gì để đối chiếu danh tính — chỉ admin xoá được.
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// Tên hiển thị của khách ẩn danh. NULL khi bình luận bằng tài khoản (lúc đó
+  /// lấy user.displayName). Không gộp vào một cột chung vì khách đổi nick được
+  /// mỗi lần bình luận, còn tên tài khoản thì không.
+  authorName String?
 
   /// null = bình luận gốc; có giá trị = trả lời cho bình luận gốc đó.
   parentId String?

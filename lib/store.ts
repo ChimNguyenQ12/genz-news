@@ -78,6 +78,8 @@ function toArticle(row: ArticleRow): Article {
     trending: row.trending,
     featuredOrder: row.featuredOrder,
     trendingOrder: row.trendingOrder,
+    likeCount: row.likeCount,
+    dislikeCount: row.dislikeCount,
     status: row.status as ArticleStatus,
     language: (row.language === "en" ? "en" : "vi") as ArticleLanguage,
     submittedAt: row.submittedAt?.toISOString(),
@@ -89,6 +91,35 @@ function toArticle(row: ArticleRow): Article {
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };
+}
+
+/**
+ * Cộng một lượt đánh giá rồi trả về số mới.
+ *
+ * Cố ý KHÔNG ghi lại ai đã bấm: khách chưa đăng nhập vẫn bấm được, mà lưu IP
+ * thì trái với trang Quyền riêng tư (ở đó ghi rõ không giữ IP kèm nội dung
+ * người đọc). Chống bấm lặp nằm ở trình duyệt — xem components/ReactionButtons.
+ * Vì vậy đây là thăm dò ý kiến, đừng đọc con số này như dữ liệu chính xác.
+ */
+export async function reactToArticle(
+  articleId: string,
+  type: "like" | "dislike",
+): Promise<{ likeCount: number; dislikeCount: number } | undefined> {
+  const row = await prisma.article.findUnique({
+    where: { id: articleId },
+    select: { status: true },
+  });
+  // Bài chưa đăng thì chưa có ai đọc để mà đánh giá.
+  if (!row || row.status !== "published") return undefined;
+
+  return prisma.article.update({
+    where: { id: articleId },
+    data:
+      type === "like"
+        ? { likeCount: { increment: 1 } }
+        : { dislikeCount: { increment: 1 } },
+    select: { likeCount: true, dislikeCount: true },
+  });
 }
 
 export async function listArticles(options?: {
