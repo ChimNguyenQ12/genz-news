@@ -55,6 +55,7 @@ export default function Footer() {
             <h2 className="text-sm font-bold uppercase tracking-wide text-muted">Liên hệ</h2>
             <p className="mt-3 text-sm text-muted">tinhbu0123@gmail.com</p>
             <p className="mt-3 text-sm text-muted">Meeting App: <a href="https://meet.pliny.blog">meet.pliny.blog</a></p>
+            <p className="mt-3 text-sm text-muted">Key Store App: <a href="https://vault.pliny.blog">vault.pliny.blog</a></p>
             <a
               href="https://www.facebook.com/profile.php?id=61594370073139"
               target="_blank"
