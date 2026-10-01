@@ -50,10 +50,13 @@ CMD ["npx", "prisma", "migrate", "deploy"]
 # ---------- runtime ----------
 FROM node:22-bookworm-slim AS runner
 WORKDIR /app
+# chromium: trình duyệt chạy ngầm để đăng nhập threads.com ở /admin/threads
+# (lib/threadsLogin.ts). Chỉ bật lên trong lúc đăng nhập rồi tắt ngay.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      openssl ca-certificates curl \
+      openssl ca-certificates curl chromium \
     && rm -rf /var/lib/apt/lists/*
 
+ENV THREADS_BROWSER_PATH=/usr/bin/chromium
 ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \
     PORT=3000 \

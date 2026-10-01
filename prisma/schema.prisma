@@ -265,7 +265,7 @@ model ArticleViewDay {
 /// trong bộ nhớ; IP cụ thể chỉ xem trực tiếp ở tab Traffic.
 model AdminNotification {
   id        String    @id @default(uuid())
-  /// "user" | "article" | "comment" | "views" | "traffic"
+  /// "user" | "article" | "comment" | "views" | "traffic" | "system"
   type      String
   /// "info" | "warning" | "danger"
   level     String    @default("info")

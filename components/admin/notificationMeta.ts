@@ -1,6 +1,6 @@
 /** Kiểu dữ liệu và cách hiển thị thông báo, dùng chung cho chuông và trang Activity. */
 
-export type NotificationType = "user" | "article" | "comment" | "views" | "traffic";
+export type NotificationType = "user" | "article" | "comment" | "views" | "traffic" | "system";
 export type NotificationLevel = "info" | "warning" | "danger";
 
 export interface NotificationItem {
@@ -32,6 +32,7 @@ export const NOTIFICATION_META: Record<
   comment: { label: "Comments", icon: "💬", cls: (l) => LEVEL_CLS[l] || "bg-emerald-500/15 text-emerald-600" },
   views: { label: "Views", icon: "📈", cls: (l) => LEVEL_CLS[l] || "bg-fuchsia-500/15 text-fuchsia-600" },
   traffic: { label: "Traffic", icon: "🛡️", cls: (l) => LEVEL_CLS[l] || "bg-surface-2 text-muted" },
+  system: { label: "System", icon: "⚙️", cls: (l) => LEVEL_CLS[l] || "bg-surface-2 text-muted" },
 };
 
 export function timeAgo(iso: string, now = Date.now()) {

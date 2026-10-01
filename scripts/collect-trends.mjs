@@ -54,8 +54,9 @@
  *   THREADS_MAX_QUERIES  số từ khoá đem đi tìm trên Threads (mặc định 12)
  *   THREADS_MAX_TOPICS   số đề tài Threads ghi vào hàng đợi (mặc định 8)
  *   THREADS_MIN_BUZZ     tổng tương tác tối thiểu để nhận (mặc định 20)
- *   THREADS_COOKIE       cookie phiên threads.com nếu trang bắt đăng nhập —
- *                        dùng tài khoản PHỤ, đừng dùng tài khoản của trang
+ *   THREADS_COOKIE       cookie phiên threads.com, đè lên phiên đăng nhập ở
+ *                        /admin/threads (data/threads-session.json) — bình
+ *                        thường không cần, cứ đăng nhập trên màn hình admin
  */
 
 import fs from "fs/promises";
@@ -72,6 +73,7 @@ import {
   volumeBonus,
 } from "./lib/topic-filter.mjs";
 import { searchMany, summarize } from "./lib/threads-search.mjs";
+import { cookieHeader, readSession, recordCheck } from "./lib/threads-session.mjs";
 
 const ROOT = process.cwd();
 const DATA_DIR = process.env.DATA_DIR ?? path.join(ROOT, "data");
@@ -572,6 +574,23 @@ function candidate({
   };
 }
 
+/**
+ * Ghi một thông báo cho admin (chuông ở /admin) thẳng vào bảng
+ * admin_notifications — cùng định dạng lib/notifications.ts. Hỏng thì thôi.
+ */
+function notifyAdmin({ title, body = "", link = null, level = "warning" }) {
+  const now = new Date().toISOString().replace("Z", "+00:00");
+  try {
+    sql(
+      "INSERT INTO admin_notifications (id, type, level, title, body, link, count, createdAt, updatedAt) VALUES (" +
+      [quote(randomUUID()), "'system'", quote(level), quote(title), quote(body), link ? quote(link) : "NULL", "1", quote(now), quote(now)].join(", ") +
+      ");",
+    );
+  } catch (err) {
+    console.warn(`  ! không ghi được thông báo admin: ${err.message.split("\n")[0]}`);
+  }
+}
+
 // ---------------------------------------------------------------- nguồn 7: Threads
 const fmtNum = (n) => Number(n).toLocaleString("vi-VN");
 const snippet = (t, max = 160) => (t.length > max ? `${t.slice(0, max - 1)}…` : t);
@@ -596,12 +615,38 @@ async function threadsRound(pool) {
     return { picked: [], digest: { skipped: "không có từ khoá" } };
   }
 
-  console.log(`\n[collect-trends] tìm ${queries.length} từ khoá trên threads.com/search…`);
+  // Phiên đăng nhập do admin nhập ở /admin/threads; biến môi trường đè lên.
+  const session = process.env.THREADS_COOKIE ? null : readSession(DATA_DIR);
+  const cookie = process.env.THREADS_COOKIE || (session ? cookieHeader(session) : undefined);
+  console.log(
+    `\n[collect-trends] tìm ${queries.length} từ khoá trên threads.com/search ` +
+    (session ? `(đăng nhập: @${session.username})` : cookie ? "(cookie từ THREADS_COOKIE)" : "(không đăng nhập)") +
+    "…",
+  );
   const { results, aborted } = await searchMany(
     queries.map((c) => c.topic),
-    { userAgent: UA, cookie: process.env.THREADS_COOKIE || undefined },
+    { userAgent: UA, cookie },
   );
   if (aborted) console.log(`  ✗ Threads: dừng sớm — ${aborted}`);
+
+  // Ghi lại phiên còn dùng được không. Đang dùng được mà giờ hỏng thì báo lên
+  // chuông admin — cron không có ai nhìn log, phiên hết hạn sẽ lặng lẽ làm mục
+  // Threads rỗng mãi.
+  if (session && !DRY_RUN) {
+    const hits = [...results.values()].filter((r) => r.posts.length).length;
+    const wasOk = session.lastCheck?.ok !== false;
+    if (hits) {
+      recordCheck(DATA_DIR, true, `collect-trends: ${hits}/${results.size} từ khoá ra bài`);
+    } else {
+      const why = aborted || "không từ khoá nào ra bài";
+      recordCheck(DATA_DIR, false, `collect-trends: ${why}`);
+      if (wasOk) notifyAdmin({
+        title: `Phiên Threads @${session.username} có vẻ đã hết hạn`,
+        body: `Lượt thu thập vừa rồi không đọc được kết quả tìm kiếm (${why}). Đăng nhập lại ở /admin/threads.`,
+        link: "/admin/threads",
+      });
+    }
+  }
 
   const scored = [];
   const digest = [];

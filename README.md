@@ -181,10 +181,21 @@ bài của chính tài khoản cho tới khi app qua App Review, nên tổng bi�
 đọc trang tìm kiếm công khai. Việc này nằm ngoài API, trái điều khoản của Meta
 và có thể hỏng bất cứ lúc nào Threads đổi giao diện hoặc bắt đăng nhập. Hỏng
 thì bước này tự bỏ qua (dừng sau 3 truy vấn trắng) và các nguồn khác vẫn chạy.
-Nếu trang bắt đăng nhập, đặt `THREADS_COOKIE` bằng cookie của một tài khoản
-**phụ**, không dùng tài khoản của trang: tài khoản bị khoá vì đọc tự động là
-rủi ro có thật. Khi app được duyệt quyền `threads_keyword_search` thì nên đổi
-sang API.
+Trang tìm kiếm cần đăng nhập: vào **`/admin/threads` → khung "Threads account
+for research"**, nhập tên đăng nhập + mật khẩu (có hỏi mã 2FA thì nhập tiếp mã).
+Máy chủ mở một Chromium chạy ngầm, đăng nhập như người thật, rồi **chỉ lưu
+cookie phiên** vào `data/threads-session.json` (quyền 600) — mật khẩu không được
+lưu ở đâu. Threads chặn đăng nhập tự động thì dùng nút "Paste a cookie instead"
+(copy `sessionid` từ DevTools của trình duyệt đã đăng nhập). Lượt thu thập nào
+thấy phiên không còn dùng được sẽ báo lên chuông thông báo admin.
+
+Dùng tài khoản **phụ**, không dùng tài khoản của trang: tài khoản bị khoá vì đọc
+tự động là rủi ro có thật. Khi app được duyệt quyền `threads_keyword_search` thì
+nên đổi sang API.
+
+Image Docker cài sẵn `chromium` cho việc này (`THREADS_BROWSER_PATH`, mặc định
+`/usr/bin/chromium`). collect-trends chạy trên host đọc cùng tệp phiên qua
+`DATA_DIR`, nên `DATA_DIR` của cron phải trỏ đúng thư mục data mà container mount.
 
 **Reddit cần khoá.** Endpoint `.json` ẩn danh giờ hay trả về trang HTML "Welcome
 to Reddit" kèm mã 200 thay vì JSON, và nó chặn theo IP nên chạy được ở máy này
@@ -262,7 +273,7 @@ TRENDS_THREADS=0           # tắt bước tìm trên Threads
 THREADS_MAX_QUERIES=12     # số từ khoá đem đi tìm trên Threads mỗi lượt
 THREADS_MAX_TOPICS=8       # số đề tài Threads ghi thêm vào hàng đợi (ngoài TRENDS_MAX_TOPICS)
 THREADS_MIN_BUZZ=20        # tổng tương tác tối thiểu để một từ khoá được nhận
-THREADS_COOKIE=...         # chỉ khi threads.com bắt đăng nhập — tài khoản PHỤ
+THREADS_COOKIE=...         # đè lên phiên đăng nhập ở /admin/threads — bình thường không cần
 ```
 
 Muốn xem bộ lọc đang chấm ra sao mà không ghi gì:

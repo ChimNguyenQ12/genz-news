@@ -5,6 +5,14 @@ const nextConfig: NextConfig = {
   output: "standalone",
   // Chỉ dev mới hiện overlay của Next; production không có.
   devIndicators: false,
+  // playwright-core (đăng nhập Threads, lib/threadsLogin.ts) nạp tệp bằng
+  // đường dẫn động — để nguyên gói trong node_modules, không cho bundler gói.
+  serverExternalPackages: ["playwright-core"],
+  // …và bộ dò tệp của bản standalone bỏ sót mấy tệp nó đọc lúc chạy
+  // (browsers.json…), nên chép nguyên gói vào cho route đăng nhập.
+  outputFileTracingIncludes: {
+    "/api/admin/threads-session": ["./node_modules/playwright-core/**/*"],
+  },
   // Ảnh trên S3 đi qua chính tên miền để Cloudflare cache ở edge gần Việt Nam
   // (xem lib/media.ts). Phải trùng với S3_UPLOADS_BASE ở đó.
   async rewrites() {

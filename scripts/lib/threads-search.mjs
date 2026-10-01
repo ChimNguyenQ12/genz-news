@@ -83,7 +83,11 @@ export function engagement(p) {
 
 /**
  * Tìm một từ khoá. Trả về { posts, reason } — reason khác rỗng khi không đọc
- * được gì (để log ra cho người vận hành biết vì sao).
+ * được gì (để log ra cho người vận hành biết vì sao). `loginWall` = bị chuyển
+ * tới trang đăng nhập, tức phiên (cookie) không còn dùng được.
+ *
+ * @param {string} keyword
+ * @param {{ userAgent?: string, cookie?: string, timeoutMs?: number }} [opts]
  */
 export async function searchThreads(keyword, { userAgent, cookie, timeoutMs = 20000 } = {}) {
   const url = `${SEARCH_URL}?${new URLSearchParams({ q: keyword, serp_type: "default" })}`;
@@ -92,7 +96,7 @@ export async function searchThreads(keyword, { userAgent, cookie, timeoutMs = 20
   try {
     const res = await fetch(url, {
       headers: {
-        "User-Agent": userAgent,
+        "User-Agent": userAgent ?? "Mozilla/5.0",
         "Accept-Language": "vi-VN,vi;q=0.9,en;q=0.8",
         Accept: "text/html,application/xhtml+xml",
         ...(cookie ? { Cookie: cookie } : {}),
@@ -101,7 +105,9 @@ export async function searchThreads(keyword, { userAgent, cookie, timeoutMs = 20
       signal: controller.signal,
     });
     if (!res.ok) return { posts: [], reason: `HTTP ${res.status}` };
-    if (/\/login|accounts\/login/.test(res.url)) return { posts: [], reason: "bị chuyển tới trang đăng nhập" };
+    if (/\/login|accounts\/login/.test(res.url)) {
+      return { posts: [], reason: "bị chuyển tới trang đăng nhập", loginWall: true };
+    }
     const html = await res.text();
     const found = new Map();
     for (const blob of jsonBlobs(html)) collectPosts(blob, found);

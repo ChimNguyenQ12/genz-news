@@ -8,7 +8,7 @@ import { prisma } from "@/lib/prisma";
  * Người đọc gửi bình luận thất bại chỉ vì bảng thông báo bị khoá thì vô lý.
  */
 
-export type NotificationType = "user" | "article" | "comment" | "views" | "traffic";
+export type NotificationType = "user" | "article" | "comment" | "views" | "traffic" | "system";
 export type NotificationLevel = "info" | "warning" | "danger";
 
 export const NOTIFICATION_TYPES: NotificationType[] = [
@@ -17,6 +17,7 @@ export const NOTIFICATION_TYPES: NotificationType[] = [
   "comment",
   "views",
   "traffic",
+  "system",
 ];
 
 export interface NotifyInput {
