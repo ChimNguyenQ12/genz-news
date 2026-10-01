@@ -20,7 +20,8 @@
  * có `code`, có `user.username`, có `caption.text`.
  */
 
-const SEARCH_URL = "https://www.threads.com/search";
+/** Đổi được bằng biến môi trường chỉ để chạy thử với trang giả. */
+export const SEARCH_URL = process.env.THREADS_SEARCH_URL ?? "https://www.threads.com/search";
 
 /** Bài nào được tính là "gần đây" khi đo độ nóng. */
 const RECENT_HOURS = 72;
@@ -32,8 +33,11 @@ function num(v) {
   return Number.isFinite(n) && n > 0 ? n : 0;
 }
 
-/** Lấy nội dung mọi thẻ <script type="application/json"> trong trang. */
-function jsonBlobs(html) {
+/**
+ * Lấy nội dung mọi thẻ <script type="application/json"> trong trang.
+ * @param {string} html
+ */
+export function jsonBlobs(html) {
   const out = [];
   const re = /<script[^>]*type="application\/json"[^>]*>([\s\S]*?)<\/script>/g;
   let m;
@@ -49,8 +53,13 @@ function jsonBlobs(html) {
   return out;
 }
 
-/** Đi khắp cây JSON, nhặt object có dáng một bài Threads. */
-function collectPosts(node, found, depth = 0) {
+/**
+ * Đi khắp cây JSON, nhặt object có dáng một bài Threads.
+ * @param {unknown} node
+ * @param {Map<string, any>} found
+ * @param {number} [depth]
+ */
+export function collectPosts(node, found, depth = 0) {
   if (!node || typeof node !== "object" || depth > 60) return;
   if (Array.isArray(node)) {
     for (const x of node) collectPosts(x, found, depth + 1);
@@ -77,6 +86,7 @@ function collectPosts(node, found, depth = 0) {
 }
 
 /** Điểm tương tác của một bài: trả lời và đăng lại nặng hơn một lượt thích. */
+/** @param {{ likes: number, replies: number, reposts: number, quotes: number }} p */
 export function engagement(p) {
   return p.likes + p.replies * 3 + (p.reposts + p.quotes) * 2;
 }

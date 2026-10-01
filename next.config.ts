@@ -12,6 +12,7 @@ const nextConfig: NextConfig = {
   // (browsers.json…), nên chép nguyên gói vào cho route đăng nhập.
   outputFileTracingIncludes: {
     "/api/admin/threads-session": ["./node_modules/playwright-core/**/*"],
+    "/api/internal/threads-search": ["./node_modules/playwright-core/**/*"],
   },
   // Ảnh trên S3 đi qua chính tên miền để Cloudflare cache ở edge gần Việt Nam
   // (xem lib/media.ts). Phải trùng với S3_UPLOADS_BASE ở đó.

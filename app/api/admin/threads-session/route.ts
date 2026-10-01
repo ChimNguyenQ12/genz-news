@@ -3,7 +3,6 @@ import { requireRole } from "@/lib/auth";
 import { take, tooMany } from "@/lib/rateLimit";
 import {
   clearThreadsSession,
-  cookieHeader,
   parseCookieString,
   readThreadsSession,
   recordThreadsCheck,
@@ -11,7 +10,7 @@ import {
   writeThreadsSession,
 } from "@/lib/threadsSession";
 import { startThreadsLogin, submitThreadsCode } from "@/lib/threadsLogin";
-import { searchThreads } from "@/scripts/lib/threads-search.mjs";
+import { browserSearch } from "@/lib/threadsBrowserSearch";
 
 export const dynamic = "force-dynamic";
 // Một lượt đăng nhập bằng trình duyệt có thể mất tới ~40 giây.
@@ -19,9 +18,6 @@ export const maxDuration = 90;
 
 /** Đăng nhập thử quá nhiều lần là cách nhanh nhất để Meta khoá tài khoản. */
 const LOGIN_LIMIT = { max: 5, windowMs: 3600_000 };
-
-const UA =
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36";
 
 /** Trạng thái phiên — KHÔNG BAO GIỜ trả cookie về trình duyệt. */
 export async function GET() {
@@ -91,9 +87,20 @@ export async function POST(request: Request) {
     case "check": {
       const s = readThreadsSession();
       if (!s) return NextResponse.json({ error: "Chưa có phiên Threads nào được lưu" }, { status: 400 });
-      const r = await searchThreads("tin tức", { userAgent: UA, cookie: cookieHeader(s) });
-      const ok = r.posts.length > 0;
-      const message = ok ? `Tìm thử ra ${r.posts.length} bài` : `Tìm thử không ra bài nào: ${r.reason}`;
+      let message: string;
+      let ok = false;
+      try {
+        // Tìm bằng trình duyệt thật đã nạp phiên — đúng cách collect-trends tìm.
+        const { results } = await browserSearch(["tin tức"]);
+        const r = results["tin tức"];
+        ok = r.posts.length > 0;
+        message = ok
+          ? `Tìm thử "tin tức" ra ${r.posts.length} bài`
+          : `Tìm thử không ra bài nào: ${r.reason}` +
+            (r.diag ? ` · URL cuối: ${r.diag.finalUrl}` : "");
+      } catch (err) {
+        message = `Không mở được trình duyệt để tìm: ${(err as Error).message.split("\n")[0]}`;
+      }
       recordThreadsCheck(ok, message);
       return NextResponse.json({ result: { state: ok ? "ok" : "error", message }, status: threadsSessionStatus() });
     }

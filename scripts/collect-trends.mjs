@@ -54,6 +54,8 @@
  *   THREADS_MAX_QUERIES  số từ khoá đem đi tìm trên Threads (mặc định 12)
  *   THREADS_MAX_TOPICS   số đề tài Threads ghi vào hàng đợi (mặc định 8)
  *   THREADS_MIN_BUZZ     tổng tương tác tối thiểu để nhận (mặc định 20)
+ *   THREADS_SEARCH_ENDPOINT  endpoint tìm bằng trình duyệt trong container app
+ *                        (mặc định http://127.0.0.1:5006/api/internal/threads-search)
  *   THREADS_COOKIE       cookie phiên threads.com, đè lên phiên đăng nhập ở
  *                        /admin/threads (data/threads-session.json) — bình
  *                        thường không cần, cứ đăng nhập trên màn hình admin
@@ -111,6 +113,51 @@ const USE_THREADS = process.env.TRENDS_THREADS !== "0";
 const THREADS_MAX_QUERIES = Number(process.env.THREADS_MAX_QUERIES ?? 12);
 const THREADS_MAX_TOPICS = Number(process.env.THREADS_MAX_TOPICS ?? 8);
 const THREADS_MIN_BUZZ = Number(process.env.THREADS_MIN_BUZZ ?? 20);
+const THREADS_SEARCH_ENDPOINT =
+  process.env.THREADS_SEARCH_ENDPOINT ??
+  `http://127.0.0.1:${process.env.APP_PORT ?? 5006}/api/internal/threads-search`;
+
+/** Khoá để gọi endpoint nội bộ của app — chính khoá phiên của app. */
+async function internalToken() {
+  if (process.env.ADMIN_SESSION_SECRET?.length >= 16) return process.env.ADMIN_SESSION_SECRET;
+  try {
+    return (await fs.readFile(path.join(DATA_DIR, "session-secret"), "utf8")).trim();
+  } catch {
+    return "";
+  }
+}
+
+/**
+ * Nhờ app tìm bằng trình duyệt thật (trang tìm kiếm Threads tải kết quả bằng
+ * JavaScript, tải HTML thô thường thấy rỗng). Trả null nếu không gọi được app
+ * — khi đó quay về cách tải HTML thô.
+ */
+async function searchViaApp(keywords) {
+  const token = await internalToken();
+  if (!token) return null;
+  const controller = new AbortController();
+  // ~10 giây mỗi từ khoá + mở trình duyệt.
+  const timer = setTimeout(() => controller.abort(), 30_000 + keywords.length * 20_000);
+  try {
+    const res = await fetch(THREADS_SEARCH_ENDPOINT, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-internal-token": token },
+      body: JSON.stringify({ keywords }),
+      signal: controller.signal,
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      console.log(`  ! tìm qua app không được (${data.error ?? `HTTP ${res.status}`}) — chuyển sang tải HTML thô`);
+      return null;
+    }
+    return { results: new Map(Object.entries(data.results ?? {})), aborted: data.aborted ?? "", account: data.account };
+  } catch (err) {
+    console.log(`  ! không gọi được app ở ${THREADS_SEARCH_ENDPOINT} (${err.message}) — chuyển sang tải HTML thô`);
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
 const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36";
 
@@ -623,10 +670,12 @@ async function threadsRound(pool) {
     (session ? `(đăng nhập: @${session.username})` : cookie ? "(cookie từ THREADS_COOKIE)" : "(không đăng nhập)") +
     "…",
   );
-  const { results, aborted } = await searchMany(
-    queries.map((c) => c.topic),
-    { userAgent: UA, cookie },
-  );
+  // Ưu tiên tìm bằng trình duyệt trong container app (dùng phiên đã lưu ở
+  // /admin/threads). THREADS_COOKIE đặt tay thì đi thẳng đường HTML thô.
+  const viaApp = process.env.THREADS_COOKIE ? null : await searchViaApp(queries.map((c) => c.topic));
+  if (viaApp) console.log("  · tìm bằng trình duyệt trong container app");
+  const { results, aborted } =
+    viaApp ?? (await searchMany(queries.map((c) => c.topic), { userAgent: UA, cookie }));
   if (aborted) console.log(`  ✗ Threads: dừng sớm — ${aborted}`);
 
   // Ghi lại phiên còn dùng được không. Đang dùng được mà giờ hỏng thì báo lên
