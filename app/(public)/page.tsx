@@ -107,7 +107,9 @@ export default async function Home() {
 
       <div className="mt-14 space-y-14">
         {categories.map((c) => {
-          const items = articles.filter((a) => a.category === c.slug);
+          const items = articles.filter(
+            (a) => a.category === c.slug || a.extraCategories.includes(c.slug),
+          );
           if (items.length === 0) return null;
           const style = categoryStyles[c.slug];
           return (

@@ -244,6 +244,28 @@ export default async function ArticlePage({ params }: Props) {
           {article.title}
         </h1>
         <p className="mt-4 text-balance text-lg text-muted">{article.dek}</p>
+        {/* Chuyên mục phụ — chuyên mục chính đã nằm ở breadcrumb phía trên. */}
+        {article.extraCategories.length > 0 && (
+          <ul className="mt-4 flex flex-wrap items-center gap-1.5 text-xs font-semibold">
+            <li className="text-muted">Cũng trong:</li>
+            {article.extraCategories.map((slug) => {
+              const extra = getCategory(slug);
+              const extraStyle = categoryStyles[slug];
+              if (!extra || !extraStyle) return null;
+              return (
+                <li key={slug}>
+                  <Link
+                    href={`/chuyen-muc/${slug}`}
+                    className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 ${extraStyle.pill}`}
+                  >
+                    <span className={`size-1.5 rounded-full ${extraStyle.dot}`} />
+                    {extra.name}
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        )}
       </div>
 
       <div className="mt-5 flex flex-wrap items-center gap-2 text-sm text-muted">

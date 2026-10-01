@@ -82,6 +82,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Chuyên mục không hợp lệ" }, { status: 400 });
   }
 
+  const extraCategories = clean.extraCategories(body.extraCategories, VALID_CATEGORIES);
+  if (extraCategories === "invalid") {
+    return NextResponse.json({ error: "Chuyên mục phụ không hợp lệ" }, { status: 400 });
+  }
+
   // Gộp tag trùng nghĩa vào cách viết đang có trong kho ("openai" → "OpenAI"),
   // để kho tag không tiếp tục phân tán — xem lib/tags.ts và GET /api/tags.
   const tags = canonicalizeTags(clean.tags(body.tags) ?? [], await listAllTagNames());
@@ -92,6 +97,7 @@ export async function POST(request: Request) {
     title,
     dek: clean.text(body.dek, clean.LIMITS.dek),
     category: category as CategorySlug,
+    extraCategories: extraCategories ?? [],
     tags,
     coverGradient: clean.gradient(body.coverGradient) ?? ["#7C3AED", "#22D3EE"],
     // Ảnh bìa PHẢI được nhận ngay ở bước tạo bài. Trước đây hai trường này bị

@@ -78,7 +78,10 @@ export interface Article {
   slug: string;
   title: string;
   dek: string; // subheadline / one-line summary
+  /** Chuyên mục chính — màu nhãn, breadcrumb. */
   category: CategorySlug;
+  /** Chuyên mục phụ: bài cũng hiện ở trang của các chuyên mục này. Không chứa `category`. */
+  extraCategories: CategorySlug[];
   tags: string[];
   coverGradient: [string, string]; // placeholder gradient instead of scraped images
   coverImage?: string; // ảnh bìa — chỉ dùng ảnh có giấy phép cho phép

@@ -356,6 +356,15 @@ export default function ArticleList({
                     >
                       {category?.name}
                     </span>
+                    {(a.extraCategories ?? []).map((slug) => (
+                      <span
+                        key={slug}
+                        title="Extra section"
+                        className={`rounded-full border border-current/20 px-2 py-0.5 text-[11px] font-semibold opacity-80 ${categoryStyles[slug]?.text ?? ""}`}
+                      >
+                        + {getCategory(slug)?.name ?? slug}
+                      </span>
+                    ))}
                     <span
                       className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${STATUS_STYLE[a.status]}`}
                     >

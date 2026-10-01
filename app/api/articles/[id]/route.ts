@@ -138,6 +138,13 @@ export async function PUT(
     patch.category = category as CategorySlug;
   }
 
+  // Chuyên mục phụ: bài hiện thêm ở trang của các chuyên mục này.
+  const extras = clean.extraCategories(body.extraCategories, VALID_CATEGORIES);
+  if (extras === "invalid") {
+    return NextResponse.json({ error: "Chuyên mục phụ không hợp lệ" }, { status: 400 });
+  }
+  if (extras !== undefined) patch.extraCategories = extras;
+
   // --- các trường chỉ admin được đụng vào
   if (isAdmin) {
     if (body.author !== undefined) patch.author = String(body.author);

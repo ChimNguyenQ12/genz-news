@@ -42,7 +42,13 @@ model Article {
   title String
   dek   String @default("")
 
+  /// Chuyên mục CHÍNH: quyết định màu nhãn, breadcrumb và chỗ bài nằm trong
+  /// bài liên quan.
   category String
+  /// Mảng JSON các chuyên mục PHỤ, VD ["kinh-doanh","cong-nghe"]. Bài hiện ở
+  /// trang /chuyen-muc của cả chuyên mục chính lẫn mọi chuyên mục phụ. Không
+  /// bao giờ chứa lại chuyên mục chính (API tự lọc).
+  extraCategories String @default("[]")
   /// "draft" | "pending" | "published" | "rejected"
   status String @default("draft")
   /// "vi" | "en" — ngôn ngữ gốc, quyết định chiều dịch
