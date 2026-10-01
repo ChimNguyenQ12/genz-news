@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { getSessionUser } from "@/lib/auth";
-import AdminNav from "@/components/admin/AdminNav";
+import AdminShell from "@/components/admin/AdminShell";
 
 export const dynamic = "force-dynamic";
 
@@ -14,9 +14,6 @@ export default async function AdminLayout({
   if (user.role !== "admin") redirect("/dashboard");
 
   return (
-    <div className="min-h-screen">
-      <AdminNav user={user} />
-      <main className="mx-auto max-w-6xl px-3 py-4 sm:px-4 sm:py-8">{children}</main>
-    </div>
+    <AdminShell user={user}>{children}</AdminShell>
   );
 }

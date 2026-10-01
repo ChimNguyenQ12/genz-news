@@ -14,7 +14,12 @@ const POLL_MS = 30_000;
  * Hỏi số chưa đọc mỗi 30 giây (tạm dừng khi tab bị ẩn), mở ra thì tải 8 thông
  * báo mới nhất. Đầy đủ ở /admin/activity.
  */
-export default function NotificationBell() {
+export default function NotificationBell({
+  align = "right",
+}: {
+  /** Bung bảng thông báo về phía nào — "left" khi chuông nằm ở thanh bên trái. */
+  align?: "left" | "right";
+}) {
   const router = useRouter();
   const [unread, setUnread] = useState(0);
   const [open, setOpen] = useState(false);
@@ -123,7 +128,11 @@ export default function NotificationBell() {
       </button>
 
       {open && (
-        <div className="fixed inset-x-3 top-16 z-50 overflow-hidden rounded-2xl border border-border bg-surface shadow-xl sm:absolute sm:inset-x-auto sm:right-0 sm:top-11 sm:w-96">
+        <div
+          className={`fixed inset-x-3 top-16 z-50 overflow-hidden rounded-2xl border border-border bg-surface shadow-xl sm:absolute sm:inset-x-auto sm:top-11 sm:w-96 ${
+            align === "left" ? "sm:left-0" : "sm:right-0"
+          }`}
+        >
           <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
             <span className="text-sm font-bold">Notifications</span>
             {unread > 0 && (
