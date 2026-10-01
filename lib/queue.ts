@@ -38,7 +38,12 @@ export interface ResearchRequest {
   attempts: number;
   /** Vì sao lượt gần nhất hỏng. */
   lastError?: string;
+  /** "threads" = đề tài đã đo độ bàn tán trên Threads; trống = nguồn thường / nhập tay. */
+  source?: string;
 }
+
+/** Mục nguồn ở /admin/research: tất cả, hoặc chỉ đề tài đã qua bước Threads. */
+export type RequestSource = "all" | "threads";
 
 type RequestRow = {
   id: string;
@@ -52,6 +57,7 @@ type RequestRow = {
   assignedAt: Date | null;
   attempts: number;
   lastError: string | null;
+  source: string | null;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -113,6 +119,7 @@ function toRequest(row: RequestRow): ResearchRequest {
     assignedAt: row.assignedAt?.toISOString(),
     attempts: row.attempts ?? 0,
     lastError: row.lastError ?? undefined,
+    source: row.source ?? undefined,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };
@@ -134,6 +141,8 @@ export interface RequestPageOptions {
    * đề tài, để màn hình mở lên là thấy việc mới nhất; "" hoặc bỏ trống = mọi ngày.
    */
   date?: string;
+  /** "threads" = chỉ đề tài từ bước Threads của collect-trends. */
+  source?: RequestSource;
   page?: number;
   perPage?: number;
 }
@@ -149,6 +158,9 @@ export interface RequestPage {
   date: string;
   /** Ngày gần nhất còn đề tài — để ô chọn ngày biết đâu là mốc mới nhất. */
   latestDate: string;
+  source: RequestSource;
+  /** Số đề tài Threads trong cùng bộ lọc ngày/từ khoá (mọi trạng thái), cho nhãn mục. */
+  threadsCount: number;
 }
 
 export const REQUESTS_PER_PAGE = 10;
@@ -214,6 +226,10 @@ export async function listRequestsPage(
       : {}),
     ...(date ? { createdAt: vietnamDayRange(date) } : {}),
   };
+  // Tách riêng khỏi `filters`: số đếm của mục Threads phải tính trên bộ lọc
+  // ngày/từ khoá nhưng KHÔNG trên chính bộ lọc nguồn, như số trên các tab.
+  const source: RequestSource = options.source === "threads" ? "threads" : "all";
+  const scoped = source === "threads" ? { AND: [filters, { source: "threads" }] } : filters;
 
   const statusFilter = options.status;
 
@@ -223,13 +239,12 @@ export async function listRequestsPage(
   // OR độc lập cộng lại đúng nghĩa, không đè nhau.
   const where =
     statusFilter === "error"
-      ? { AND: [filters, errorWhere()] }
-      : {
-          ...filters,
-          ...(statusFilter && statusFilter !== "all" ? { status: statusFilter } : {}),
-        };
+      ? { AND: [scoped, errorWhere()] }
+      : statusFilter && statusFilter !== "all"
+        ? { AND: [scoped, { status: statusFilter }] }
+        : scoped;
 
-  const [rows, total, grouped, errorCount] = await Promise.all([
+  const [rows, total, grouped, errorCount, threadsCount] = await Promise.all([
     prisma.researchRequest.findMany({
       where,
       // Mới nhất trước — đề tài nguội thì viết ra cũng không ai đọc.
@@ -240,12 +255,13 @@ export async function listRequestsPage(
     prisma.researchRequest.count({ where }),
     prisma.researchRequest.groupBy({
       by: ["status"],
-      where: filters,
+      where: scoped,
       _count: { _all: true },
     }),
     // Cắt ngang hai bucket status nên không tính được từ groupBy ở trên —
     // đếm riêng bằng đúng where của tab Errors (cũng bọc AND vì cùng lý do).
-    prisma.researchRequest.count({ where: { AND: [filters, errorWhere()] } }),
+    prisma.researchRequest.count({ where: { AND: [scoped, errorWhere()] } }),
+    prisma.researchRequest.count({ where: { AND: [filters, { source: "threads" }] } }),
   ]);
 
   const counts: Record<RequestTab, number> = {
@@ -263,7 +279,17 @@ export async function listRequestsPage(
     counts.all += g._count._all;
   }
 
-  return { items: rows.map(toRequest), total, page, perPage, counts, date, latestDate };
+  return {
+    items: rows.map(toRequest),
+    total,
+    page,
+    perPage,
+    counts,
+    date,
+    latestDate,
+    source,
+    threadsCount,
+  };
 }
 
 export async function getRequest(id: string): Promise<ResearchRequest | undefined> {

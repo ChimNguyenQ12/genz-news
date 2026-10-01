@@ -21,9 +21,17 @@
  *   6. RSS báo Việt + quốc tế — feed công khai do chính các hãng cung cấp
  *
  * Facebook/TikTok/X không có API công khai cho phần trending, mà cào thì trái
- * điều khoản của họ và trái hiến chương — nên không lấy trực tiếp. Phần lớn
- * thứ nóng trên các nền tảng đó vẫn hiện ra ở Google Trends VN (người ta search
- * sau khi thấy trên phây) và ở tin giải trí của báo Việt, nên vẫn bắt được.
+ * điều khoản của họ — nên không lấy trực tiếp. Phần lớn thứ nóng trên các nền
+ * tảng đó vẫn hiện ra ở Google Trends VN (người ta search sau khi thấy trên
+ * phây) và ở tin giải trí của báo Việt, nên vẫn bắt được.
+ *
+ * NGOẠI LỆ — Threads (bước 7, do tổng biên tập quyết định): lấy các từ khoá
+ * nóng ở trên, tìm từng cái trên threads.com/search (trang web, không phải
+ * API — API keyword_search chỉ tìm bài của chính mình khi app chưa qua App
+ * Review), chấm thêm điểm theo lượt tương tác, xếp lại và ghi vào hàng đợi với
+ * source = 'threads' (mục Threads ở /admin/research). Đây là đọc trang ngoài
+ * API, trái điều khoản của Meta và dễ hỏng khi Threads đổi giao diện; bước này
+ * tự bỏ qua khi đọc không ra gì. Xem scripts/lib/threads-search.mjs.
  *
  * Kết quả:
  *   - bảng research_requests    ← thêm đề tài mới, trạng thái "pending"
@@ -42,6 +50,12 @@
  *   TRENDS_DEDUPE_DAYS   bỏ qua đề tài đã có trong N ngày (mặc định 7)
  *   TRENDS_DRY_RUN=1     chỉ in ra, không ghi file
  *   TRENDS_EXPLAIN=1     in cả những đề tài bị loại và lý do
+ *   TRENDS_THREADS=0     tắt bước tìm trên Threads
+ *   THREADS_MAX_QUERIES  số từ khoá đem đi tìm trên Threads (mặc định 12)
+ *   THREADS_MAX_TOPICS   số đề tài Threads ghi vào hàng đợi (mặc định 8)
+ *   THREADS_MIN_BUZZ     tổng tương tác tối thiểu để nhận (mặc định 20)
+ *   THREADS_COOKIE       cookie phiên threads.com nếu trang bắt đăng nhập —
+ *                        dùng tài khoản PHỤ, đừng dùng tài khoản của trang
  */
 
 import fs from "fs/promises";
@@ -57,6 +71,7 @@ import {
   scoreTopic,
   volumeBonus,
 } from "./lib/topic-filter.mjs";
+import { searchMany, summarize } from "./lib/threads-search.mjs";
 
 const ROOT = process.cwd();
 const DATA_DIR = process.env.DATA_DIR ?? path.join(ROOT, "data");
@@ -90,6 +105,10 @@ const USE_REDDIT = process.env.TRENDS_REDDIT !== "0";
 const DEDUPE_DAYS = Number(process.env.TRENDS_DEDUPE_DAYS ?? 7);
 const DRY_RUN = process.env.TRENDS_DRY_RUN === "1";
 const EXPLAIN = process.env.TRENDS_EXPLAIN === "1";
+const USE_THREADS = process.env.TRENDS_THREADS !== "0";
+const THREADS_MAX_QUERIES = Number(process.env.THREADS_MAX_QUERIES ?? 12);
+const THREADS_MAX_TOPICS = Number(process.env.THREADS_MAX_TOPICS ?? 8);
+const THREADS_MIN_BUZZ = Number(process.env.THREADS_MIN_BUZZ ?? 20);
 const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36";
 
@@ -553,6 +572,83 @@ function candidate({
   };
 }
 
+// ---------------------------------------------------------------- nguồn 7: Threads
+const fmtNum = (n) => Number(n).toLocaleString("vi-VN");
+const snippet = (t, max = 160) => (t.length > max ? `${t.slice(0, max - 1)}…` : t);
+
+/**
+ * Đem các từ khoá nóng (ngắn, kiểu Google Trends) đi tìm trên Threads, giữ
+ * những từ khoá đang thật sự được bàn, chấm lại điểm theo độ bàn tán và trả về
+ * danh sách đã xếp hạng. Chỉ từ khoá NGẮN mới đem đi tìm: tìm nguyên một tít
+ * báo dài trên Threads gần như không bao giờ ra bài nào.
+ */
+async function threadsRound(pool) {
+  if (!USE_THREADS) {
+    console.log("  – Threads: tắt (TRENDS_THREADS=0)");
+    return { picked: [], digest: { skipped: "TRENDS_THREADS=0" } };
+  }
+  const queries = pool
+    .filter((c) => c.topic.trim().split(/\s+/).length <= 5)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, THREADS_MAX_QUERIES);
+  if (!queries.length) {
+    console.log("  – Threads: không có từ khoá ngắn nào để tìm");
+    return { picked: [], digest: { skipped: "không có từ khoá" } };
+  }
+
+  console.log(`\n[collect-trends] tìm ${queries.length} từ khoá trên threads.com/search…`);
+  const { results, aborted } = await searchMany(
+    queries.map((c) => c.topic),
+    { userAgent: UA, cookie: process.env.THREADS_COOKIE || undefined },
+  );
+  if (aborted) console.log(`  ✗ Threads: dừng sớm — ${aborted}`);
+
+  const scored = [];
+  const digest = [];
+  for (const c of queries) {
+    const r = results.get(c.topic);
+    if (!r) continue;
+    const sum = summarize(r.posts);
+    digest.push({ keyword: c.topic, reason: r.reason, ...sum });
+    console.log(
+      `  ${r.posts.length ? "✓" : "·"} Threads "${c.topic}": ` +
+      (r.posts.length
+        ? `${sum.recentCount}/${sum.postCount} bài gần đây · tương tác ${fmtNum(sum.buzz)}`
+        : r.reason),
+    );
+    if (!sum.recentCount || sum.buzz < THREADS_MIN_BUZZ) continue;
+
+    const bonus = volumeBonus(sum.buzz, { cap: 30, floor: THREADS_MIN_BUZZ });
+    scored.push({
+      ...c,
+      score: c.score + bonus,
+      source: "threads",
+      // Link bài báo gốc trước — đó mới là nguồn để viết; bài Threads chỉ là
+      // chỉ dấu đang được bàn và tư liệu phản ứng của người đọc.
+      urls: [...c.urls, ...sum.top.map((p) => p.url)],
+      notes: [
+        c.notes,
+        `[Threads] ${sum.recentCount} bài trong 72 giờ · tổng tương tác 10 bài đầu: ${fmtNum(sum.buzz)} (+${bonus} điểm)`,
+        ...sum.top.map(
+          (p) =>
+            `• @${p.username} (♥ ${fmtNum(p.likes)} · 💬 ${fmtNum(p.replies)} · 🔁 ${fmtNum(p.reposts)}): ${snippet(p.text)}`,
+        ),
+        "Threads chỉ cho biết người ta đang bàn — dữ kiện phải lấy từ nguồn tin chính thống, " +
+          "bài Threads chỉ trích khi chính nó là chuyện (và ghi rõ là từ Threads).",
+      ]
+        .filter(Boolean)
+        .join("\n"),
+    });
+  }
+
+  const picked = scored.sort((a, b) => b.score - a.score).slice(0, THREADS_MAX_TOPICS);
+  console.log(`  → Threads: ${scored.length} từ khoá đang được bàn, lấy ${picked.length}`);
+  for (const c of picked) {
+    console.log(`   + [${String(c.score).padStart(3)}] 🧵 ${c.topic}`);
+  }
+  return { picked, digest: { aborted, keywords: digest } };
+}
+
 // ---------------------------------------------------------------- main
 async function main() {
   const startedAt = new Date();
@@ -771,8 +867,14 @@ async function main() {
     console.log(`  · gộp ${nearDupes} tít kể lại cùng một sự việc`);
   }
 
+  // --- Threads: đo độ bàn tán của các từ khoá nóng, tách thành mục riêng. Đề
+  // tài đã vào mục Threads thì không chọn lại ở lượt chọn chung bên dưới.
+  const threads = await threadsRound(deduped);
+  const takenByThreads = new Set(threads.picked.map((c) => c.topic));
+  const remaining = deduped.filter((c) => !takenByThreads.has(c.topic));
+
   // --- chọn theo điểm nóng + hạn ngạch 70/30
-  const { picked, stats } = pickWithQuota(deduped, {
+  const { picked, stats } = pickWithQuota(remaining, {
     max: MAX_TOPICS,
     vnShare: VN_SHARE,
     minScore: MIN_SCORE,
@@ -807,7 +909,7 @@ async function main() {
 
   if (EXPLAIN) {
     console.log("\n[collect-trends] đề tài BỊ LOẠI (điểm thấp nhất trước):");
-    const pickedSet = new Set(picked.map((c) => c.topic));
+    const pickedSet = new Set([...threads.picked, ...picked].map((c) => c.topic));
     for (const c of deduped.filter((c) => !pickedSet.has(c.topic)).sort((a, b) => a.score - b.score)) {
       console.log(`   − [${String(c.score).padStart(4)}] ${c.topic}`);
       if (c.reasons.length) console.log(`          ${c.reasons.join("; ")}`);
@@ -819,7 +921,10 @@ async function main() {
     return;
   }
 
-  if (picked.length > 0) {
+  // Mục Threads đứng TRƯỚC trong thứ hạng: đã được xác nhận là đang được bàn
+  // ở hai nơi (Google Trends + Threads) nên nóng hơn đề tài chỉ có một nguồn.
+  const toInsert = [...threads.picked, ...picked];
+  if (toInsert.length > 0) {
     // Đóng dấu thời gian GIÃN RA THEO THỨ HẠNG, đề tài điểm cao nhất là mới
     // nhất. Đây là chỗ duy nhất truyền được thứ hạng sang cho máy viết:
     // newsroom-next.mjs lấy đề tài bằng "ORDER BY createdAt DESC", mà cột
@@ -841,7 +946,7 @@ async function main() {
     const base = Date.now();
     const stampAt = (rank) =>
       new Date(base - rank * 1000).toISOString().replace("Z", "+00:00");
-    const values = picked
+    const values = toInsert
       .map((r, rank) =>
         "(" +
         [
@@ -854,13 +959,14 @@ async function main() {
           "'[]'",
           quote(stampAt(rank)),
           quote(stampAt(rank)),
+          r.source ? quote(r.source) : "NULL",
         ].join(", ") +
         ")",
       )
       .join(",");
     sql(
       "INSERT INTO research_requests " +
-      "(id, topic, urls, notes, status, articleIds, createdAt, updatedAt) VALUES " +
+      "(id, topic, urls, notes, status, articleIds, createdAt, updatedAt, source) VALUES " +
       values +
       ";",
     );
@@ -879,7 +985,9 @@ async function main() {
         redditHot: reddit,
         googleNewsVietnam: gnews,
         internationalHeadlines: headlines,
-        picked: picked.map((c) => ({
+        threads: threads.digest,
+        picked: toInsert.map((c) => ({
+          source: c.source ?? null,
           topic: c.topic,
           score: c.score,
           vietnam: c.vietnam,
@@ -909,7 +1017,7 @@ async function main() {
     }
   }
 
-  console.log(`\n[collect-trends] đã ghi ${picked.length} đề tài vào database`);
+  console.log(`\n[collect-trends] đã ghi ${toInsert.length} đề tài vào database (${threads.picked.length} từ Threads)`);
   console.log(`[collect-trends] ảnh chụp dữ liệu thô: ${DIGEST_FILE}`);
   console.log("[collect-trends] mở /admin/research để duyệt.");
 }

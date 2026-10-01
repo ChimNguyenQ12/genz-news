@@ -163,8 +163,8 @@ Sao lưu: [`deploy/backup-to-s3.sh`](deploy/backup-to-s3.sh) chụp SQLite bằn
 npm run collect-trends
 ```
 
-Script gom xu hướng từ 6 nguồn hợp pháp, **chấm điểm độ nóng** rồi mới ghi vào
-hàng đợi đề tài:
+Script gom xu hướng từ 6 nguồn hợp pháp, **chấm điểm độ nóng**, đem các từ
+khoá nóng đi đo độ bàn tán trên Threads, rồi mới ghi vào hàng đợi đề tài:
 
 | Nguồn | Cần key? | Ghi chú |
 |---|---|---|
@@ -174,6 +174,17 @@ hàng đợi đề tài:
 | Reddit hot | Nên có | `r/popular`, `r/worldnews`, `r/technology`, `r/VietNam`, `r/TroChuyenLinhTinh` — số upvote là phiếu thật của người đọc |
 | Google News search | Không | Mọi bài báo nước ngoài có nhắc Việt Nam / Biển Đông / kinh tế VN |
 | RSS 17 báo Việt + quốc tế | Không | Feed công khai do chính các hãng cung cấp |
+| Threads (bước xếp lại) | Không | Đem các từ khoá nóng ở trên đi tìm trên `threads.com/search`, cộng điểm theo lượt tương tác, ghi vào mục **🧵 Threads** ở `/admin/research` |
+
+**Threads đọc trang web, không phải API.** API `keyword_search` chỉ tìm trong
+bài của chính tài khoản cho tới khi app qua App Review, nên tổng biên tập chọn
+đọc trang tìm kiếm công khai. Việc này nằm ngoài API, trái điều khoản của Meta
+và có thể hỏng bất cứ lúc nào Threads đổi giao diện hoặc bắt đăng nhập. Hỏng
+thì bước này tự bỏ qua (dừng sau 3 truy vấn trắng) và các nguồn khác vẫn chạy.
+Nếu trang bắt đăng nhập, đặt `THREADS_COOKIE` bằng cookie của một tài khoản
+**phụ**, không dùng tài khoản của trang: tài khoản bị khoá vì đọc tự động là
+rủi ro có thật. Khi app được duyệt quyền `threads_keyword_search` thì nên đổi
+sang API.
 
 **Reddit cần khoá.** Endpoint `.json` ẩn danh giờ hay trả về trang HTML "Welcome
 to Reddit" kèm mã 200 thay vì JSON, và nó chặn theo IP nên chạy được ở máy này
@@ -247,6 +258,11 @@ TRENDS_REDDIT=0            # tắt nguồn Reddit
 TRENDS_DEDUPE_DAYS=7       # cửa sổ chống trùng
 TRENDS_DRY_RUN=1           # chỉ in ra, không ghi file
 TRENDS_EXPLAIN=1           # in cả đề tài bị loại kèm lý do, để chỉnh ngưỡng
+TRENDS_THREADS=0           # tắt bước tìm trên Threads
+THREADS_MAX_QUERIES=12     # số từ khoá đem đi tìm trên Threads mỗi lượt
+THREADS_MAX_TOPICS=8       # số đề tài Threads ghi thêm vào hàng đợi (ngoài TRENDS_MAX_TOPICS)
+THREADS_MIN_BUZZ=20        # tổng tương tác tối thiểu để một từ khoá được nhận
+THREADS_COOKIE=...         # chỉ khi threads.com bắt đăng nhập — tài khoản PHỤ
 ```
 
 Muốn xem bộ lọc đang chấm ra sao mà không ghi gì:

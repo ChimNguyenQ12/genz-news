@@ -40,6 +40,7 @@ export async function GET(request: Request) {
       // hình lên là thấy việc mới nhất, không phải cuộn qua hàng trăm mục cũ.
       // Muốn xem tất cả thì gửi date= (rỗng).
       date: params.has("date") ? (params.get("date") ?? "") : "latest",
+      source: params.get("source") === "threads" ? "threads" : "all",
       page: Number(params.get("page")) || 1,
       perPage: Number(params.get("perPage")) || undefined,
     }),

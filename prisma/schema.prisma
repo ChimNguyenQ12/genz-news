@@ -192,12 +192,16 @@ model ResearchRequest {
   attempts Int @default(0)
   /// Vì sao lượt gần nhất hỏng. Rỗng nếu chưa từng hỏng.
   lastError String?
+  /// Nguồn sinh ra đề tài: "threads" = đã đo độ bàn tán trên Threads (mục
+  /// Threads ở /admin/research); NULL = nhập tay hoặc các nguồn thường.
+  source String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([status, createdAt])
   @@index([assignedAt])
+  @@index([source, createdAt])
   @@map("research_requests")
 }
 
