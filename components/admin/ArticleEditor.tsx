@@ -9,6 +9,7 @@ import { categories } from "@/lib/data";
 import BackToTopButton from "@/components/BackToTopButton";
 import RichTextEditor from "./RichTextEditor";
 import CommentModerationPanel from "./CommentModerationPanel";
+import { categoryStyles } from "@/lib/categoryStyles";
 
 const STATUS_LABEL: Record<Article["status"], string> = {
   draft: "Draft",
@@ -41,6 +42,7 @@ export default function ArticleEditor({
   const [slug, setSlug] = useState(article.slug);
   const [dek, setDek] = useState(article.dek);
   const [category, setCategory] = useState<CategorySlug>(article.category);
+  const [extraCategories, setExtraCategories] = useState<CategorySlug[]>(article.extraCategories ?? []);
   const [author, setAuthor] = useState(article.author);
   // Ô "Publish date" là <input type="date"> nên chỉ nhận "YYYY-MM-DD": cắt lấy
   // phần ngày, vì publishedAt giờ là mốc ISO đầy đủ ("2026-09-29T17:23:43Z" đưa
@@ -91,6 +93,9 @@ export default function ArticleEditor({
       slug,
       dek,
       category,
+      // Chuyên mục chính luôn là chính; nếu vừa đổi chính sang một mục đang là
+      // phụ thì bỏ nó khỏi danh sách phụ (API cũng tự lọc lần nữa).
+      extraCategories: extraCategories.filter((c) => c !== category),
       language: "vi",
       author,
       publishedAt,
@@ -327,6 +332,41 @@ export default function ArticleEditor({
             </select>
           </Field>
 
+          <Field label="Also show in" hint="extra sections">
+            <div className="flex flex-wrap gap-1.5">
+              {categories
+                .filter((c) => c.slug !== category)
+                .map((c) => {
+                  const on = extraCategories.includes(c.slug);
+                  const style = categoryStyles[c.slug];
+                  return (
+                    <button
+                      key={c.slug}
+                      type="button"
+                      aria-pressed={on}
+                      onClick={() =>
+                        setExtraCategories((list) =>
+                          on ? list.filter((x) => x !== c.slug) : [...list, c.slug],
+                        )
+                      }
+                      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold transition ${
+                        on
+                          ? `border-transparent ${style.pill}`
+                          : "border-border text-muted hover:border-accent hover:text-foreground"
+                      }`}
+                    >
+                      <span className={`size-1.5 rounded-full ${on ? style.dot : "bg-border"}`} />
+                      {c.name}
+                      {on && <span aria-hidden>✓</span>}
+                    </button>
+                  );
+                })}
+            </div>
+            <p className="mt-1.5 text-xs text-muted">
+              The article also appears on these section pages. The main section above sets its colour and breadcrumb.
+            </p>
+          </Field>
+
           {isAdmin && (
             <>
               <Field label="Slug">
@@ -506,7 +546,8 @@ export default function ArticleEditor({
       </div>
 
       {isAdmin && (
-        <div className="mt-6">
+        // id="comments": link từ thông báo "bình luận mới" nhảy thẳng xuống đây.
+        <div id="comments" className="mt-6 scroll-mt-20">
           <CommentModerationPanel articleId={article.id} slug={article.slug} />
         </div>
       )}

@@ -4,8 +4,8 @@ import type { Article, Category } from "./types";
  *  Thân bài viết ở dạng mảng đoạn văn cho gọn; store sẽ tự chuyển sang Block[]. */
 export type SeedArticle = Omit<
   Article,
-  "id" | "status" | "createdAt" | "updatedAt" | "body" | "language"
-> & { body: string[]; language?: Article["language"] };
+  "id" | "status" | "createdAt" | "updatedAt" | "body" | "language" | "extraCategories"
+> & { body: string[]; language?: Article["language"]; extraCategories?: Article["extraCategories"] };
 
 export const categories: Category[] = [
   { slug: "viet-nam", name: "Việt Nam", color: "red" },

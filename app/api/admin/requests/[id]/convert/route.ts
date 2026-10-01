@@ -98,6 +98,7 @@ export async function POST(
 
   const article = await createArticle({
     slug: "",
+    extraCategories: [],
     // Dùng tít đã dịch nếu có — hàng đợi giờ dịch tít sang tiếng Việt để tổng
     // biên tập đọc lướt được, nhưng "Empty draft" trước đây bỏ qua nó, chép
     // thẳng topic.topic (thường là tiếng Anh) vào tít bài. Danh sách hàng đợi

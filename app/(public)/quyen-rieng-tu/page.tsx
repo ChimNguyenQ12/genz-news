@@ -74,7 +74,9 @@ export default function PrivacyPage() {
       <p>
         Chúng tôi <strong>không</strong> lưu địa chỉ IP kèm bình luận, không lưu
         vị trí, và không dựng hồ sơ hành vi đọc của bạn. Địa chỉ IP chỉ được đếm
-        tạm trong bộ nhớ để chặn spam, không ghi xuống cơ sở dữ liệu.
+        tạm trong bộ nhớ để chặn spam và phát hiện tấn công làm sập trang, không
+        ghi xuống cơ sở dữ liệu. Lượt đọc bài cũng chỉ là một con số cộng dồn
+        trên mỗi bài — chúng tôi không ghi ai đã đọc bài nào.
       </p>
 
       <h2>Quyền của bạn</h2>

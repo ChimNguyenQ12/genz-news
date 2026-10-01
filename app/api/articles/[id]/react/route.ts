@@ -37,8 +37,9 @@ export async function POST(
     );
   }
 
-  const wait = take(`react:ip:${clientIp(request)}`, PER_MINUTE);
-  if (wait) return tooMany(wait, "Bạn bấm hơi nhanh. Thử lại sau ít giây.");
+  const ip = clientIp(request);
+  const wait = take(`react:ip:${ip}`, PER_MINUTE);
+  if (wait) return tooMany(wait, "Bạn bấm hơi nhanh. Thử lại sau ít giây.", ip);
 
   const counts = await reactToArticle(id, type);
   if (!counts) {

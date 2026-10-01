@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { RequestPage, RequestStatus, RequestTab, ResearchRequest } from "@/lib/queue";
+import type { RequestPage, RequestSource, RequestStatus, RequestTab, ResearchRequest } from "@/lib/queue";
 import type { NewsroomRunStatus } from "@/lib/newsroom";
 import type { NewsroomSettings } from "@/lib/settings";
 import Pagination from "@/components/admin/Pagination";
@@ -94,6 +94,8 @@ interface Query {
   q: string;
   /** "" = mọi ngày. */
   date: string;
+  /** "threads" = chỉ mục Threads. */
+  source: RequestSource;
 }
 
 export default function ResearchQueue({
@@ -123,6 +125,7 @@ export default function ResearchQueue({
     page: 1,
     q: "",
     date: initial.date,
+    source: "all",
   });
   const [data, setData] = useState<RequestPage>(initial);
   const [run, setRun] = useState<NewsroomRunStatus>(initialRun);
@@ -149,6 +152,7 @@ export default function ResearchQueue({
       date: next.date,
     });
     if (next.q.trim()) params.set("q", next.q.trim());
+    if (next.source === "threads") params.set("source", "threads");
     try {
       const res = await fetch(`/api/admin/requests?${params}`);
       if (!res.ok) throw new Error("load failed");
@@ -304,6 +308,36 @@ export default function ResearchQueue({
       </div>
 
       <RunBanner run={run} />
+
+      {/* Mục nguồn. Threads là đề tài đã được collect-trends đem đi tìm trên
+          threads.com và thấy đang được bàn — xếp theo độ nóng đã cộng điểm
+          Threads. Tab trạng thái bên dưới vẫn áp dụng trong từng mục. */}
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        {(
+          [
+            ["all", "All sources", null],
+            ["threads", "🧵 Threads", data.threadsCount],
+          ] as const
+        ).map(([key, label, count]) => (
+          <button
+            key={key}
+            onClick={() => update({ source: key })}
+            className={`rounded-full border px-3 py-1 text-sm font-semibold transition ${
+              query.source === key
+                ? "border-accent bg-accent/10 text-accent"
+                : "border-border text-foreground/70 hover:border-accent"
+            }`}
+          >
+            {label}
+            {count !== null && ` (${count})`}
+          </button>
+        ))}
+        {query.source === "threads" && (
+          <span className="text-xs text-muted">
+            Trending keywords from Google Trends, re-ranked by how much they are discussed on threads.com.
+          </span>
+        )}
+      </div>
 
       <div className="mb-3 flex flex-col gap-2 lg:flex-row lg:items-center">
         <div className="no-scrollbar flex w-full gap-1 overflow-x-auto rounded-xl border border-border bg-surface p-1 lg:w-auto">
@@ -556,6 +590,11 @@ function RequestRow({
               )}
               {STATUS_LABEL[r.status]}
             </span>
+            {r.source === "threads" && (
+              <span className="rounded-full bg-surface-2 px-2 py-0.5 text-[11px] font-bold" title="Discussed on Threads">
+                🧵 Threads
+              </span>
+            )}
             {working && r.assignedAt && (
               <span className="text-xs text-muted">
                 {waitingTurn ? "waiting" : "running"} {describeElapsed(elapsed)}
@@ -586,7 +625,7 @@ function RequestRow({
               {r.topic}
             </p>
           )}
-          {r.notes && <p className="mt-1 break-words text-sm text-muted">{r.notes}</p>}
+          {r.notes && <p className="mt-1 whitespace-pre-line break-words text-sm text-muted">{r.notes}</p>}
 
           {r.urls.length > 0 && (
             <ul className="mt-1.5 space-y-0.5">

@@ -42,7 +42,13 @@ model Article {
   title String
   dek   String @default("")
 
+  /// Chuyên mục CHÍNH: quyết định màu nhãn, breadcrumb và chỗ bài nằm trong
+  /// bài liên quan.
   category String
+  /// Mảng JSON các chuyên mục PHỤ, VD ["kinh-doanh","cong-nghe"]. Bài hiện ở
+  /// trang /chuyen-muc của cả chuyên mục chính lẫn mọi chuyên mục phụ. Không
+  /// bao giờ chứa lại chuyên mục chính (API tự lọc).
+  extraCategories String @default("[]")
   /// "draft" | "pending" | "published" | "rejected"
   status String @default("draft")
   /// "vi" | "en" — ngôn ngữ gốc, quyết định chiều dịch
@@ -88,12 +94,18 @@ model Article {
   likeCount    Int @default(0)
   dislikeCount Int @default(0)
 
+  /// Lượt đọc, cộng dồn. Đếm bằng beacon phía trình duyệt (trang bài là ISR nên
+  /// máy chủ không thấy từng lượt tải) — xem lib/views.ts. Cũng như like, KHÔNG
+  /// ghi ai đọc: chỉ một con số trên bài, cộng theo lô để không ghi đĩa mỗi lượt.
+  viewCount    Int @default(0)
+
   submittedAt DateTime?
   reviewNote  String?
 
   sources      Source[]
   comments     Comment[]
   socialPosts  SocialPost[]
+  viewDays     ArticleViewDay[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -180,12 +192,16 @@ model ResearchRequest {
   attempts Int @default(0)
   /// Vì sao lượt gần nhất hỏng. Rỗng nếu chưa từng hỏng.
   lastError String?
+  /// Nguồn sinh ra đề tài: "threads" = đã đo độ bàn tán trên Threads (mục
+  /// Threads ở /admin/research); NULL = nhập tay hoặc các nguồn thường.
+  source String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([status, createdAt])
   @@index([assignedAt])
+  @@index([source, createdAt])
   @@map("research_requests")
 }
 
@@ -225,4 +241,49 @@ model SocialPost {
   @@unique([articleId, platform])
   @@index([platform, status, scheduledAt])
   @@map("social_posts")
+}
+
+/// Lượt đọc theo ngày (giờ Việt Nam) — để biết bài nào đang được đọc HÔM NAY,
+/// điều mà tổng viewCount không cho thấy. Chỉ là con số, không gắn người đọc.
+model ArticleViewDay {
+  articleId String
+  article   Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  /// "YYYY-MM-DD" theo giờ Việt Nam
+  day       String
+  views     Int     @default(0)
+
+  @@id([articleId, day])
+  @@index([day])
+  @@map("article_view_days")
+}
+
+/// Thông báo cho khu quản trị: tài khoản mới, bài đổi trạng thái, bình luận
+/// mới, mốc lượt đọc, cảnh báo lưu lượng bất thường. Chỉ admin đọc được.
+///
+/// Trạng thái đã đọc dùng chung cho mọi admin (trang chỉ có một tổng biên tập).
+/// KHÔNG ghi địa chỉ IP vào đây — trang Quyền riêng tư cam kết IP chỉ nằm tạm
+/// trong bộ nhớ; IP cụ thể chỉ xem trực tiếp ở tab Traffic.
+model AdminNotification {
+  id        String    @id @default(uuid())
+  /// "user" | "article" | "comment" | "views" | "traffic" | "system"
+  type      String
+  /// "info" | "warning" | "danger"
+  level     String    @default("info")
+  title     String
+  body      String    @default("")
+  /// Đường dẫn nội bộ để bấm vào, VD /admin/articles/<id>
+  link      String?
+  articleId String?
+  /// Gộp sự kiện lặp: còn một thông báo CHƯA ĐỌC cùng groupKey gần đây thì
+  /// cộng count vào đó thay vì tạo dòng mới (VD 30 bình luận trên một bài).
+  groupKey  String?
+  count     Int       @default(1)
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([createdAt])
+  @@index([readAt, createdAt])
+  @@index([groupKey])
+  @@map("admin_notifications")
 }

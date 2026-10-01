@@ -32,7 +32,11 @@ export async function POST(request: Request) {
   const accountKey = `login:user:${username.trim().toLowerCase()}`;
   const wait = Math.max(retryAfter(ipKey, PER_IP), retryAfter(accountKey, PER_ACCOUNT));
   if (wait) {
-    return tooMany(wait, `Sai quá nhiều lần. Thử lại sau ${Math.ceil(wait / 60)} phút.`);
+    return tooMany(
+      wait,
+      `Sai quá nhiều lần. Thử lại sau ${Math.ceil(wait / 60)} phút.`,
+      clientIp(request),
+    );
   }
 
   const user = await findByUsername(username);

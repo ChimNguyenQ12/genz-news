@@ -46,6 +46,11 @@ function parseCredit(value: string | null | undefined): ImageCredit | undefined 
   }
 }
 
+/** Chuyên mục phụ hợp lệ: bỏ trùng, bỏ chuyên mục chính, giữ thứ tự nhập. */
+function cleanExtras(extras: readonly string[] | undefined, primary: string): string[] {
+  return [...new Set(extras ?? [])].filter((c) => c && c !== primary);
+}
+
 const DEFAULT_GRADIENT: [string, string] = ["#7C3AED", "#22D3EE"];
 
 function parseGradient(value: string | null | undefined): [string, string] {
@@ -65,6 +70,7 @@ function toArticle(row: ArticleRow): Article {
     title: row.title,
     dek: row.dek,
     category: row.category as CategorySlug,
+    extraCategories: parseList(row.extraCategories) as CategorySlug[],
     tags: parseList(row.tags),
     coverGradient: parseGradient(row.coverGradient),
     coverImage: row.coverImage ?? undefined,
@@ -167,6 +173,7 @@ export interface ArticleSummary {
   title: string;
   dek: string;
   category: CategorySlug;
+  extraCategories: CategorySlug[];
   tags: string[];
   coverGradient: [string, string];
   coverImage?: string;
@@ -196,6 +203,7 @@ const SUMMARY_SELECT = {
   title: true,
   dek: true,
   category: true,
+  extraCategories: true,
   tags: true,
   coverGradient: true,
   coverImage: true,
@@ -228,6 +236,7 @@ function toSummary(row: SummaryRow): ArticleSummary {
     title: row.title,
     dek: row.dek,
     category: row.category as CategorySlug,
+    extraCategories: parseList(row.extraCategories) as CategorySlug[],
     tags: parseList(row.tags),
     coverGradient: parseGradient(row.coverGradient),
     coverImage: row.coverImage ?? undefined,
@@ -279,6 +288,18 @@ export interface ArticlePage {
 
 export const ARTICLES_PER_PAGE = 20;
 
+/**
+ * Bài thuộc một chuyên mục: là chuyên mục chính, HOẶC nằm trong danh sách phụ.
+ * Danh sách phụ là chuỗi JSON nên dò bằng `"slug"` có cả dấu nháy — slug chỉ
+ * gồm chữ thường và gạch nối, nên không có slug nào là chuỗi con của slug khác
+ * khi đã kèm nháy (VD "the-gioi" không khớp nhầm "the-thao").
+ */
+function inCategory(category: string) {
+  return {
+    OR: [{ category }, { extraCategories: { contains: JSON.stringify(category) } }],
+  };
+}
+
 /** Điều kiện lọc dùng chung cho cả truy vấn danh sách lẫn các phép đếm. */
 function articleWhere(query: ArticleQuery, includeStatus: boolean) {
   const q = query.q?.trim();
@@ -286,7 +307,7 @@ function articleWhere(query: ArticleQuery, includeStatus: boolean) {
     ...(includeStatus && query.status && query.status !== "all"
       ? { status: query.status }
       : {}),
-    ...(query.category && query.category !== "all" ? { category: query.category } : {}),
+    ...(query.category && query.category !== "all" ? inCategory(query.category) : {}),
     ...(query.authorId ? { authorId: query.authorId } : {}),
     ...(query.author && query.author !== "all" ? { author: query.author } : {}),
     // publishedAt là chuỗi YYYY-MM-DD nên so sánh chuỗi cũng chính là so sánh
@@ -373,7 +394,7 @@ export async function listPublishedInCategory(
   page: number,
   perPage: number,
 ): Promise<{ items: ArticleSummary[]; total: number }> {
-  const where = { status: "published", category };
+  const where = { status: "published", ...inCategory(category) };
   const [rows, total] = await Promise.all([
     prisma.article.findMany({
       where,
@@ -710,6 +731,7 @@ export async function createArticle(
       title: input.title,
       dek: input.dek,
       category: input.category,
+      extraCategories: JSON.stringify(cleanExtras(input.extraCategories, input.category)),
       tags: JSON.stringify(input.tags),
       coverGradient: JSON.stringify(input.coverGradient),
       coverImage: input.coverImage ?? null,
@@ -745,9 +767,25 @@ export async function updateArticle(
 ): Promise<Article | undefined> {
   const current = await prisma.article.findUnique({
     where: { id },
-    select: { slug: true, featuredOrder: true, trendingOrder: true },
+    select: {
+      slug: true,
+      featuredOrder: true,
+      trendingOrder: true,
+      category: true,
+      extraCategories: true,
+    },
   });
   if (!current) return undefined;
+
+  // Đổi chuyên mục chính sang một chuyên mục đang là phụ thì nó phải rời danh
+  // sách phụ — nên tính lại danh sách phụ mỗi khi một trong hai thay đổi.
+  const extras =
+    patch.category !== undefined || patch.extraCategories !== undefined
+      ? cleanExtras(
+          patch.extraCategories ?? parseList(current.extraCategories),
+          patch.category ?? current.category,
+        )
+      : undefined;
 
   const slug =
     patch.slug && patch.slug !== current.slug
@@ -782,6 +820,7 @@ export async function updateArticle(
         ...(patch.title !== undefined ? { title: patch.title } : {}),
         ...(patch.dek !== undefined ? { dek: patch.dek } : {}),
         ...(patch.category !== undefined ? { category: patch.category } : {}),
+        ...(extras !== undefined ? { extraCategories: JSON.stringify(extras) } : {}),
         ...(patch.tags !== undefined ? { tags: JSON.stringify(patch.tags) } : {}),
         ...(patch.coverGradient !== undefined
           ? { coverGradient: JSON.stringify(patch.coverGradient) }

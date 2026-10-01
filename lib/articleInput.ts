@@ -1,4 +1,4 @@
-import type { ImageCredit, SourceRef } from "./types";
+import type { CategorySlug, ImageCredit, SourceRef } from "./types";
 
 /**
  * Làm sạch các trường bài viết do người dùng gửi lên (POST/PUT /api/articles).
@@ -32,6 +32,22 @@ export function gradient(raw: unknown): [string, string] | undefined {
   if (!Array.isArray(raw) || raw.length !== 2) return undefined;
   const [a, b] = raw.map((c) => String(c).trim());
   return HEX.test(a) && HEX.test(b) ? [a, b] : undefined;
+}
+
+/**
+ * Danh sách chuyên mục phụ. Trả `undefined` khi không gửi, "invalid" khi có
+ * slug lạ — báo lỗi thay vì lặng lẽ bỏ, để người sửa biết mình chọn sai.
+ */
+export function extraCategories(
+  raw: unknown,
+  valid: ReadonlySet<string>,
+): CategorySlug[] | "invalid" | undefined {
+  if (raw === undefined) return undefined;
+  if (raw === null) return [];
+  if (!Array.isArray(raw)) return "invalid";
+  const list = raw.map(String);
+  if (list.some((c) => !valid.has(c))) return "invalid";
+  return [...new Set(list)] as CategorySlug[];
 }
 
 export function tags(raw: unknown): string[] | undefined {
