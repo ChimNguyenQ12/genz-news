@@ -142,7 +142,14 @@ async function searchOne(context: BrowserContext, keyword: string): Promise<Keyw
  */
 export async function browserSearch(
   keywords: string[],
-  { delayMs = 2500 }: { delayMs?: number } = {},
+  {
+    delayMs = 2500,
+    onProgress,
+  }: {
+    delayMs?: number;
+    /** Gọi sau mỗi từ khoá — để màn hình hiện tiến độ. */
+    onProgress?: (keyword: string, result: KeywordResult) => void;
+  } = {},
 ): Promise<{ results: Record<string, KeywordResult>; aborted: string; account: string | null }> {
   const session = readThreadsSession();
   const results: Record<string, KeywordResult> = {};
@@ -155,6 +162,11 @@ export async function browserSearch(
   try {
     const context = await browser.newContext({ userAgent: UA, locale: "vi-VN", viewport: { width: 1280, height: 900 } });
     if (session) await addSession(context, session);
+    // Chỉ cần dữ liệu chữ: chặn ảnh, video, font. Trình duyệt này chạy chung
+    // máy chủ 2 vCPU với website — tải và giải mã ảnh là CPU/RAM lấy từ người đọc.
+    await context.route("**/*", (route) =>
+      ["image", "media", "font"].includes(route.request().resourceType()) ? route.abort() : route.continue(),
+    );
 
     let anyHit = false;
     let empty = 0;
@@ -162,6 +174,7 @@ export async function browserSearch(
       if (i > 0) await sleep(delayMs);
       const r = await searchOne(context, kw);
       results[kw] = r;
+      onProgress?.(kw, r);
       if (r.posts.length) {
         anyHit = true;
       } else if (!anyHit && ++empty >= 3) {
