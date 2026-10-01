@@ -179,6 +179,15 @@ export default function ArticleEditor({
             </span>
           )}
 
+          <a
+            href={article.status === "published" ? `/bai-viet/${article.slug}` : `/xem-truoc/${article.id}`}
+            target="_blank"
+            title={isDirty ? "Shows the last saved version — save first to preview your changes" : undefined}
+            className="w-full rounded-xl border border-border px-3 py-2 text-center text-sm font-bold transition hover:border-accent hover:text-accent sm:w-auto sm:px-4"
+          >
+            {article.status === "published" ? "View ↗" : "Preview ↗"}
+          </a>
+
           <button
             onClick={() => save()}
             disabled={saving || !isDirty}

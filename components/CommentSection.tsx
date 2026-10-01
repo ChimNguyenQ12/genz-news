@@ -6,6 +6,7 @@ import type { CommentMedia, CommentNode } from "@/lib/comments";
 import type { PublicUser } from "@/lib/users";
 import { mediaUrl } from "@/lib/media";
 import { readLocalPref, subscribeLocalPref, writeLocalPref } from "@/lib/localPref";
+import { useSessionUser } from "@/lib/useSessionUser";
 
 const MAX = 1500;
 /**
@@ -259,12 +260,12 @@ const EMPTY_ATTACH = { media: null as CommentMedia | null, uploading: false, err
 export default function CommentSection({
   articleId,
   initialComments,
-  user,
 }: {
   articleId: string;
   initialComments: CommentNode[];
-  user: PublicUser | null;
 }) {
+  // Hỏi ở trình duyệt chứ không nhận từ máy chủ — để trang bài cache được.
+  const { user } = useSessionUser();
   const [comments, setComments] = useState(initialComments);
   const [text, setText] = useState("");
   const [attach, setAttach] = useState(EMPTY_ATTACH);

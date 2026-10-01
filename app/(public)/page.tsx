@@ -2,7 +2,8 @@ import { jsonLdScript } from "@/lib/utils";
 import Link from "next/link";
 import { categories } from "@/lib/data";
 import { categoryStyles } from "@/lib/categoryStyles";
-import { listPublishedSummaries } from "@/lib/store";
+import { PHASE_PRODUCTION_BUILD } from "next/constants";
+import { cachedPublishedSummaries } from "@/lib/publicCache";
 import { HOT_SLOTS } from "@/lib/placement";
 import HeroSlideshow from "@/components/HeroSlideshow";
 import ArticleCard from "@/components/ArticleCard";
@@ -10,14 +11,35 @@ import TrendingList from "@/components/TrendingList";
 import SectionHeader from "@/components/SectionHeader";
 import NewsletterBanner from "@/components/NewsletterBanner";
 
+/**
+ * Cache nguyên trang 60 giây (ISR), và làm mới NGAY khi bài hay bố cục trang
+ * chủ đổi (revalidatePath("/") trong lib/revalidate.ts).
+ *
+ * Lúc `next build` (trong Docker, KHÔNG có database) trang chủ không có tham
+ * số nên Next vẫn dựng sẵn nó — khi đó trả bản giữ chỗ bên dưới thay vì gọi
+ * database. Bản đó đã "cũ" ngay khi deploy, nên lượt xem đầu tiên kích hoạt
+ * dựng lại bản thật; bước deploy (.gitlab-ci.yml) gọi trước trang chủ ngay sau
+ * khi app lên, để người đọc thật không gặp bản giữ chỗ.
+ */
 export const revalidate = 60;
+
+/** Bản giữ chỗ lúc build. Lỡ có ai gặp thì nó tự tải lại sau 2 giây. */
+function BuildPlaceholder() {
+  return (
+    <div className="mx-auto max-w-6xl px-4 py-20 text-center">
+      <meta httpEquiv="refresh" content="2" />
+      <p className="text-muted">Đang tải tin mới…</p>
+    </div>
+  );
+}
 
 const BASE_URL =
   process.env.NEXT_PUBLIC_BASE_URL ?? "https://genz-news.site";
 
 export default async function Home() {
   // Không kèm thân bài: trang chủ chỉ cần thẻ bài, còn thân bài mỗi bài 8–14KB.
-  const articles = await listPublishedSummaries();
+  if (process.env.NEXT_PHASE === PHASE_PRODUCTION_BUILD) return <BuildPlaceholder />;
+  const articles = await cachedPublishedSummaries();
 
   if (articles.length === 0) {
     return (

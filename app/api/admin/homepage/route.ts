@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireRole } from "@/lib/auth";
 import { getHomepageLayout, setHomepageLayout } from "@/lib/store";
+import { revalidateHome } from "@/lib/revalidate";
 import { HERO_SLOTS, HOT_SLOTS, TRENDING_SLOTS } from "@/lib/placement";
 
 export const dynamic = "force-dynamic";
@@ -53,6 +54,7 @@ export async function PUT(req: Request) {
   }
   try {
     await setHomepageLayout({ hero, hot, trending });
+    revalidateHome();
     return NextResponse.json({ message: "Homepage layout saved" });
   } catch (err) {
     return NextResponse.json({ error: (err as Error).message }, { status: 400 });

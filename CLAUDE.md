@@ -270,5 +270,13 @@ Vài điều cụ thể làm bài dày lên mà không loãng:
   chắc chắn còn lặp lại. Kho bài có 708 tag cho 211 bài mà 545 tag chỉ dùng một
   lần — tag không lặp thì không nối được bài nào với bài nào. Chi tiết ở skill
   `viet-bai-toa-soan`.
+- **Trang công khai không được đọc cookie/phiên đăng nhập ở máy chủ**
+  (`getSessionUser()`, `cookies()`, `headers()` trong `app/(public)`, kể cả
+  layout). Một lệnh đọc là Next phải dựng lại trang cho từng lượt xem, mất
+  cache cho mọi người đọc — trước đây chính header làm vậy khiến toàn bộ trang
+  công khai không cache được. Thứ gì cần biết người xem thì hỏi ở trình duyệt
+  qua `useSessionUser()` (`/api/auth/me`). Bài chưa đăng xem trước ở
+  `/xem-truoc/[id]`, không ở `/bai-viet`. Đổi dữ liệu người đọc thấy thì gọi
+  hàm trong `lib/revalidate.ts` để cache làm mới ngay.
 - Sau khi sửa code: chạy `npm run lint` và `npx tsc --noEmit`.
 - Schema DB ở `prisma/schema.prisma`; đổi schema thì chạy `npm run db:migrate`.

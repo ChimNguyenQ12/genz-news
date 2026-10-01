@@ -395,15 +395,15 @@ export default function ArticleList({
                 </div>
 
                 <div className="flex w-full shrink-0 flex-wrap items-center gap-2 [&>*]:min-w-[calc(50%-0.25rem)] [&>*]:flex-1 [&>*]:text-center sm:w-auto sm:[&>*]:min-w-0 sm:[&>*]:flex-none">
-                  {a.status === "published" && (
-                    <Link
-                      href={`/bai-viet/${a.slug}`}
-                      target="_blank"
-                      className="rounded-lg border border-border px-3 py-1.5 text-xs font-semibold hover:border-accent hover:text-accent"
-                    >
-                      View ↗
-                    </Link>
-                  )}
+                  {/* Bài chưa đăng không có ở /bai-viet (trang công khai được cache,
+                      không đọc phiên đăng nhập) — xem trước ở /xem-truoc. */}
+                  <Link
+                    href={a.status === "published" ? `/bai-viet/${a.slug}` : `/xem-truoc/${a.id}`}
+                    target="_blank"
+                    className="rounded-lg border border-border px-3 py-1.5 text-xs font-semibold hover:border-accent hover:text-accent"
+                  >
+                    {a.status === "published" ? "View ↗" : "Preview ↗"}
+                  </Link>
 
                   {canEdit && (
                     <Link

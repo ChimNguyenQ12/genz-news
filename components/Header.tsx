@@ -4,10 +4,16 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { categories } from "@/lib/data";
-import type { PublicUser } from "@/lib/users";
+import { useSessionUser } from "@/lib/useSessionUser";
 import ThemeToggle from "./ThemeToggle";
 
-export default function Header({ user }: { user: PublicUser | null }) {
+/**
+ * Header của trang công khai. Người đang đăng nhập được hỏi ở trình duyệt
+ * (useSessionUser) chứ không truyền từ layout — layout đọc cookie là mọi trang
+ * công khai mất cache. Lúc chưa có câu trả lời, nút hiện như cho khách.
+ */
+export default function Header() {
+  const { user } = useSessionUser();
   const [open, setOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const router = useRouter();
