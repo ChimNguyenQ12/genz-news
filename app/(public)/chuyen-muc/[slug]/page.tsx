@@ -4,11 +4,12 @@ import { notFound, redirect } from "next/navigation";
 import { getCategory } from "@/lib/data";
 import { categoryStyles } from "@/lib/categoryStyles";
 import { DEFAULT_OG_IMAGE } from "@/lib/seo";
-import { listPublishedInCategory } from "@/lib/store";
+import { cachedCategoryPage } from "@/lib/publicCache";
 import ArticleCard from "@/components/ArticleCard";
 import PageNav from "@/components/PageNav";
 
-export const revalidate = 60;
+/** Phân trang qua ?trang= nên dựng theo lượt xem; dữ liệu lấy từ cache (lib/publicCache.ts). */
+export const dynamic = "force-dynamic";
 
 const BASE_URL =
   process.env.NEXT_PUBLIC_BASE_URL ?? "https://genz-news.site";
@@ -54,7 +55,7 @@ export default async function CategoryPage({ params, searchParams }: Props) {
 
   const style = categoryStyles[category.slug];
   const page = pageFrom((await searchParams).trang);
-  const { items, total } = await listPublishedInCategory(category.slug, page, PER_PAGE);
+  const { items, total } = await cachedCategoryPage(category.slug, page, PER_PAGE);
   const totalPages = Math.max(1, Math.ceil(total / PER_PAGE));
   if (page > totalPages) redirect(pageHref(slug, totalPages));
 

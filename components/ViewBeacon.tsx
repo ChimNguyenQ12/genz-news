@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { useSessionUser } from "@/lib/useSessionUser";
 
 /** Mỗi tab chỉ đếm một lần cho mỗi bài trong khoảng này (F5 liên tục không tính). */
 const DEDUPE_MS = 30 * 60_000;
@@ -15,7 +16,12 @@ const DELAY_MS = 5_000;
  * gì (xem lib/views.ts). Con số vì vậy là ước lượng, đủ để so bài với bài.
  */
 export default function ViewBeacon({ articleId }: { articleId: string }) {
+  // Chờ biết người xem là ai: admin mở bài để kiểm tra thì không tính lượt đọc.
+  const { ready, user } = useSessionUser();
+  const skip = !ready || user?.role === "admin";
+
   useEffect(() => {
+    if (skip) return;
     const key = `genz-view:${articleId}`;
     try {
       const last = Number(sessionStorage.getItem(key));
@@ -31,7 +37,7 @@ export default function ViewBeacon({ articleId }: { articleId: string }) {
       fetch(`/api/articles/${articleId}/view`, { method: "POST", keepalive: true }).catch(() => {});
     }, DELAY_MS);
     return () => clearTimeout(timer);
-  }, [articleId]);
+  }, [articleId, skip]);
 
   return null;
 }

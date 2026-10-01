@@ -83,6 +83,10 @@ deploy:
       for i in $(seq 1 60); do
         if curl -fsS "http://127.0.0.1:${APP_PORT}/api/health" > /dev/null; then
           echo "healthcheck OK sau ${i}s"
+          # Hâm nóng trang chủ (app cũng tự làm lúc khởi động — instrumentation.ts;
+          # đây là lớp phụ): bỏ bản giữ chỗ dựng lúc build rồi xem trước một lượt.
+          curl -fsS -o /dev/null -X POST "http://127.0.0.1:${APP_PORT}/api/internal/warm" || true
+          curl -fsS -o /dev/null "http://127.0.0.1:${APP_PORT}/" || true
           exit 0
         fi
         sleep 1

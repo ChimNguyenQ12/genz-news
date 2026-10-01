@@ -3,6 +3,7 @@ import { getSessionUser } from "@/lib/auth";
 import { createComment, listComments } from "@/lib/comments";
 import { getArticleById } from "@/lib/store";
 import { notifyNewComment } from "@/lib/notifications";
+import { revalidateArticlePage } from "@/lib/revalidate";
 import { clientIp, take, tooMany } from "@/lib/rateLimit";
 
 /** Chặn spam bình luận: 5 bình luận / phút, 60 / giờ mỗi tài khoản (admin không giới hạn). */
@@ -93,9 +94,12 @@ export async function POST(
     return NextResponse.json({ error: result.error }, { status: result.status });
   }
 
+  // Bình luận mới phải hiện cho người đọc sau ngay, không chờ cache 60 giây.
+  const article = await getArticleById(id);
+  if (article) revalidateArticlePage(article.slug);
+
   // Admin tự bình luận thì không cần tự báo cho mình.
   if (user?.role !== "admin") {
-    const article = await getArticleById(id);
     void notifyNewComment({
       articleId: id,
       articleTitle: article?.title ?? id,

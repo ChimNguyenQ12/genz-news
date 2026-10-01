@@ -8,6 +8,7 @@ import type { NewsroomSettings } from "@/lib/settings";
 import Pagination from "@/components/admin/Pagination";
 import Modal from "@/components/admin/Modal";
 import NewsroomSwitch from "@/components/admin/NewsroomSwitch";
+import ThreadsResearchModal from "@/components/admin/ThreadsResearchModal";
 
 const STATUS_LABEL: Record<RequestStatus, string> = {
   pending: "Queued",
@@ -116,6 +117,7 @@ export default function ResearchQueue({
   const [notes, setNotes] = useState("");
   const [sending, setSending] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
+  const [threadsOpen, setThreadsOpen] = useState(false);
   const [settings, setSettings] = useState(initialSettings);
 
   // Ngày mặc định do máy chủ quyết định (ngày gần nhất còn đề tài) — màn hình
@@ -191,6 +193,13 @@ export default function ResearchQueue({
   }, [working, query, load]);
 
   const reload = useCallback(() => load(query, { quiet: true }), [query, load]);
+
+  // Research Threads xong một lượt: chuyển sang mục Threads, mọi ngày, để thấy
+  // ngay đề tài vừa thêm.
+  const onThreadsFinished = useCallback(
+    () => setQuery((q) => ({ ...q, source: "threads", tab: "all", date: "", page: 1 })),
+    [],
+  );
 
   function update(patch: Partial<Query>) {
     setQuery((current) => ({ ...current, page: 1, ...patch }));
@@ -286,7 +295,13 @@ export default function ResearchQueue({
           </p>
         </div>
 
-        <div className="flex w-full items-center gap-2 sm:w-auto">
+        <div className="grid w-full grid-cols-2 items-center gap-2 sm:flex sm:w-auto">
+          <button
+            onClick={() => setThreadsOpen(true)}
+            className="col-span-2 rounded-xl border border-accent px-3 py-2.5 text-sm font-semibold text-accent transition hover:bg-accent/10 sm:py-2"
+          >
+            🧵 Research Threads now
+          </button>
           <button
             onClick={() => setModalOpen(true)}
             className="flex-1 rounded-xl border border-border px-3 py-2.5 text-sm font-semibold transition hover:border-accent hover:text-accent sm:flex-none sm:py-2"
@@ -465,6 +480,12 @@ export default function ResearchQueue({
         page={data.page}
         totalPages={totalPages}
         onChange={(page) => setQuery((current) => ({ ...current, page }))}
+      />
+
+      <ThreadsResearchModal
+        open={threadsOpen}
+        onClose={() => setThreadsOpen(false)}
+        onFinished={onThreadsFinished}
       />
 
       <Modal

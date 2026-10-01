@@ -1,21 +1,23 @@
 import Script from "next/script";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
-import { getSessionUser } from "@/lib/auth";
 
 /** Google Analytics 4. Chỉ gắn ở trang công khai: lượt vào /admin, /dashboard không làm lệch số liệu. */
 const GA_ID = "G-RGEEYB1PJE";
 
-export default async function PublicLayout({
+/**
+ * KHÔNG đọc phiên đăng nhập ở đây: một lệnh đọc cookie trong layout là MỌI
+ * trang công khai phải dựng lại ở từng lượt xem (không cache được, kể cả trang
+ * tĩnh như /gioi-thieu). Header tự hỏi người xem ở trình duyệt.
+ */
+export default function PublicLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const user = await getSessionUser();
-
   return (
     <>
-      <Header user={user} />
+      <Header />
       <main className="flex-1">{children}</main>
       <Footer />
       <Script src={`https://www.googletagmanager.com/gtag/js?id=${GA_ID}`} strategy="afterInteractive" />

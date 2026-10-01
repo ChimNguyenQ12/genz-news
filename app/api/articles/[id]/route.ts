@@ -5,6 +5,7 @@ import { canonicalizeTags } from "@/lib/tags";
 import { closeRequestForArticle } from "@/lib/queue";
 import { pingIndexNow } from "@/lib/indexnow";
 import { notifyArticle } from "@/lib/notifications";
+import { revalidateArticle } from "@/lib/revalidate";
 import type { Article, ArticleStatus, CategorySlug } from "@/lib/types";
 import { categories } from "@/lib/data";
 import { normalizeArticleHtml } from "@/lib/html";
@@ -212,6 +213,14 @@ export async function PUT(
     return NextResponse.json({ error: "Không tìm thấy bài viết" }, { status: 404 });
   }
 
+  // Trang công khai đang cache: bài đã/đang/vừa thôi lên trang thì làm mới
+  // ngay cả bản cũ (slug, chuyên mục cũ) lẫn bản mới. Bài nháp sửa tới sửa lui
+  // thì không đụng gì — người đọc không thấy nó.
+  if (current.status === "published" || article.status === "published") {
+    revalidateArticle(current);
+    revalidateArticle(article);
+  }
+
   // Thông báo cho admin về việc cộng tác viên / bot viết bài làm. Việc admin
   // tự làm (duyệt, trả lại, sửa) thì không báo lại cho chính mình.
   if (!isAdmin) {
@@ -271,6 +280,7 @@ export async function DELETE(
   }
 
   await deleteArticle(id);
+  if (current.status === "published") revalidateArticle(current);
   if (user.role !== "admin") {
     void notifyArticle({ articleId: id, title: current.title, actor: user, event: "deleted" });
   }
