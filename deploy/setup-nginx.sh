@@ -25,6 +25,8 @@ cat > "$SITE" <<NGINX
 # GenZ News — sinh bởi deploy/setup-nginx.sh cho ${DOMAIN}
 # certbot --nginx sẽ chèn phần SSL và block chuyển hướng vào đây.
 server {
+    # Nhận cả www để có chứng chỉ cho nó; app tự chuyển www → tên miền gốc
+    # bằng 301 (proxy.ts), nên không cần block chuyển hướng riêng ở đây.
     server_name ${DOMAIN} www.${DOMAIN};
 
     location /.well-known/acme-challenge/ {

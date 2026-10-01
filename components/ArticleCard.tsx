@@ -20,8 +20,10 @@ export default function ArticleCard({
    * Cấp thẻ tiêu đề của bài. Mặc định h3 vì thẻ bài thường nằm dưới một <h2>
    * (tiêu đề mục ở trang chủ, mục "Đọc thêm" trong bài). Riêng trang chuyên mục
    * chỉ có <h1> là tên chuyên mục nên truyền "h2" để không nhảy cấp h1 → h3.
+   * "p" = bài này đã có tiêu đề ở chỗ khác trên cùng trang: hiện y hệt nhưng
+   * không làm thẻ tiêu đề, tránh lỗi SEO "duplicate heading texts".
    */
-  headingLevel?: "h2" | "h3";
+  headingLevel?: "h2" | "h3" | "p";
 }) {
   const category = getCategory(article.category);
   const style = categoryStyles[article.category];

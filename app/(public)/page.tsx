@@ -66,6 +66,27 @@ export default async function Home() {
   const hotCards =
     hot.length > 0 ? hot : articles.filter((a) => !heroSlugs.has(a.slug)).slice(0, HOT_SLOTS);
 
+  // Một bài thường hiện nhiều lần trên trang chủ (hero, Tin Nóng, Đang nóng,
+  // khối chuyên mục — nhất là khi bài thuộc nhiều chuyên mục). Chỉ lần đầu là
+  // thẻ tiêu đề; các lần sau hiện y hệt nhưng bằng <p>, nếu không công cụ SEO
+  // báo "Remove duplicate heading texts" và Google khó hiểu cấu trúc trang.
+  // Đi đúng thứ tự xuất hiện trên trang: hero → Tin Nóng → Đang nóng → chuyên mục.
+  const seen = new Set(heroes.map((a) => a.slug));
+  const firstTime = (slug: string) => {
+    if (seen.has(slug)) return false;
+    seen.add(slug);
+    return true;
+  };
+  const hotLevels = new Map(hotCards.map((a) => [a.slug, firstTime(a.slug) ? ("h3" as const) : ("p" as const)]));
+  const trendingRepeated = new Set(trending.filter((a) => !firstTime(a.slug)).map((a) => a.slug));
+  const categoryBlocks = categories.map((c) => {
+    const items = articles
+      .filter((a) => a.category === c.slug || a.extraCategories.includes(c.slug))
+      .slice(0, 3)
+      .map((a) => ({ article: a, level: firstTime(a.slug) ? ("h3" as const) : ("p" as const) }));
+    return { category: c, items };
+  });
+
   // JSON-LD WebSite — giúp Google hiểu site và kích hoạt Sitelinks Searchbox
   const jsonLd = {
     "@context": "https://schema.org",
@@ -89,6 +110,18 @@ export default async function Home() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: jsonLdScript(jsonLd) }}
       />
+      {/* H1 của trang chủ: nói trang này là gì, khớp với <title> và mô tả —
+          công cụ SEO đối chiếu chữ trong H1 với nội dung trang. */}
+      <div className="mb-5 sm:mb-6">
+        <h1 className="font-display text-2xl font-black tracking-tight sm:text-3xl">
+          Tin thế giới, gọn cho Gen Z
+        </h1>
+        <p className="mt-1 text-sm text-muted sm:text-base">
+          Tin thế giới và Việt Nam, gọn cho Gen Z — chắt lọc từ nhiều nguồn, biên tập lại và trích
+          dẫn nguồn rõ ràng.
+        </p>
+      </div>
+
       <HeroSlideshow articles={heroes} />
 
       <div className="no-scrollbar mt-6 flex gap-2 overflow-x-auto pb-2">
@@ -111,14 +144,14 @@ export default async function Home() {
           <SectionHeader title="Tin Nóng" />
           <div className="grid gap-8 sm:grid-cols-2">
             {hotCards.map((a) => (
-              <ArticleCard key={a.slug} article={a} />
+              <ArticleCard key={a.slug} article={a} headingLevel={hotLevels.get(a.slug)} />
             ))}
           </div>
         </div>
 
         {trending.length > 0 && (
           <aside className="space-y-8">
-            <TrendingList articles={trending} />
+            <TrendingList articles={trending} repeated={trendingRepeated} />
           </aside>
         )}
       </div>
@@ -128,10 +161,7 @@ export default async function Home() {
       </div>
 
       <div className="mt-14 space-y-14">
-        {categories.map((c) => {
-          const items = articles.filter(
-            (a) => a.category === c.slug || a.extraCategories.includes(c.slug),
-          );
+        {categoryBlocks.map(({ category: c, items }) => {
           if (items.length === 0) return null;
           const style = categoryStyles[c.slug];
           return (
@@ -142,9 +172,9 @@ export default async function Home() {
                 accentClass={style.text}
               />
               <div className="no-scrollbar flex gap-6 overflow-x-auto pb-2 sm:grid sm:grid-cols-3 sm:overflow-visible">
-                {items.slice(0, 3).map((a) => (
+                {items.map(({ article: a, level }) => (
                   <div key={a.slug} className="w-72 shrink-0 sm:w-auto">
-                    <ArticleCard article={a} size="sm" />
+                    <ArticleCard article={a} size="sm" headingLevel={level} />
                   </div>
                 ))}
               </div>

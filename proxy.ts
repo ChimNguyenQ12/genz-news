@@ -3,7 +3,9 @@ import { blockedFor, recordRequest } from "@/lib/traffic";
 import { clientIp } from "@/lib/rateLimit";
 
 /**
- * Hai việc, theo thứ tự:
+ * Ba việc, theo thứ tự:
+ *
+ * 0. Chuyển www.<tên miền> về tên miền gốc bằng 301.
  *
  * 1. Đếm lưu lượng cho tab Traffic ở /admin/activity (lib/traffic.ts, chỉ trong
  *    bộ nhớ) và chặn IP mà admin đã chặn tay ở đó. Chặn ở đây là chặn tại app —
@@ -18,6 +20,17 @@ import { clientIp } from "@/lib/rateLimit";
  */
 export function proxy(req: NextRequest) {
   const path = req.nextUrl.pathname;
+
+  // www.genz-news.site → genz-news.site (301). nginx nhận cả hai tên miền
+  // (deploy/setup-nginx.sh) và trước đây phục vụ cả hai y hệt nhau: Google thấy
+  // hai bản trùng của mọi trang, công cụ SEO báo lỗi "Use 301 redirects… www
+  // and non-www". Làm ở đây thì không phải sửa nginx trên máy chủ.
+  const rawHost = (req.headers.get("x-forwarded-host") ?? req.headers.get("host") ?? "").split(",")[0].trim();
+  if (rawHost.toLowerCase().startsWith("www.")) {
+    const target = `https://${rawHost.slice(4)}${path}${req.nextUrl.search}`;
+    return NextResponse.redirect(target, 301);
+  }
+
   const ip = clientIp(req);
   const block = ip !== "unknown" ? blockedFor(ip) : null;
 
