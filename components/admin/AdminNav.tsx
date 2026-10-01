@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import ThemeToggle from "@/components/ThemeToggle";
+import NotificationBell from "@/components/admin/NotificationBell";
 import type { PublicUser } from "@/lib/users";
 
 /**
@@ -25,6 +26,7 @@ export default function AdminNav({ user }: { user: PublicUser }) {
           { href: "/admin/threads", label: "Threads" },
           { href: "/admin/research", label: "Research" },
           { href: "/admin/users", label: "Users" },
+          { href: "/admin/activity", label: "Activity" },
         ]
       : []),
     { href: "/admin/tai-khoan", label: "Profile" },
@@ -75,10 +77,11 @@ export default function AdminNav({ user }: { user: PublicUser }) {
           <Link
             href="/"
             target="_blank"
-            className="hidden rounded-lg px-3 py-1.5 text-sm font-semibold text-foreground/70 hover:bg-surface-2 lg:block"
+            className="hidden rounded-lg px-3 py-1.5 text-sm font-semibold text-foreground/70 hover:bg-surface-2 2xl:block"
           >
             View site ↗
           </Link>
+          {isAdmin && <NotificationBell />}
           <ThemeToggle />
           <span className="hidden text-sm text-muted sm:block">{user.username}</span>
           <button

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
 import { createComment, listComments } from "@/lib/comments";
 import { getArticleById } from "@/lib/store";
+import { notifyNewComment } from "@/lib/notifications";
 import { clientIp, take, tooMany } from "@/lib/rateLimit";
 
 /** Chặn spam bình luận: 5 bình luận / phút, 60 / giờ mỗi tài khoản (admin không giới hạn). */
@@ -63,7 +64,7 @@ export async function POST(
       take(`comment:m:${scope}`, guest ? GUEST_PER_MINUTE : PER_MINUTE) ||
       take(`comment:h:${scope}`, guest ? GUEST_PER_HOUR : PER_HOUR);
     if (wait) {
-      return tooMany(wait, "Bạn bình luận nhanh quá. Chờ một chút rồi thử lại.");
+      return tooMany(wait, "Bạn bình luận nhanh quá. Chờ một chút rồi thử lại.", clientIp(request));
     }
   }
 
@@ -91,6 +92,20 @@ export async function POST(
   if (!result.ok) {
     return NextResponse.json({ error: result.error }, { status: result.status });
   }
+
+  // Admin tự bình luận thì không cần tự báo cho mình.
+  if (user?.role !== "admin") {
+    const article = await getArticleById(id);
+    void notifyNewComment({
+      articleId: id,
+      articleTitle: article?.title ?? id,
+      author: result.comment.author.displayName,
+      isReply: result.parentId !== null,
+      body: result.comment.body,
+      hasMedia: result.comment.media !== null,
+    });
+  }
+
   return NextResponse.json(
     { comment: result.comment, parentId: result.parentId },
     { status: 201 },

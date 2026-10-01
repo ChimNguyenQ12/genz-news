@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { recordLimited } from "@/lib/traffic";
 
 /**
  * Giới hạn tần suất trong bộ nhớ, cửa sổ trượt theo từng khoá (IP, tài khoản…).
@@ -55,7 +56,13 @@ export function take(key: string, limit: Limit): number {
   return wait;
 }
 
-export function tooMany(seconds: number, message = "Bạn thao tác quá nhanh. Thử lại sau ít phút.") {
+export function tooMany(
+  seconds: number,
+  message = "Bạn thao tác quá nhanh. Thử lại sau ít phút.",
+  /** IP vừa bị chặn — để tab Traffic đếm được ai đang dò/spam. */
+  ip?: string,
+) {
+  recordLimited(ip);
   return NextResponse.json(
     { error: message },
     { status: 429, headers: { "Retry-After": String(seconds) } },

@@ -60,6 +60,10 @@ services:
       ADMIN_SESSION_SECRET: ${ADMIN_SESSION_SECRET:-}
       ALLOW_REGISTRATION: ${ALLOW_REGISTRATION:-1}
       YOUTUBE_API_KEY: ${YOUTUBE_API_KEY:-}
+      # Ngưỡng cảnh báo lưu lượng ở /admin/activity (lib/traffic.ts).
+      TRAFFIC_ALERT_IP_PER_MIN: ${TRAFFIC_ALERT_IP_PER_MIN:-300}
+      TRAFFIC_ALERT_TOTAL_PER_MIN: ${TRAFFIC_ALERT_TOTAL_PER_MIN:-3000}
+      TRAFFIC_AUTOBLOCK_PER_MIN: ${TRAFFIC_AUTOBLOCK_PER_MIN:-0}
       # Facebook Page (lib/facebook.ts). Job deploy ghi hai biến này vào .env
       # từ biến CI/CD của GitLab; để trống thì trang /admin/facebook báo chưa cấu hình.
       FB_PAGE_ID: ${FB_PAGE_ID:-}

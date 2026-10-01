@@ -107,6 +107,7 @@ Vòng đời bài: `nháp → chờ duyệt → đã đăng`, hoặc `chờ duy�
 - `/dang-nhap` — đăng nhập
 - `/admin` — khu làm việc (tiêu đề đổi theo vai trò)
 - `/admin/tai-khoan` — đổi mật khẩu
+- `/admin/activity` — thông báo (tài khoản mới, bài đổi trạng thái, bình luận, mốc lượt đọc, cảnh báo lưu lượng), lưu lượng truy cập theo phút, bài đọc nhiều; chuông ở thanh điều hướng admin
 
 ### Biến môi trường (đều tuỳ chọn)
 
@@ -118,6 +119,10 @@ Vòng đời bài: `nháp → chờ duyệt → đã đăng`, hoặc `chờ duy�
 | `S3_BUCKET` / `AWS_REGION` / `AWS_PROFILE` | `genz-news` / `us-east-1` / `s3-full-sandbox` | đổi kho lưu ảnh |
 | `YOUTUBE_API_KEY` | trống | bật nguồn YouTube Trending |
 | `DATABASE_PATH` | `data/app.db` | đổi vị trí tệp SQLite |
+| `TRAFFIC_ALERT_IP_PER_MIN` | `300` | một IP vượt bấy nhiêu request/phút thì báo ở /admin/activity |
+| `TRAFFIC_ALERT_TOTAL_PER_MIN` | `3000` | toàn trang vượt bấy nhiêu request/phút thì báo |
+| `TRAFFIC_ALERT_SPIKE_FACTOR` | `5` | phút vừa rồi gấp bấy nhiêu lần trung bình 30 phút trước thì báo tăng đột biến |
+| `TRAFFIC_AUTOBLOCK_PER_MIN` | `0` (tắt) | tự chặn 10 phút IP vượt ngưỡng này — cẩn thận CGNAT của nhà mạng |
 
 Tài khoản admin đã tồn tại thì đổi mật khẩu trong `/admin/tai-khoan`, sửa biến
 môi trường không còn tác dụng.

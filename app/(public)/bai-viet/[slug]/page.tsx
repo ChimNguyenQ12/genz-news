@@ -14,6 +14,7 @@ import ArticleCard from "@/components/ArticleCard";
 import CommentSection from "@/components/CommentSection";
 import ReactionButtons from "@/components/ReactionButtons";
 import BackToTopButton from "@/components/BackToTopButton";
+import ViewBeacon from "@/components/ViewBeacon";
 
 export const revalidate = 60;
 
@@ -378,6 +379,8 @@ export default async function ArticlePage({ params }: Props) {
         </div>
       )}
       <BackToTopButton />
+      {/* Admin mở bài để kiểm tra thì không tính là lượt đọc. */}
+      {!isDraft && user?.role !== "admin" && <ViewBeacon articleId={article.id} />}
     </article>
   );
 }

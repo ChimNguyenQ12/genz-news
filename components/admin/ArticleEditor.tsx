@@ -506,7 +506,8 @@ export default function ArticleEditor({
       </div>
 
       {isAdmin && (
-        <div className="mt-6">
+        // id="comments": link từ thông báo "bình luận mới" nhảy thẳng xuống đây.
+        <div id="comments" className="mt-6 scroll-mt-20">
           <CommentModerationPanel articleId={article.id} slug={article.slug} />
         </div>
       )}

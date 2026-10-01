@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createSessionToken, getSessionCookieOptions, SESSION_COOKIE } from "@/lib/auth";
 import { findById, registerContributor } from "@/lib/users";
 import { clientIp, take, tooMany } from "@/lib/rateLimit";
+import { notifyNewUser } from "@/lib/notifications";
 
 /** Chặn tạo tài khoản hàng loạt: mỗi IP 5 tài khoản / giờ, 10 / ngày. */
 const PER_HOUR = { max: 5, windowMs: 3600_000 };
@@ -20,7 +21,7 @@ export async function POST(request: Request) {
 
   const ip = clientIp(request);
   const wait = take(`register:h:${ip}`, PER_HOUR) || take(`register:d:${ip}`, PER_DAY);
-  if (wait) return tooMany(wait, "Tạo quá nhiều tài khoản từ mạng này. Thử lại sau.");
+  if (wait) return tooMany(wait, "Tạo quá nhiều tài khoản từ mạng này. Thử lại sau.", ip);
 
   let body: Record<string, unknown>;
   try {
@@ -38,6 +39,8 @@ export async function POST(request: Request) {
   if (!result.ok) {
     return NextResponse.json({ error: result.error }, { status: 400 });
   }
+
+  void notifyNewUser(result.user);
 
   const created = await findById(result.user.id);
   if (!created) return NextResponse.json({ error: "Không tạo được tài khoản" }, { status: 500 });

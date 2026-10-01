@@ -7,6 +7,7 @@ import { categories } from "@/lib/data";
 import { normalizeArticleHtml } from "@/lib/html";
 import * as clean from "@/lib/articleInput";
 import { take, tooMany } from "@/lib/rateLimit";
+import { notifyArticle } from "@/lib/notifications";
 
 /** Tài khoản thường (đăng ký tự do) tạo tối đa 30 bài / giờ — chặn spam bài nháp. */
 const CREATE_LIMIT = { max: 30, windowMs: 3600_000 };
@@ -115,5 +116,9 @@ export async function POST(request: Request) {
   };
 
   const article = await createArticle(input);
+  // Bài admin tự tạo thì không báo lại cho admin.
+  if (user.role !== "admin") {
+    void notifyArticle({ articleId: article.id, title: article.title, actor: user, event: "created" });
+  }
   return NextResponse.json({ article }, { status: 201 });
 }

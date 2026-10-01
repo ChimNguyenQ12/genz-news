@@ -4,6 +4,7 @@ import { deleteArticle, getArticleById, listAllTagNames, updateArticle } from "@
 import { canonicalizeTags } from "@/lib/tags";
 import { closeRequestForArticle } from "@/lib/queue";
 import { pingIndexNow } from "@/lib/indexnow";
+import { notifyArticle } from "@/lib/notifications";
 import type { Article, ArticleStatus, CategorySlug } from "@/lib/types";
 import { categories } from "@/lib/data";
 import { normalizeArticleHtml } from "@/lib/html";
@@ -204,6 +205,20 @@ export async function PUT(
     return NextResponse.json({ error: "Không tìm thấy bài viết" }, { status: 404 });
   }
 
+  // Thông báo cho admin về việc cộng tác viên / bot viết bài làm. Việc admin
+  // tự làm (duyệt, trả lại, sửa) thì không báo lại cho chính mình.
+  if (!isAdmin) {
+    const changed = patch.status !== undefined && patch.status !== current.status;
+    void notifyArticle({
+      articleId: id,
+      title: article.title,
+      actor: user,
+      event: changed ? "status" : "edited",
+      from: current.status,
+      to: patch.status,
+    });
+  }
+
   // Bài lên trang thì đề tài sinh ra nó coi như xong việc: đóng mục trong hàng
   // đợi để nó rời khỏi tab "Drafted". Tab đó là danh sách việc CÒN PHẢI LÀM,
   // không phải nhật ký — bài đã đăng mà vẫn nằm đó thì mỗi ngày một dài thêm.
@@ -249,5 +264,8 @@ export async function DELETE(
   }
 
   await deleteArticle(id);
+  if (user.role !== "admin") {
+    void notifyArticle({ articleId: id, title: current.title, actor: user, event: "deleted" });
+  }
   return NextResponse.json({ ok: true });
 }
