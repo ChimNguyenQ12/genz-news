@@ -193,9 +193,15 @@ Dùng tài khoản **phụ**, không dùng tài khoản của trang: tài khoả
 tự động là rủi ro có thật. Khi app được duyệt quyền `threads_keyword_search` thì
 nên đổi sang API.
 
-Image Docker cài sẵn `chromium` cho việc này (`THREADS_BROWSER_PATH`, mặc định
-`/usr/bin/chromium`). collect-trends chạy trên host đọc cùng tệp phiên qua
-`DATA_DIR`, nên `DATA_DIR` của cron phải trỏ đúng thư mục data mà container mount.
+Trang tìm kiếm của Threads tải kết quả bằng JavaScript sau khi trang mở, nên
+**việc tìm cũng chạy bằng trình duyệt**: collect-trends (cron trên host, không có
+Chromium) gọi `POST /api/internal/threads-search` của app qua
+`127.0.0.1:5006`, xác thực bằng khoá phiên của app (`data/session-secret` hoặc
+`ADMIN_SESSION_SECRET`). App mở Chromium đã nạp phiên, chờ trang tải xong và bắt
+dữ liệu kết quả. Không gọi được app thì script quay về tải HTML thô (thường
+trắng). Image Docker cài sẵn `chromium` (`THREADS_BROWSER_PATH`, mặc định
+`/usr/bin/chromium`). `DATA_DIR` của cron phải trỏ đúng thư mục data mà
+container mount (mặc định đúng khi cron chạy trong `/srv/genz-news`).
 
 **Reddit cần khoá.** Endpoint `.json` ẩn danh giờ hay trả về trang HTML "Welcome
 to Reddit" kèm mã 200 thay vì JSON, và nó chặn theo IP nên chạy được ở máy này

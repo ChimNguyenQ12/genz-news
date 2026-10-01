@@ -157,7 +157,7 @@ export default function ArticleEditor({
 
   return (
     <div>
-      <div className="sticky top-0 z-30 -mx-3 mb-5 flex flex-wrap items-center justify-between gap-3 border-b border-border bg-background/95 px-3 py-3 backdrop-blur sm:static sm:mx-0 sm:mb-6 sm:border-0 sm:bg-transparent sm:p-0">
+      <div className="sticky top-14 z-30 -mx-3 mb-5 flex flex-wrap items-center justify-between gap-3 border-b border-border bg-background/95 px-3 py-3 backdrop-blur sm:static sm:mx-0 sm:mb-6 sm:border-0 sm:bg-transparent sm:p-0">
         <Link href={base} className="text-sm font-semibold text-muted hover:text-accent">
           ← All articles
         </Link>
@@ -239,14 +239,16 @@ export default function ArticleEditor({
         </div>
       )}
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        <div className="space-y-4 lg:col-span-2">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <div className="min-w-0 space-y-4 lg:col-span-2">
           <Field label="Headline">
             <textarea
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               rows={2}
-              className="w-full resize-none rounded-xl border border-border bg-surface px-4 py-2.5 font-display text-xl font-black outline-none focus:border-accent"
+              // Tự giãn theo nội dung: tít dài trên điện thoại không bị cắt mất.
+              // Trình duyệt chưa hỗ trợ field-sizing thì giữ 2 dòng, cuộn được.
+              className="min-h-[3.5rem] w-full resize-none rounded-xl border border-border bg-surface px-4 py-2.5 font-display text-xl font-black outline-none [field-sizing:content] focus:border-accent"
             />
           </Field>
 
@@ -255,7 +257,7 @@ export default function ArticleEditor({
               value={dek}
               onChange={(e) => setDek(e.target.value)}
               rows={2}
-              className="w-full resize-none rounded-xl border border-border bg-surface px-4 py-2.5 text-sm outline-none focus:border-accent"
+              className="min-h-[3.5rem] w-full resize-none rounded-xl border border-border bg-surface px-4 py-2.5 text-sm outline-none [field-sizing:content] focus:border-accent"
             />
           </Field>
 
