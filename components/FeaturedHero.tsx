@@ -20,7 +20,10 @@ export default function FeaturedHero({
   priority?: boolean;
   className?: string;
 }) {
-  const Heading = priority ? "h1" : "h2";
+  // Luôn h2: H1 của trang chủ là câu giới thiệu trang (app/(public)/page.tsx).
+  // Tít bài làm H1 thì chữ trong H1 đổi theo bài, không khớp nội dung trang —
+  // công cụ SEO báo "Words from H1 heading not found in text".
+  const Heading = "h2";
   const category = getCategory(article.category);
   const style = categoryStyles[article.category];
 

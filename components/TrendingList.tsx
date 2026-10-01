@@ -5,8 +5,11 @@ import { categoryStyles } from "@/lib/categoryStyles";
 
 export default function TrendingList({
   articles,
+  repeated,
 }: {
   articles: Pick<Article, "slug" | "title" | "category">[];
+  /** Bài đã có tiêu đề ở chỗ khác trên trang — tít hiện bằng <p>, không phải <h3>. */
+  repeated?: Set<string>;
 }) {
   return (
     <div className="rounded-3xl border border-border bg-surface p-5">
@@ -20,6 +23,7 @@ export default function TrendingList({
         {articles.map((article, i) => {
           const category = getCategory(article.category);
           const style = categoryStyles[article.category];
+          const Title = repeated?.has(article.slug) ? "p" : "h3";
           return (
             <li key={article.slug}>
               <Link href={`/bai-viet/${article.slug}`} className="group flex gap-3">
@@ -28,9 +32,9 @@ export default function TrendingList({
                 </span>
                 <div>
                   <span className={`text-xs font-bold ${style.text}`}>{category?.name}</span>
-                  <h3 className="text-sm font-semibold leading-snug group-hover:text-accent transition-colors">
+                  <Title className="text-sm font-semibold leading-snug group-hover:text-accent transition-colors">
                     {article.title}
-                  </h3>
+                  </Title>
                 </div>
               </Link>
             </li>
